@@ -3,6 +3,8 @@ import { processBackgroundSchedules } from '@/lib/background-jobs'
 import { timingSafeEqual } from 'crypto'
 import { prisma } from '@/lib/prisma'
 
+export const maxDuration = 60 // Allow up to 60 seconds for background jobs on Vercel
+
 export async function GET(request: Request) {
   try {
     const secret = request.headers.get('x-cron-secret')
