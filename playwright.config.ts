@@ -6,7 +6,7 @@ const e2eBaseUrl = process.env.E2E_BASE_URL || 'http://localhost:3107'
 const localRun = !process.env.E2E_BASE_URL
 const testPassword = process.env.E2E_TEST_PASSWORD || 'FRAD-E2E-Only-2026!'
 const localEnvironment = {
-  DATABASE_URL: 'file:./e2e.db',
+  DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/frad_e2e',
   APP_URL: e2eBaseUrl,
   JWT_SECRET: 'e2e-jwt-secret-that-is-at-least-32-characters',
   SESSION_SECRET: 'e2e-session-secret-that-is-at-least-32-characters',
