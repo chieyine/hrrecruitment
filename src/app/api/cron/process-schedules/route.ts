@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { processBackgroundSchedules } from '@/lib/background-jobs'
 import { timingSafeEqual } from 'crypto'
 import { prisma } from '@/lib/prisma'
@@ -20,15 +20,21 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized cron request' }, { status: 401 })
     }
 
-    const results = await processBackgroundSchedules()
+    // Process asynchronously so the HTTP request completes instantly
+    after(async () => {
+      try {
+        await processBackgroundSchedules()
+      } catch (error: any) {
+        await prisma.operationalEvent.create({ data: { eventType: 'SCHEDULED_JOB_FAILED', severity: 'CRITICAL', resourceType: 'Job', resourceId: 'PROCESS_SCHEDULES', detailsJson: JSON.stringify({ message: error instanceof Error ? error.message : 'Unknown error' }) } }).catch(() => undefined)
+      }
+    })
 
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
-      summary: results,
+      message: 'Background processing started successfully.',
     })
   } catch (error: any) {
-    await prisma.operationalEvent.create({ data: { eventType: 'SCHEDULED_JOB_FAILED', severity: 'CRITICAL', resourceType: 'Job', resourceId: 'PROCESS_SCHEDULES', detailsJson: JSON.stringify({ message: error instanceof Error ? error.message : 'Unknown error' }) } }).catch(() => undefined)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
