@@ -1,0 +1,17 @@
+# dependencies and build output
+node_modules/
+.next/
+.next-e2e/
+tsconfig.tsbuildinfo
+
+# secrets and local runtime data
+.env
+.env.*
+!.env.example
+.storage/
+prisma/*.db
+prisma/*.db-journal
+
+# OS/editor files
+.DS_Store
+*.log

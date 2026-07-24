@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: frad_recruitment
+      POSTGRES_USER: frad
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U frad -d frad_recruitment"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    volumes:
+      - clamav_data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "printf 'PING\\n' | nc -w 3 127.0.0.1 3310 | grep -q PONG"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env.production
+    depends_on:
+      postgres: { condition: service_healthy }
+      clamav: { condition: service_healthy }
+    # Bind only to the host loopback. A TLS ingress must proxy to this listener
+    # and overwrite the configured x-real-ip header.
+    ports: ["127.0.0.1:3000:3000"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+  scheduler:
+    build: .
+    restart: unless-stopped
+    env_file: .env.production
+    depends_on:
+      app: { condition: service_healthy }
+    command:
+      - node
+      - -e
+      - >
+        const run=()=>fetch('http://app:3000/api/cron/process-schedules',
+        {method:'POST',headers:{'x-cron-secret':process.env.CRON_SECRET}})
+        .then(r=>{if(!r.ok)throw new Error('scheduler '+r.status)})
+        .catch(e=>console.error(e.message));
+        run();setInterval(run,60000)
+    read_only: true
+    tmpfs: ["/tmp"]
+volumes:
+  postgres_data:
+  clamav_data:

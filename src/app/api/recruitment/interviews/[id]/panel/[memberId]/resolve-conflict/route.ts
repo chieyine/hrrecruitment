@@ -1,0 +1,7 @@
+import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+import { requireRole, authzResponse, AuthzError } from '@/lib/authz'
+import { parseBody } from '@/lib/validation'
+import { logAudit } from '@/lib/audit'
+export async function POST(request: Request, context: { params: Promise<{ id: string; memberId: string }> }) {
+  const params = await context.params; try { const user = await requireRole('HR_MANAGER', 'SYSTEM_ADMIN'); const { resolution } = await parseBody(request, z.object({ resolution: z.string().trim().min(10).max(2000) })); const member = await prisma.interviewPanelMember.findFirst({ where: { id: params.memberId, interviewId: params.id } }); if (!member) throw new AuthzError('Panel member not found', 404); if (member.userId === user.userId) throw new AuthzError('You cannot approve your own conflict exception', 409); if (member.conflictStatus === 'NONE') throw new AuthzError('No conflict has been declared', 409); const original = { status: member.conflictStatus, comment: member.conflictComment }; await prisma.interviewPanelMember.update({ where: { id: member.id }, data: { conflictStatus: 'RESOLVED_EXCEPTION', conflictComment: `${member.conflictComment || ''}\nResolution: ${resolution}` } }); await logAudit({ actorUserId: user.userId, action: 'INTERVIEW_CONFLICT_EXCEPTION_APPROVED', resourceType: 'InterviewPanelMember', resourceId: member.id, previousValue: original, newValue: { resolution }, reason: resolution }); return Response.json({ success: true }) } catch (error) { return authzResponse(error) } }
