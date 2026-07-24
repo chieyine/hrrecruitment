@@ -1,30 +1,24 @@
-import { execFileSync } from 'child_process'
-import { existsSync, readFileSync, readdirSync, unlinkSync } from 'fs'
+import { execSync } from 'child_process'
+import { existsSync, unlinkSync } from 'fs'
 import path from 'path'
 
 /**
- * Creates a fresh temp SQLite database and applies the Prisma schema to it
- * before the integration suite runs, then removes it afterwards.
+ * Creates a fresh database (or temp SQLite db) and applies the Prisma schema
+ * before the integration suite runs.
  */
 export async function setup() {
   const dbFile = path.resolve(process.cwd(), 'test-integration.db')
   if (existsSync(dbFile)) unlinkSync(dbFile)
 
-  const databaseUrl = `file:${dbFile}`
+  // Use the CI provided DATABASE_URL if available, otherwise default to local SQLite
+  const databaseUrl = process.env.DATABASE_URL || `file:${dbFile}`
   process.env.DATABASE_URL = databaseUrl
-  // Apply every checked-in migration directly. This avoids Prisma 5's macOS
-  // schema-engine/Node 24 startup bug while tests still execute through Prisma.
-  const migrationsDir = path.resolve(process.cwd(), 'prisma/migrations')
-  const migrations = readdirSync(migrationsDir)
-    .map((name) => path.join(migrationsDir, name, 'migration.sql'))
-    .filter(existsSync)
-    .sort()
-  for (const migration of migrations) {
-    execFileSync('sqlite3', [dbFile], {
-      input: readFileSync(migration),
-      stdio: ['pipe', 'inherit', 'inherit'],
-    })
-  }
+
+  console.log(`Applying schema to ${databaseUrl.split(':')[0]} database...`)
+  execSync('npx prisma db push --accept-data-loss', {
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+    stdio: 'inherit',
+  })
 }
 
 export async function teardown() {
