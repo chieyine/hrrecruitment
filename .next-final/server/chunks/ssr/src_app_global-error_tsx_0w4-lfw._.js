@@ -1,3 +1,0 @@
-module.exports=[37006,a=>{"use strict";var b=a.i(87924);a.s(["default",0,function({error:a,reset:c}){return(0,b.jsx)("html",{lang:"en",children:(0,b.jsxs)("body",{style:{fontFamily:"system-ui, sans-serif",padding:"4rem",textAlign:"center"},children:[(0,b.jsx)("h1",{style:{fontSize:"1.5rem",fontWeight:700},children:"Application error"}),(0,b.jsx)("p",{style:{color:"#475569",marginTop:"0.5rem"},children:"A critical error occurred. Please reload the page."}),(0,b.jsx)("button",{onClick:c,style:{marginTop:"1rem",padding:"0.5rem 1rem",background:"#2563eb",color:"white",border:"none",borderRadius:"0.5rem",cursor:"pointer"},children:"Reload"})]})})}])}];
-
-//# sourceMappingURL=src_app_global-error_tsx_0w4-lfw._.js.map

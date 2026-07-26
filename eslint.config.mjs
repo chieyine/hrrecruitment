@@ -29,6 +29,7 @@ export default [
       "node_modules/**",
       ".next/**",
       ".next-e2e/**",
+      ".next-final/**",
       "test-results/**",
       "playwright-report/**",
       "prisma/postgresql/**",

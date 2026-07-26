@@ -1,3 +1,0 @@
-module.exports=[38970,(e,o,d)=>{}];
-
-//# sourceMappingURL=_next-internal_server_app_api_recruitment_offers_%5Bid%5D_route_actions_202egf3.js.map

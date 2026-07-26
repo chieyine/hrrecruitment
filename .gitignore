@@ -2,6 +2,7 @@
 node_modules/
 .next/
 .next-e2e/
+.next-final/
 tsconfig.tsbuildinfo
 
 # secrets and local runtime data
