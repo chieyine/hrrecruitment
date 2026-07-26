@@ -1,0 +1,3 @@
+{
+  "/api/recruitment/scorecards/[id]/reopen/route": "app/api/recruitment/scorecards/[id]/reopen/route.js"
+}

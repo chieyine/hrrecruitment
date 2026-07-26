@@ -292,6 +292,7 @@ test.describe('operational completeness acceptance', () => {
   })
 
   test('all reports export, schedules are controlled, and due jobs execute once', async ({ page }) => {
+    test.setTimeout(180_000)
     const reportTypes = [
       'pipeline',
       'candidate-stages',

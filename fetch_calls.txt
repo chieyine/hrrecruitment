@@ -1,0 +1,156 @@
+src/app/candidate/offers/[id]/page.tsx:    fetch(`/api/candidate/offers/${params.id}`)
+src/app/candidate/offers/[id]/page.tsx:        const upload = await fetch('/api/assets/upload', { method: 'POST', body: form })
+src/app/candidate/offers/[id]/page.tsx:      const res = await fetch(`/api/candidate/offers/${params.id}/respond`, {
+src/app/candidate/assessments/[id]/page.tsx:      const response = await fetch(`/api/candidate/assessments/${params.id}/start`, { method: 'POST' })
+src/app/candidate/assessments/[id]/page.tsx:    fetch(`/api/candidate/assessments/${params.id}`)
+src/app/candidate/assessments/[id]/page.tsx:      const response = await fetch(`/api/candidate/assessments/${params.id}/answers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answers: Object.entries(answers).map(([questionId, answer]) => ({ questionId, answer })) }) })
+src/app/candidate/assessments/[id]/page.tsx:      const res = await fetch(`/api/candidate/assessments/${params.id}/submit`, {
+src/app/candidate/assessments/[id]/page.tsx:    const response = await fetch('/api/assets/upload', { method: 'POST', body: form })
+src/app/candidate/complaints/page.tsx:  useEffect(() => { fetch('/api/complaints').then((response) => response.json()).then((body) => setCases(body.cases || [])).finally(() => setLoading(false)) }, [])
+src/app/candidate/preboarding/page.tsx:    fetch('/api/candidate/preboarding')
+src/app/candidate/preboarding/page.tsx:    const response = await fetch('/api/candidate/preboarding/confirm-start-date', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preboardingId: preboarding.id, startDate }) })
+src/app/candidate/profile/personal/page.tsx:    fetch('/api/candidate/profile')
+src/app/candidate/profile/personal/page.tsx:      const response = await fetch('/api/candidate/profile', {
+src/app/candidate/profile/education/page.tsx:    const response = await fetch('/api/candidate/profile')
+src/app/candidate/profile/education/page.tsx:        const upload = await fetch('/api/assets/upload', { method: 'POST', body: uploadData })
+src/app/candidate/profile/education/page.tsx:    const response = await fetch(`/api/candidate/education/${education.id}`, { method: 'DELETE' })
+src/app/candidate/profile/employment/page.tsx:    const response = await fetch('/api/candidate/profile')
+src/app/candidate/profile/employment/page.tsx:    const response = await fetch(`/api/candidate/employment/${employment.id}`, { method: 'DELETE' })
+src/app/candidate/profile/licences/page.tsx:    const response = await fetch('/api/candidate/profile')
+src/app/candidate/profile/licences/page.tsx:        const upload = await fetch('/api/assets/upload', { method: 'POST', body: uploadData })
+src/app/candidate/profile/licences/page.tsx:    const response = await fetch(`/api/candidate/licences/${licence.id}`, { method: 'DELETE' })
+src/app/candidate/profile/documents/page.tsx:    fetch('/api/candidate/documents?types=1')
+src/app/candidate/profile/documents/page.tsx:    const response = await fetch(`/api/candidate/documents/${doc.id}`, { method: 'DELETE' })
+src/app/candidate/profile/documents/page.tsx:    const response = await fetch(`/api/candidate/documents/${editingDoc.id}`, {
+src/app/candidate/profile/documents/page.tsx:    fetch('/api/candidate/profile')
+src/app/candidate/profile/documents/page.tsx:      const upRes = await fetch('/api/assets/upload', { method: 'POST', body: fd })
+src/app/candidate/profile/documents/page.tsx:      const docRes = await fetch('/api/candidate/documents', {
+src/app/candidate/applications/apply/page.tsx:    fetch(`/api/public/vacancies?id=${encodeURIComponent(vacancyId)}`)
+src/app/candidate/applications/apply/page.tsx:          fetch(`/api/candidate/applications?vacancyId=${encodeURIComponent(vacancyId)}`).then((response) => response.ok ? response.json() : null),
+src/app/candidate/applications/apply/page.tsx:          fetch('/api/candidate/profile').then((response) => response.ok ? response.json() : null),
+src/app/candidate/applications/apply/page.tsx:      const res = await fetch('/api/candidate/applications', {
+src/app/candidate/applications/apply/page.tsx:    const response = await fetch('/api/assets/upload', { method: 'POST', body: form })
+src/app/candidate/applications/apply/page.tsx:        const response = await fetch('/api/candidate/applications', {
+src/app/candidate/applications/[id]/page.tsx:    fetch(`/api/candidate/applications/${params.id}`)
+src/app/candidate/applications/[id]/page.tsx:    const response = await fetch(`/api/candidate/applications/${params.id}`, {
+src/app/complaints/page.tsx:    const response = await fetch('/api/complaints', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category, subject, description, reporterEmail: email || undefined }) })
+src/app/report-fraud/page.tsx:      const response = await fetch('/api/public/fraud-reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ suspectContact, incidentDetails, reporterEmail }) })
+src/app/auth/register/page.tsx:      const res = await fetch('/api/auth/register', {
+src/app/auth/login/page.tsx:      const res = await fetch('/api/auth/login', {
+src/app/auth/login/page.tsx:      const response = await fetch('/api/auth/mfa/challenge', {
+src/app/recruitment/selections/page.tsx:    fetch('/api/recruitment/selections')
+src/app/recruitment/selections/page.tsx:      const res = await fetch('/api/recruitment/selections', {
+src/app/recruitment/preboarding/[id]/page.tsx:    fetch(`/api/recruitment/preboarding/${params.id}`)
+src/app/recruitment/preboarding/[id]/page.tsx:    const res = await fetch(`/api/recruitment/preboarding/${params.id}/manage`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'If-Match': String(preboarding?.lockVersion || 1) }, body: JSON.stringify({ action, resourceId, status, comment, lockVersion: preboarding?.lockVersion }) })
+src/app/recruitment/preboarding/[id]/page.tsx:    const res = await fetch(`/api/recruitment/preboarding/${params.id}/manage`, {
+src/app/recruitment/preboarding/[id]/page.tsx:    const res = await fetch(`/api/recruitment/preboarding/${params.id}`, {
+src/app/recruitment/preboarding/[id]/page.tsx:      const res = await fetch('/api/recruitment/preboarding/clearance', {
+src/app/recruitment/applications/[id]/handover/page.tsx:    fetch(`/api/recruitment/applications/${params.id}/handover-summary`)
+src/app/recruitment/applications/[id]/handover/page.tsx:      const res = await fetch(`/api/recruitment/applications/${params.id}/resumption`, {
+src/app/recruitment/applications/[id]/handover/page.tsx:      const res = await fetch(`/api/recruitment/applications/${params.id}/erp-transfer`, {
+src/app/recruitment/applications/[id]/page.tsx:        const res = await fetch(`/api/recruitment/applications/${params.id}`)
+src/app/recruitment/applications/[id]/page.tsx:        const scRes = await fetch(`/api/recruitment/scorecards?applicationId=${params.id}`)
+src/app/recruitment/applications/[id]/page.tsx:    fetch(`/api/recruitment/eligibility?applicationId=${params.id}`).then((response)=>response.json()).then((body)=>setEligibility(body.evaluations?.[0]||null)).catch(()=>undefined)
+src/app/recruitment/applications/[id]/page.tsx:    const response = await fetch('/api/recruitment/eligibility', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'DECIDE', evaluationId: eligibility.id, humanDecision, decisionReason }) })
+src/app/recruitment/applications/[id]/page.tsx:      const res = await fetch(`/api/recruitment/applications/${params.id}/stage`, {
+src/app/recruitment/applications/[id]/page.tsx:      const declaration = await fetch(`/api/recruitment/applications/${params.id}/conflict`, {
+src/app/recruitment/applications/[id]/page.tsx:      const res = await fetch('/api/recruitment/scorecards', {
+src/app/recruitment/applications/page.tsx:    fetch(`/api/recruitment/applications?${params.toString()}`, { signal: controller.signal })
+src/app/recruitment/approvals/page.tsx:      const res = await fetch('/api/recruitment/approvals')
+src/app/recruitment/approvals/page.tsx:      const res = await fetch('/api/recruitment/approvals', {
+src/app/recruitment/vacancies/new/page.tsx:    fetch('/api/recruitment/vacancies')
+src/app/recruitment/vacancies/new/page.tsx:      const res = await fetch('/api/recruitment/vacancies', {
+src/app/recruitment/vacancies/[id]/applications/page.tsx:      fetch(`/api/recruitment/vacancies/${params.id}`),
+src/app/recruitment/vacancies/[id]/applications/page.tsx:      fetch(`/api/recruitment/applications?vacancyId=${encodeURIComponent(params.id)}`),
+src/app/recruitment/vacancies/[id]/page.tsx:    fetch(`/api/recruitment/vacancies/${params.id}`)
+src/app/recruitment/vacancies/[id]/page.tsx:      const response = await fetch(`/api/recruitment/vacancies/${params.id}/actions`, {
+src/app/admin/deletion-requests/page.tsx:    fetch('/api/admin/deletion-requests')
+src/app/admin/deletion-requests/page.tsx:    const response = await fetch('/api/admin/deletion-requests', {
+src/app/admin/governance/page.tsx:    const response = await fetch('/api/admin/governance')
+src/app/admin/governance/page.tsx:    const response = await fetch('/api/admin/governance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+src/app/verify-email/page.tsx:    fetch('/api/auth/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) })
+src/app/public/reference/[token]/page.tsx:    fetch(`/api/public/reference/resolve?token=${encodeURIComponent(params.token)}`)
+src/app/public/reference/[token]/page.tsx:      const res = await fetch('/api/public/reference/submit', {
+src/app/forgot-password/page.tsx:      const response = await fetch('/api/auth/forgot-password', {
+src/app/reset-password/page.tsx:      const res = await fetch('/api/auth/reset-password', {
+src/components/admin/AssessmentManager.tsx:    const response=await fetch('/api/recruitment/assessments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vacancyId,title,description,type,durationMinutes,passMark,maximumAttempts,opensAt:opensAt||undefined,closesAt:closesAt||undefined,randomizeQuestions,autoSubmit,configuration:{deliveryMode:offline?'OFFLINE':'ONLINE'},questions:normalizedQuestions})})
+src/components/admin/AssessmentManager.tsx:    const response=await fetch(`/api/recruitment/assessments/${assessmentId}/invite`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({applicationIds:[applicationId]})})
+src/components/admin/AssessmentManager.tsx:    if(scoreSheet){const form=new FormData();form.append('file',scoreSheet);form.append('sensitivityClass','CONFIDENTIAL');const upload=await fetch('/api/assets/upload',{method:'POST',body:form});const body=await upload.json();if(!upload.ok){setMessage(body.error||'Score sheet upload failed');return}scoreSheetFileId=body.fileAssetId}
+src/components/admin/AssessmentManager.tsx:    const response=await fetch(`/api/recruitment/candidate-assessments/${resultId}/mark`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({score:Number(resultScore),comment:resultComment,...(isOfflineRecord?{offlineRecord:{...offlineRecord,scoreSheetFileId}}:{})})})
+src/components/admin/AssessmentManager.tsx:  const resetAttempt=async()=>{const response=await fetch(`/api/recruitment/candidate-assessments/${resetId}/reset`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:resetReason})});const data=await response.json();setMessage(response.ok?'Assessment attempt reset and candidate may try again.':data.error||'Reset failed');if(response.ok){setResetId('');setResetReason('');router.refresh()}}
+src/components/admin/AssessmentManager.tsx:    const response=await fetch(`/api/recruitment/assessments/${id}`)
+src/components/admin/AssessmentManager.tsx:    const response=await fetch(`/api/recruitment/assessments/${editingId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({...editForm,opensAt:editForm.opensAt||null,closesAt:editForm.closesAt||null,...(selected?.candidateCount?{}:{questions})})})
+src/components/admin/CaseGovernanceActions.tsx:    fetch('/api/recruitment/applications/bulk-actions', { signal: controller.signal })
+src/components/admin/CaseGovernanceActions.tsx:    const response = await fetch(`/api/recruitment/scorecards/${id}`)
+src/components/admin/UserManager.tsx:  const load = async () => { const [usersResponse, rolesResponse] = await Promise.all([fetch('/api/admin/generic?entity=users'), fetch('/api/admin/generic?entity=roles')]); const userData = await usersResponse.json(); const roleData = await rolesResponse.json(); setUsers(userData.items || []); setRoles(roleData.items || []) }
+src/components/admin/UserManager.tsx:  const change = async (id: string, data: Record<string, unknown>) => { setError(''); const response = await fetch(`/api/admin/users/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); const result = await response.json(); if (!response.ok) setError(result.error || 'Change failed'); else await load() }
+src/components/admin/ConfigurationBuilder.tsx:    const response = await fetch(`/api/admin/configuration-builder?mode=${mode}`)
+src/components/admin/ConfigurationBuilder.tsx:    const response = await fetch('/api/admin/configuration-builder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+src/components/admin/ConfigurationBuilder.tsx:      const response = await fetch('/api/assets/upload', { method: 'POST', body: form })
+src/components/admin/AdminCrud.tsx:      const res = await fetch(`/api/admin/generic?entity=${encodeURIComponent(entity)}`)
+src/components/admin/AdminCrud.tsx:    const response = await fetch(`/api/admin/generic?entity=${encodeURIComponent(entity)}&id=${encodeURIComponent(item.id)}&history=1`)
+src/components/admin/AdminCrud.tsx:    const response = await fetch(`/api/admin/generic?entity=${encodeURIComponent(entity)}&id=${encodeURIComponent(item.id)}&impact=1`)
+src/components/admin/AdminCrud.tsx:      const res = await fetch('/api/admin/generic', {
+src/components/admin/OperatingModelManager.tsx:    const response = await fetch('/api/admin/operating-model', {
+src/components/admin/OperatingModelManager.tsx:    const response = await fetch('/api/admin/operating-model', {
+src/components/admin/InterviewManager.tsx:      const upload = await fetch('/api/assets/upload', { method: 'POST', body: form })
+src/components/admin/InterviewManager.tsx:    const response = await fetch('/api/recruitment/interviews', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ applicationId, title, scheduledStart: new Date(start).toISOString(), scheduledEnd, timezone, format, venue, meetingLink, instructions, reminderMinutesBefore, attachmentFileIds, panelUserIds, questions: questions.filter((item) => item.question.trim()) }) })
+src/components/admin/InterviewManager.tsx:    const response = await fetch(`/api/recruitment/interviews/${panel.interviewId}/scores`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ panelMemberId: panel.panelMemberId, recommendation: recommendations[panel.panelMemberId], conflictType: conflicts[panel.panelMemberId], conflictComment: conflictComments[panel.panelMemberId] || undefined, questionScores }) })
+src/components/admin/InterviewManager.tsx:    const response = await fetch(`/api/recruitment/interviews/${interviewId}/confirm-panel`, {
+src/components/admin/BulkApplicationActions.tsx:    fetch('/api/recruitment/applications/bulk-actions').then(async (response) => response.ok ? setOptions(await response.json()) : undefined).catch(() => undefined)
+src/components/admin/BulkApplicationActions.tsx:    const response = await fetch('/api/recruitment/applications/bulk-stage-change', {
+src/components/admin/BulkApplicationActions.tsx:    const response = await fetch('/api/recruitment/applications/bulk-stage-change', {
+src/components/admin/BulkApplicationActions.tsx:    const response = await fetch('/api/recruitment/applications/bulk-actions', {
+src/components/admin/BulkApplicationActions.tsx:    const response = await fetch(`/api/recruitment/applications/bulk-actions/${receipt.runId}/undo`, { method: 'POST' })
+src/components/admin/OfferCorrection.tsx:      const response = await fetch(`/api/recruitment/offers/${offerId}`, {
+src/components/admin/AssistedApplicationEntry.tsx:  useEffect(()=>{fetch('/api/recruitment/applications/assisted').then(async response=>response.ok?setData(await response.json()):null)},[])
+src/components/admin/AssistedApplicationEntry.tsx:  const submit=async(event:React.FormEvent)=>{event.preventDefault();const response=await fetch('/api/recruitment/applications/assisted',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({candidateId,vacancyId,reason,answers:Object.entries(answers).map(([vacancyQuestionId,answer])=>({vacancyQuestionId,answer}))})});const body=await response.json();setMessage(response.ok?'Assisted application recorded and candidate notified.':body.error||'Failed')}
+src/components/admin/ComplaintCaseManager.tsx:    const response = await fetch('/api/recruitment/complaints', {
+src/components/admin/ReferenceManager.tsx:    const response=await fetch(`/api/recruitment/applications/${applicationId}/referees`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,organization,position,relationship,phone:phone||undefined,preferredContactMethod,contactStatus,waiverReason:waiverReason||undefined,periodKnown:periodKnown||undefined,permissionToContact:true,manualOutcome:manualOutcome||undefined,manualComment:manualComment||undefined})})
+src/components/admin/ReferenceManager.tsx:    const send=await fetch(`/api/recruitment/referees/${data.referee.id}/send-request`,{method:'POST'})
+src/components/admin/ReferenceManager.tsx:  const act=async(action:string)=>{const response=await fetch(`/api/recruitment/referees/${id}/${action}`,{method:'POST'});const data=await response.json();setMessage(response.ok?'Sent.':data.error||'Failed');if(response.ok)router.refresh()}
+src/components/admin/ReferenceManager.tsx:    const response = await fetch(`/api/recruitment/reference-responses/${responseId}/verify`, { method: 'POST' })
+src/components/admin/FraudReportTriage.tsx:      const response = await fetch(`/api/admin/fraud-reports${filter ? `?status=${filter}` : ''}`)
+src/components/admin/FraudReportTriage.tsx:      const response = await fetch('/api/admin/fraud-reports', {
+src/components/admin/CandidateMergeManager.tsx:  const load = useCallback(async () => { const response = await fetch('/api/recruitment/data-quality/merges'); const body = await response.json(); if (response.ok) setReviews(body.reviews || []) }, [])
+src/components/admin/CandidateMergeManager.tsx:    const response = await fetch('/api/recruitment/data-quality/merges', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ primaryCandidateId: primary, duplicateCandidateId: duplicate, reason: reason || 'Review possible duplicate candidate records', survivorChoices: choices, previewOnly: true }) })
+src/components/admin/CandidateMergeManager.tsx:    const response = await fetch('/api/recruitment/data-quality/merges', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ primaryCandidateId: primary, duplicateCandidateId: duplicate, reason, survivorChoices: choices, previewOnly: false }) })
+src/components/admin/CandidateMergeManager.tsx:    const response = await fetch('/api/recruitment/data-quality/merges', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reviewId: pending.review.id, action: pending.action, reason: actionReason, lockVersion: pending.review.lockVersion }) })
+src/components/admin/GlobalSearch.tsx:  const search=async(event:React.FormEvent)=>{event.preventDefault();setBusy(true);setMessage('');const response=await fetch(`/api/recruitment/search?q=${encodeURIComponent(query)}`);const body=await response.json();if(response.ok)setData(body);else setMessage(body.error||'Search failed');setBusy(false)}
+src/components/admin/AccommodationManager.tsx:    const response = await fetch('/api/recruitment/accommodations', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status, decision }) })
+src/components/admin/ReportScheduler.tsx:  const load=async()=>{const response=await fetch('/api/recruitment/reports/schedules');const data=await response.json();if(response.ok)setSchedules(data.schedules||[])}
+src/components/admin/ReportScheduler.tsx:  const create=async(event:React.FormEvent)=>{event.preventDefault();const response=await fetch('/api/recruitment/reports/schedules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reportType,format,frequency,recipientEmail,nextRunAt})});const data=await response.json();setMessage(response.ok?'Report delivery scheduled.':data.error||'Failed');if(response.ok)void load()}
+src/components/admin/ReportScheduler.tsx:  const disable=async(id:string)=>{const response=await fetch('/api/recruitment/reports/schedules',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});if(response.ok)void load()}
+src/components/admin/OfferManager.tsx:    const response = await fetch('/api/recruitment/offers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ applicationId, offerTemplateId: offerTemplateId || undefined, position: selected.position, dutyStation: selected.dutyStation, contractType: selected.contractType, contractDuration: contractDuration || undefined, salary, startDate, endDate: endDate || undefined, probationPeriod: probationPeriod || undefined, reportingLine: reportingLine || undefined, conditions: conditions || undefined, acceptanceDeadline: new Date(`${acceptanceDeadline}T23:59:59.999`).toISOString() }) })
+src/components/admin/OfferManager.tsx:    const response = await fetch(`/api/recruitment/offers/${id}/actions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, comment }) })
+src/components/admin/TalentPoolManager.tsx:    const response = await fetch('/api/recruitment/talent-pools', {
+src/components/admin/ConfigurationReleaseManager.tsx:  const load = useCallback(async () => { const response = await fetch('/api/admin/configuration-releases'); const body = await response.json(); if (response.ok) setReleases(body.releases || []); else toast('error', body.error || 'Could not load releases.') }, [toast])
+src/components/admin/ConfigurationReleaseManager.tsx:    const response = await fetch('/api/admin/configuration-releases', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ releaseId: pending.release.id, action: pending.action, comment, lockVersion: pending.release.lockVersion }) })
+src/components/admin/AutomationManager.tsx:    const response = await fetch('/api/admin/automations')
+src/components/admin/AutomationManager.tsx:    const response = await fetch('/api/admin/automations', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: pending.control.code, mode: pending.mode, reason }) })
+src/components/admin/WorkItemActions.tsx:    const response = await fetch(`/api/recruitment/work-items/${id}`, {
+src/components/admin/AssessmentAnswerReview.tsx:      const response = await fetch(`/api/recruitment/candidate-assessments/${candidateAssessmentId}/answers`)
+src/components/admin/AssessmentAnswerReview.tsx:      const response = await fetch(`/api/recruitment/candidate-assessments/${candidateAssessmentId}/answers`, {
+src/components/shared/ProfileAdditionalDetails.tsx:    const response = await fetch('/api/candidate/profile')
+src/components/shared/ProfileAdditionalDetails.tsx:    const response = await fetch('/api/candidate/profile-items', {
+src/components/shared/ProfileAdditionalDetails.tsx:    const response = await fetch('/api/candidate/profile-items', {
+src/components/shared/SavedSearchManager.tsx:      fetch('/api/candidate/saved-searches'),
+src/components/shared/SavedSearchManager.tsx:      fetch('/api/public/vacancies?pageSize=1'),
+src/components/shared/SavedSearchManager.tsx:      const all = await fetch('/api/public/vacancies?pageSize=200')
+src/components/shared/SavedSearchManager.tsx:      const response = await fetch('/api/candidate/saved-searches', {
+src/components/shared/AccountSettingsActions.tsx:    const r = await fetch('/api/candidate/account', {
+src/components/shared/AccommodationRequestForm.tsx:    const response = await fetch('/api/candidate/accommodations', {
+src/components/shared/NotificationInbox.tsx:  const load = () => fetch('/api/notifications').then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.error); setNotifications(data.notifications || []) }).catch((reason) => setError(reason.message || 'Unable to load notifications'))
+src/components/shared/NotificationInbox.tsx:  const markRead = async (id?: string) => { await fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(id ? { id } : { all: true }) }); load() }
+src/components/shared/InterviewResponse.tsx:      const result = await fetch(`/api/candidate/interviews/${id}/respond`, {
+src/components/shared/PreboardingActions.tsx:  const response = await fetch('/api/candidate/preboarding/actions', {
+src/components/shared/PreboardingActions.tsx:        const upload = await fetch('/api/assets/upload', { method: 'POST', body: form })
+src/components/shared/PreboardingActions.tsx:        const response = await fetch('/api/assets/upload', { method: 'POST', body: form })
+src/components/shared/PreboardingActions.tsx:      const upload = await fetch('/api/assets/upload', { method: 'POST', body: form })
+src/components/shared/Header.tsx:    fetch('/api/auth/session', { cache: 'no-store', signal: controller.signal })
+src/components/shared/Header.tsx:      await fetch('/api/auth/logout', { method: 'POST' })
+src/components/shared/MessageComposer.tsx:    fetch(`/api/messages?${query}`).then(async (response) => {
+src/components/shared/MessageComposer.tsx:      const res = await fetch('/api/messages', {
+src/components/shared/SecuritySettings.tsx:      fetch('/api/auth/mfa'),
+src/components/shared/SecuritySettings.tsx:      fetch('/api/auth/sessions'),
+src/components/shared/AssessmentSubmissionReview.tsx:      const response = await fetch(`/api/candidate/assessments/${candidateAssessmentId}/answers/review`)

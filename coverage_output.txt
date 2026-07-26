@@ -1,0 +1,124 @@
+
+> frad-recruitment-platform@0.1.0 audit:frontend-coverage
+> node scripts/check-frontend-coverage.mjs
+
+FRONTEND       GET,PATCH,POST         /api/admin/automations -> src/components/admin/AutomationManager.tsx
+FRONTEND       GET,POST               /api/admin/configuration-builder -> src/components/admin/ConfigurationBuilder.tsx
+FRONTEND       GET,POST,PATCH         /api/admin/configuration-releases -> src/components/admin/AdminCrud.tsx, src/components/admin/ConfigurationReleaseManager.tsx
+FRONTEND       GET,PATCH              /api/admin/deletion-requests -> src/app/admin/deletion-requests/page.tsx
+FRONTEND       GET,PATCH              /api/admin/fraud-reports -> src/components/admin/FraudReportTriage.tsx
+FRONTEND       GET,POST,PUT,DELETE    /api/admin/generic -> src/components/admin/AdminCrud.tsx, src/components/admin/UserManager.tsx
+FRONTEND       GET,POST               /api/admin/governance -> src/app/admin/governance/page.tsx
+FRONTEND       GET,POST,PATCH         /api/admin/operating-model -> src/components/admin/OperatingModelManager.tsx
+FRONTEND       PATCH                  /api/admin/users/[id] -> src/components/admin/UserManager.tsx
+FRONTEND       GET                    /api/assets/download/[id] -> src/app/candidate/offers/[id]/page.tsx, src/app/candidate/preboarding/policies/page.tsx, src/components/admin/ComplaintCaseManager.tsx
+FRONTEND       POST                   /api/assets/upload -> src/app/candidate/applications/apply/page.tsx, src/app/candidate/assessments/[id]/page.tsx, src/app/candidate/offers/[id]/page.tsx, src/app/candidate/profile/documents/page.tsx, src/app/candidate/profile/education/page.tsx, src/app/candidate/profile/licences/page.tsx, src/components/admin/AssessmentManager.tsx, src/components/admin/ConfigurationBuilder.tsx, src/components/admin/InterviewManager.tsx, src/components/shared/PreboardingActions.tsx
+FRONTEND       POST                   /api/auth/forgot-password -> src/app/forgot-password/page.tsx
+FRONTEND       POST                   /api/auth/login -> src/app/auth/login/page.tsx
+FRONTEND       POST                   /api/auth/logout -> src/components/shared/Header.tsx
+FRONTEND       POST                   /api/auth/mfa/challenge -> src/app/auth/login/page.tsx
+FRONTEND       GET,POST,DELETE        /api/auth/mfa -> src/components/shared/SecuritySettings.tsx
+FRONTEND       POST                   /api/auth/register -> src/app/auth/register/page.tsx
+FRONTEND       POST                   /api/auth/reset-password -> src/app/reset-password/page.tsx
+FRONTEND       GET                    /api/auth/session -> src/components/shared/Header.tsx
+FRONTEND       GET,DELETE             /api/auth/sessions -> src/components/shared/SecuritySettings.tsx
+FRONTEND       GET                    /api/auth/sso/callback -> src/lib/oidc.ts
+FRONTEND       GET                    /api/auth/sso/start -> src/app/auth/login/page.tsx
+FRONTEND       POST                   /api/auth/verify-email -> src/app/verify-email/page.tsx
+FRONTEND       GET                    /api/calendar/interviews/[id] -> src/app/candidate/interviews/page.tsx, src/app/recruitment/interviews/page.tsx
+FRONTEND       GET,POST               /api/candidate/accommodations -> src/components/shared/AccommodationRequestForm.tsx
+FRONTEND       POST                   /api/candidate/account -> src/components/shared/AccountSettingsActions.tsx
+FRONTEND       GET,POST               /api/candidate/applications/[id] -> src/app/candidate/applications/[id]/page.tsx
+FRONTEND       GET,POST               /api/candidate/applications -> src/app/candidate/applications/apply/page.tsx
+FRONTEND       GET                    /api/candidate/assessments/[id]/answers/review -> src/components/shared/AssessmentSubmissionReview.tsx
+FRONTEND       POST                   /api/candidate/assessments/[id]/answers -> src/app/candidate/assessments/[id]/page.tsx
+FRONTEND       GET                    /api/candidate/assessments/[id] -> src/app/candidate/assessments/[id]/page.tsx
+FRONTEND       POST                   /api/candidate/assessments/[id]/start -> src/app/candidate/assessments/[id]/page.tsx
+FRONTEND       GET,POST               /api/candidate/assessments/[id]/submit -> src/app/candidate/assessments/[id]/page.tsx
+FRONTEND       PATCH,DELETE           /api/candidate/documents/[id] -> src/app/candidate/profile/documents/page.tsx
+FRONTEND       GET,POST               /api/candidate/documents -> src/app/candidate/profile/documents/page.tsx
+FRONTEND       PATCH,DELETE           /api/candidate/education/[id] -> src/app/candidate/profile/education/page.tsx
+FRONTEND       POST                   /api/candidate/education -> src/app/candidate/profile/education/page.tsx
+FRONTEND       PATCH,DELETE           /api/candidate/employment/[id] -> src/app/candidate/profile/employment/page.tsx
+FRONTEND       POST                   /api/candidate/employment -> src/app/candidate/profile/employment/page.tsx
+FRONTEND       POST                   /api/candidate/interviews/[id]/respond -> src/components/shared/InterviewResponse.tsx
+FRONTEND       PATCH,DELETE           /api/candidate/licences/[id] -> src/app/candidate/profile/licences/page.tsx
+FRONTEND       POST                   /api/candidate/licences -> src/app/candidate/profile/licences/page.tsx
+FRONTEND       POST                   /api/candidate/offers/[id]/respond -> src/app/candidate/offers/[id]/page.tsx
+FRONTEND       GET                    /api/candidate/offers/[id] -> src/app/candidate/offers/[id]/page.tsx
+FRONTEND       POST                   /api/candidate/preboarding/actions -> src/components/shared/PreboardingActions.tsx
+FRONTEND       POST                   /api/candidate/preboarding/confirm-start-date -> src/app/candidate/preboarding/page.tsx
+FRONTEND       GET                    /api/candidate/preboarding/courses/[id]/certificate -> src/app/candidate/preboarding/courses/page.tsx
+FRONTEND       GET                    /api/candidate/preboarding -> src/app/candidate/preboarding/page.tsx
+FRONTEND       GET                    /api/candidate/privacy/export -> src/components/shared/AccountSettingsActions.tsx
+FRONTEND       POST,PATCH,DELETE      /api/candidate/profile-items -> src/components/shared/ProfileAdditionalDetails.tsx
+FRONTEND       GET,PATCH              /api/candidate/profile -> src/app/candidate/applications/apply/page.tsx, src/app/candidate/profile/documents/page.tsx, src/app/candidate/profile/education/page.tsx, src/app/candidate/profile/employment/page.tsx, src/app/candidate/profile/licences/page.tsx, src/app/candidate/profile/personal/page.tsx, src/components/shared/ProfileAdditionalDetails.tsx
+FRONTEND       GET,POST,PATCH,DELETE  /api/candidate/saved-searches -> src/components/shared/SavedSearchManager.tsx
+FRONTEND       GET,POST               /api/complaints -> src/app/candidate/complaints/page.tsx, src/app/complaints/page.tsx
+INFRASTRUCTURE GET,POST               /api/cron/process-schedules -> authenticated scheduler/operations trigger
+INFRASTRUCTURE GET                    /api/health -> deployment health and readiness probe
+FRONTEND       GET,POST               /api/messages -> src/components/shared/MessageComposer.tsx
+FRONTEND       GET,PATCH              /api/notifications -> src/components/shared/NotificationInbox.tsx
+FRONTEND       POST                   /api/public/fraud-reports -> src/app/report-fraud/page.tsx
+FRONTEND       GET                    /api/public/reference/resolve -> src/app/public/reference/[token]/page.tsx
+FRONTEND       POST                   /api/public/reference/submit -> src/app/public/reference/[token]/page.tsx
+FRONTEND       GET                    /api/public/vacancies/[reference] -> src/app/careers/[reference]/page.tsx
+FRONTEND       GET                    /api/public/vacancies -> src/app/candidate/applications/apply/page.tsx, src/components/shared/SavedSearchManager.tsx
+FRONTEND       PATCH                  /api/recruitment/accommodations -> src/components/admin/AccommodationManager.tsx
+FRONTEND       POST                   /api/recruitment/applications/[id]/assign-reviewer -> src/components/admin/CaseGovernanceActions.tsx
+FRONTEND       POST                   /api/recruitment/applications/[id]/conflict -> src/app/recruitment/applications/[id]/page.tsx
+FRONTEND       GET                    /api/recruitment/applications/[id]/documentation -> src/app/recruitment/applications/[id]/page.tsx
+FRONTEND       POST                   /api/recruitment/applications/[id]/erp-transfer -> src/app/recruitment/applications/[id]/handover/page.tsx
+FRONTEND       GET                    /api/recruitment/applications/[id]/handover-summary -> src/app/recruitment/applications/[id]/handover/page.tsx
+FRONTEND       POST                   /api/recruitment/applications/[id]/notes -> src/components/admin/CaseGovernanceActions.tsx
+FRONTEND       POST                   /api/recruitment/applications/[id]/referees -> src/components/admin/ReferenceManager.tsx
+FRONTEND       POST                   /api/recruitment/applications/[id]/resumption -> src/app/recruitment/applications/[id]/handover/page.tsx
+FRONTEND       GET                    /api/recruitment/applications/[id] -> src/app/recruitment/applications/[id]/page.tsx
+FRONTEND       POST                   /api/recruitment/applications/[id]/stage -> src/app/recruitment/applications/[id]/page.tsx
+FRONTEND       GET,POST               /api/recruitment/applications/assisted -> src/components/admin/AssistedApplicationEntry.tsx
+FRONTEND       POST                   /api/recruitment/applications/bulk-actions/[id]/undo -> src/components/admin/BulkApplicationActions.tsx
+FRONTEND       GET,POST               /api/recruitment/applications/bulk-actions -> src/components/admin/BulkApplicationActions.tsx, src/components/admin/CaseGovernanceActions.tsx
+FRONTEND       GET                    /api/recruitment/applications/bulk-export -> src/components/admin/BulkApplicationActions.tsx
+FRONTEND       POST                   /api/recruitment/applications/bulk-stage-change -> src/components/admin/BulkApplicationActions.tsx
+FRONTEND       GET                    /api/recruitment/applications -> src/app/recruitment/applications/page.tsx, src/app/recruitment/vacancies/[id]/applications/page.tsx
+FRONTEND       GET,POST               /api/recruitment/approvals -> src/app/recruitment/approvals/page.tsx
+FRONTEND       POST                   /api/recruitment/assessments/[id]/invite -> src/components/admin/AssessmentManager.tsx
+FRONTEND       GET,PATCH              /api/recruitment/assessments/[id] -> src/components/admin/AssessmentManager.tsx
+FRONTEND       GET,POST               /api/recruitment/assessments -> src/components/admin/AssessmentManager.tsx
+FRONTEND       GET,PATCH              /api/recruitment/candidate-assessments/[id]/answers -> src/components/admin/AssessmentAnswerReview.tsx
+FRONTEND       POST                   /api/recruitment/candidate-assessments/[id]/mark -> src/components/admin/AssessmentManager.tsx
+FRONTEND       POST                   /api/recruitment/candidate-assessments/[id]/reset -> src/components/admin/AssessmentManager.tsx
+FRONTEND       GET,PATCH              /api/recruitment/complaints -> src/components/admin/ComplaintCaseManager.tsx
+FRONTEND       GET,POST,PATCH         /api/recruitment/data-quality/merges -> src/components/admin/CandidateMergeManager.tsx
+FRONTEND       GET,POST               /api/recruitment/eligibility -> src/app/recruitment/applications/[id]/page.tsx
+FRONTEND       POST                   /api/recruitment/interviews/[id]/confirm-panel -> src/components/admin/InterviewManager.tsx
+FRONTEND       POST                   /api/recruitment/interviews/[id]/invite -> src/components/admin/InterviewCoordinationActions.tsx
+FRONTEND       POST                   /api/recruitment/interviews/[id]/panel/[memberId]/reopen -> src/components/admin/InterviewCoordinationActions.tsx
+FRONTEND       POST                   /api/recruitment/interviews/[id]/panel/[memberId]/resolve-conflict -> src/components/admin/InterviewCoordinationActions.tsx
+FRONTEND       GET,PATCH              /api/recruitment/interviews/[id] -> src/components/admin/InterviewCoordinationActions.tsx
+FRONTEND       POST                   /api/recruitment/interviews/[id]/scores -> src/components/admin/InterviewManager.tsx
+FRONTEND       POST                   /api/recruitment/interviews -> src/components/admin/InterviewManager.tsx
+FRONTEND       POST                   /api/recruitment/offers/[id]/actions -> src/components/admin/OfferManager.tsx
+FRONTEND       PATCH                  /api/recruitment/offers/[id] -> src/components/admin/OfferCorrection.tsx
+FRONTEND       POST                   /api/recruitment/offers -> src/components/admin/OfferManager.tsx
+FRONTEND       POST                   /api/recruitment/preboarding/[id]/manage -> src/app/recruitment/preboarding/[id]/page.tsx
+FRONTEND       GET,PATCH              /api/recruitment/preboarding/[id] -> src/app/recruitment/preboarding/[id]/page.tsx
+FRONTEND       POST                   /api/recruitment/preboarding/clearance -> src/app/recruitment/preboarding/[id]/page.tsx
+FRONTEND       POST                   /api/recruitment/referees/[id]/send-reminder -> src/components/admin/ReferenceManager.tsx
+FRONTEND       POST                   /api/recruitment/referees/[id]/send-request -> src/components/admin/ReferenceManager.tsx
+FRONTEND       POST                   /api/recruitment/reference-responses/[id]/verify -> src/components/admin/ReferenceManager.tsx
+FRONTEND       GET                    /api/recruitment/reports/export -> src/app/recruitment/reports/page.tsx
+FRONTEND       GET,POST,DELETE        /api/recruitment/reports/schedules -> src/components/admin/ReportScheduler.tsx
+FRONTEND       POST                   /api/recruitment/scorecards/[id]/reopen -> src/components/admin/CaseGovernanceActions.tsx
+FRONTEND       GET                    /api/recruitment/scorecards/[id] -> src/components/admin/CaseGovernanceActions.tsx
+FRONTEND       GET,POST               /api/recruitment/scorecards -> src/app/recruitment/applications/[id]/page.tsx
+FRONTEND       GET                    /api/recruitment/search -> src/components/admin/GlobalSearch.tsx
+FRONTEND       GET,POST               /api/recruitment/selections -> src/app/recruitment/selections/page.tsx
+FRONTEND       GET,POST               /api/recruitment/talent-pools -> src/components/admin/TalentPoolManager.tsx
+FRONTEND       POST                   /api/recruitment/vacancies/[id]/actions -> src/app/recruitment/vacancies/[id]/page.tsx
+FRONTEND       GET                    /api/recruitment/vacancies/[id]/documentation -> src/app/recruitment/vacancies/[id]/page.tsx
+FRONTEND       GET,PATCH              /api/recruitment/vacancies/[id] -> src/app/recruitment/vacancies/[id]/applications/page.tsx, src/app/recruitment/vacancies/[id]/page.tsx
+FRONTEND       GET,POST               /api/recruitment/vacancies -> src/app/recruitment/vacancies/new/page.tsx
+FRONTEND       PATCH                  /api/recruitment/work-items/[id] -> src/components/admin/WorkItemActions.tsx
+
+Coverage passed: 118 API routes classified; 2 infrastructure-only.

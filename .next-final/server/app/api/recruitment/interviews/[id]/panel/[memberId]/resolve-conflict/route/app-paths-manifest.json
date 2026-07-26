@@ -1,0 +1,3 @@
+{
+  "/api/recruitment/interviews/[id]/panel/[memberId]/resolve-conflict/route": "app/api/recruitment/interviews/[id]/panel/[memberId]/resolve-conflict/route.js"
+}

@@ -1,0 +1,13 @@
+# Prettier is available via `npm run format` / `npm run format:check`.
+# It is deliberately NOT a CI gate yet: the pre-existing codebase is not
+# formatted, so enabling the gate needs its own formatting-only commit first.
+node_modules/
+.next/
+.next-e2e/
+.storage/
+test-results/
+playwright-report/
+package-lock.json
+tsconfig.tsbuildinfo
+prisma/postgresql/schema.prisma
+*.db

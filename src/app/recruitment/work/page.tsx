@@ -9,22 +9,24 @@ import { hasPermission } from '@/lib/rbac'
 import { prisma } from '@/lib/prisma'
 import { syncOperationalWorkItems, workItemHref } from '@/lib/work-items'
 import { formatDate } from '@/lib/utils'
+import { hasStaffRole } from '@/lib/roles'
 
 const filters = ['OPEN', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED'] as const
 
-export default async function MyWorkPage({ searchParams }: { searchParams: { status?: string; scope?: string; attention?: string } }) {
+export default async function MyWorkPage({ searchParams }: { searchParams: Promise<{ status?: string; scope?: string; attention?: string }> }) {
+  const query = await searchParams
   const user = await getVerifiedUser()
-  if (!user || user.roles.length === 0 || user.roles.every((role) => role === 'CANDIDATE')) redirect('/auth/login')
+  if (!user || !hasStaffRole(user.roles)) redirect('/auth/login')
   const canReadAll = await hasPermission(user.userId, 'application.read.all')
   const canReadAssigned = await hasPermission(user.userId, 'application.read.assigned')
   if (!canReadAll && !canReadAssigned) redirect('/recruitment/dashboard')
 
   await syncOperationalWorkItems()
-  const status = filters.includes(searchParams.status as typeof filters[number]) ? searchParams.status! : 'OPEN'
-  const mineOnly = !canReadAll || searchParams.scope !== 'team'
+  const status = filters.includes(query.status as typeof filters[number]) ? query.status! : 'OPEN'
+  const mineOnly = !canReadAll || query.scope !== 'team'
   const now = new Date()
   const endOfToday = new Date(now); endOfToday.setHours(23, 59, 59, 999)
-  const attention = ['overdue', 'today', 'urgent'].includes(searchParams.attention || '') ? searchParams.attention : ''
+  const attention = ['overdue', 'today', 'urgent'].includes(query.attention || '') ? query.attention : ''
   const scopeWhere = mineOnly ? {
     OR: [
       { assignedUserId: user.userId },
@@ -119,6 +121,33 @@ export default async function MyWorkPage({ searchParams }: { searchParams: { sta
               ].map(([key, label, value, description]) => key === 'blocked'
                 ? <Link key={String(key)} href={`/recruitment/work?scope=${mineOnly ? 'mine' : 'team'}&status=BLOCKED`} className="bg-white p-4 hover:bg-slate-50"><span className="text-xs font-semibold text-slate-600">{label}</span><span className="mt-1 block text-2xl font-bold text-slate-950">{value}</span><span className="mt-1 block text-xs text-slate-500">{description}</span></Link>
                 : <Link key={String(key)} href={`/recruitment/work?scope=${mineOnly ? 'mine' : 'team'}&attention=${key}`} className="bg-white p-4 hover:bg-slate-50"><span className="text-xs font-semibold text-slate-600">{label}</span><span className="mt-1 block text-2xl font-bold text-slate-950">{value}</span><span className="mt-1 block text-xs text-slate-500">{description}</span></Link>)}
+            </div>
+          </section>
+
+          <section aria-labelledby="elsewhere-heading" className="section-panel">
+            <div className="section-heading">
+              <div>
+                <h2 id="elsewhere-heading" className="text-lg font-bold text-slate-950">Elsewhere in recruitment</h2>
+                <p className="mt-1 text-sm text-slate-600">Screens that sit outside the work queue.</p>
+              </div>
+            </div>
+            <div className="grid gap-px border border-slate-200 bg-slate-200 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                ['/recruitment/selections', 'Selections', 'Weighted final ranking and selection decisions'],
+                ['/recruitment/quality', 'Decision quality', 'Reopened scorecards, overrides and possible duplicates'],
+                ['/recruitment/communications', 'Communications', 'Messages and notifications sent to candidates'],
+                ['/recruitment/assessments', 'Assessments', 'Create assessments, invite candidates and mark submissions'],
+                ['/recruitment/references', 'References', 'Referee requests, reminders and verification'],
+                ['/recruitment/accommodations', 'Accommodations', 'Adjustment requests from candidates'],
+                ['/recruitment/complaints', 'Complaints', 'Candidate concerns and appeal cases'],
+                ['/recruitment/talent-pools', 'Talent pools', 'Consented candidates for future vacancies'],
+                ['/recruitment/settings', 'Account security', 'Two-factor authentication and signed-in devices'],
+              ].map(([href, label, description]) => (
+                <Link key={href} href={href} className="bg-white p-4 transition hover:bg-slate-50">
+                  <p className="text-sm font-bold text-slate-950">{label}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">{description}</p>
+                </Link>
+              ))}
             </div>
           </section>
 

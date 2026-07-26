@@ -1,0 +1,3 @@
+{
+  "/api/recruitment/referees/[id]/send-reminder/route": "app/api/recruitment/referees/[id]/send-reminder/route.js"
+}

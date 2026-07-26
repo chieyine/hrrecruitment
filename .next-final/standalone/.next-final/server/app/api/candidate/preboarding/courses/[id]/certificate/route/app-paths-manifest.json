@@ -1,0 +1,3 @@
+{
+  "/api/candidate/preboarding/courses/[id]/certificate/route": "app/api/candidate/preboarding/courses/[id]/certificate/route.js"
+}

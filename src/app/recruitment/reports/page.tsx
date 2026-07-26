@@ -8,6 +8,7 @@ import { Download, ArrowLeft } from 'lucide-react'
 import { hasPermission } from '@/lib/rbac'
 import ReportScheduler from '@/components/admin/ReportScheduler'
 import { PageIntro } from '@/components/ui/PageElements'
+import { hasStaffRole } from '@/lib/roles'
 
 const REPORTS = [
   ['pipeline','Vacancy pipeline'],
@@ -34,10 +35,11 @@ const REPORTS = [
   ['data-quality','Data-quality exceptions'],
 ] as const
 
-export default async function RecruitmentReportsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
+export default async function RecruitmentReportsPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  const query = searchParams ? await searchParams : {}
   const user = await getVerifiedUser()
 
-  if (!user || user.roles.length === 0 || user.roles.every((role) => role === 'CANDIDATE')) {
+  if (!user || !hasStaffRole(user.roles)) {
     redirect('/auth/login')
   }
   if (!await hasPermission(user.userId, 'report.export')) redirect('/recruitment/dashboard')
@@ -52,7 +54,7 @@ export default async function RecruitmentReportsPage({ searchParams }: { searchP
     .filter(([code]) => code !== 'configuration-changes' || canExportGovernance)
   const exportFilters = new URLSearchParams()
   for (const key of ['vacancy', 'department', 'status', 'search', 'dateFrom', 'dateTo']) {
-    const value = searchParams?.[key]
+    const value = query[key]
     if (typeof value === 'string' && value.trim()) exportFilters.set(key, value)
   }
   const filterSuffix = exportFilters.toString() ? `&${exportFilters.toString()}` : ''
@@ -90,12 +92,12 @@ export default async function RecruitmentReportsPage({ searchParams }: { searchP
             <p className="mt-1">Every download is recorded in the audit trail. Store, share and dispose of exported files under FRAD privacy and retention rules.</p>
           </div>
           <form method="get" className="grid gap-3 border border-slate-200 bg-white p-4 md:grid-cols-3 xl:grid-cols-6">
-            <input name="search" defaultValue={typeof searchParams?.search === 'string' ? searchParams.search : ''} placeholder="Candidate or reference" className="field-control" />
-            <input name="vacancy" defaultValue={typeof searchParams?.vacancy === 'string' ? searchParams.vacancy : ''} placeholder="Vacancy" className="field-control" />
-            <input name="department" defaultValue={typeof searchParams?.department === 'string' ? searchParams.department : ''} placeholder="Department" className="field-control" />
-            <input name="status" defaultValue={typeof searchParams?.status === 'string' ? searchParams.status : ''} placeholder="Status" className="field-control" />
-            <input aria-label="From date" name="dateFrom" type="date" defaultValue={typeof searchParams?.dateFrom === 'string' ? searchParams.dateFrom : ''} className="field-control" />
-            <input aria-label="To date" name="dateTo" type="date" defaultValue={typeof searchParams?.dateTo === 'string' ? searchParams.dateTo : ''} className="field-control" />
+            <input name="search" defaultValue={typeof query.search === 'string' ? query.search : ''} placeholder="Candidate or reference" className="field-control" />
+            <input name="vacancy" defaultValue={typeof query.vacancy === 'string' ? query.vacancy : ''} placeholder="Vacancy" className="field-control" />
+            <input name="department" defaultValue={typeof query.department === 'string' ? query.department : ''} placeholder="Department" className="field-control" />
+            <input name="status" defaultValue={typeof query.status === 'string' ? query.status : ''} placeholder="Status" className="field-control" />
+            <input aria-label="From date" name="dateFrom" type="date" defaultValue={typeof query.dateFrom === 'string' ? query.dateFrom : ''} className="field-control" />
+            <input aria-label="To date" name="dateTo" type="date" defaultValue={typeof query.dateTo === 'string' ? query.dateTo : ''} className="field-control" />
             <div className="flex gap-2 md:col-span-3 xl:col-span-6"><button className="btn-primary">Apply export filters</button><Link href="/recruitment/reports" className="btn-secondary">Clear</Link></div>
           </form>
 

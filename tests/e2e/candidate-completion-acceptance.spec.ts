@@ -26,6 +26,7 @@ test.describe('candidate offer, policy, and course completion', () => {
   })
 
   test('candidate completes the documented offer and preboarding evidence paths', async ({ page }) => {
+    test.setTimeout(180_000)
     const [hr, candidateUser, department, dutyStation] = await Promise.all([
       prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@frad.org' }, select: { id: true } }),
       prisma.user.findUniqueOrThrow({

@@ -15,8 +15,9 @@ export const metadata: Metadata = {
 export default async function VacanciesPage({
   searchParams,
 }: {
-  searchParams: { search?: string; departmentId?: string; dutyStationId?: string }
+  searchParams: Promise<{ search?: string; departmentId?: string; dutyStationId?: string }>
 }) {
+  const query = await searchParams
   const user = await getVerifiedUser()
   const [departments, dutyStations] = await Promise.all([
     prisma.department.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
@@ -29,13 +30,16 @@ export default async function VacanciesPage({
     closingAt: { gt: new Date() },
   }
 
-  if (searchParams.departmentId) where.departmentId = searchParams.departmentId
-  if (searchParams.dutyStationId) where.dutyStationId = searchParams.dutyStationId
-  if (searchParams.search) {
+  if (query.departmentId) where.departmentId = query.departmentId
+  if (query.dutyStationId) where.dutyStationId = query.dutyStationId
+  // Cap the untrusted search term: it comes straight from a public query
+  // string and otherwise drives an unbounded LIKE scan.
+  const search = query.search?.trim().slice(0, 100)
+  if (search) {
     where.OR = [
-      { title: { contains: searchParams.search } },
-      { referenceNumber: { contains: searchParams.search } },
-      { summary: { contains: searchParams.search } },
+      { title: { contains: search, mode: 'insensitive' } },
+      { referenceNumber: { contains: search, mode: 'insensitive' } },
+      { summary: { contains: search, mode: 'insensitive' } },
     ]
   }
 
@@ -43,6 +47,8 @@ export default async function VacanciesPage({
     where,
     include: { department: true, dutyStation: true, project: true },
     orderBy: { closingAt: 'asc' },
+    // Bounded so a large campaign cannot render an unbounded page.
+    take: 200,
   })
 
   return (
@@ -87,7 +93,7 @@ export default async function VacanciesPage({
                 <input
                   type="search"
                   name="search"
-                  defaultValue={searchParams.search || ''}
+                  defaultValue={query.search || ''}
                   placeholder="Job title or reference"
                   className="h-11 w-full rounded-xl border border-surface-200 bg-white py-2 pl-10 pr-3 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                 />
@@ -96,7 +102,7 @@ export default async function VacanciesPage({
 
             <label className="block">
               <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-muted">Team</span>
-              <select name="departmentId" defaultValue={searchParams.departmentId || ''} className="h-11 w-full rounded-xl border border-surface-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+              <select name="departmentId" defaultValue={query.departmentId || ''} className="h-11 w-full rounded-xl border border-surface-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
                 <option value="">All teams</option>
                 {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
               </select>
@@ -104,7 +110,7 @@ export default async function VacanciesPage({
 
             <label className="block">
               <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-muted">Location</span>
-              <select name="dutyStationId" defaultValue={searchParams.dutyStationId || ''} className="h-11 w-full rounded-xl border border-surface-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+              <select name="dutyStationId" defaultValue={query.dutyStationId || ''} className="h-11 w-full rounded-xl border border-surface-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
                 <option value="">All locations</option>
                 {dutyStations.map((station) => <option key={station.id} value={station.id}>{station.name} ({station.state})</option>)}
               </select>
@@ -114,7 +120,7 @@ export default async function VacanciesPage({
               <button type="submit" className="btn-primary h-11 px-8 rounded-xl shadow-none">
                 Search roles
               </button>
-              {(searchParams.search || searchParams.departmentId || searchParams.dutyStationId) && (
+              {(query.search || query.departmentId || query.dutyStationId) && (
                 <Link href="/careers" className="btn-secondary h-11 px-6 rounded-xl shadow-none">
                   Clear
                 </Link>

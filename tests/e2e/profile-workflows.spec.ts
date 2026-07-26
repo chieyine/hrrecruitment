@@ -135,6 +135,9 @@ test.describe('candidate profile lifecycle', () => {
     await page.getByLabel('Edit Document Category').selectOption('ACADEMIC_CERTIFICATE')
     await page.getByLabel('Edit Document Expiry Date').fill('2030-01-01')
     await page.getByRole('button', { name: /save changes/i }).click()
+    // Wait for the PATCH and the success state before reloading; otherwise the
+    // navigation can abort the in-flight request on a slower first compilation.
+    await expect(page.getByRole('status')).toContainText(/updated/i)
     await page.reload()
     await expect(page.getByText('ACADEMIC_CERTIFICATE')).toBeVisible()
 
