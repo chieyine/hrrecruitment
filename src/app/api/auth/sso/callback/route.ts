@@ -6,6 +6,7 @@ import { issueSession, attachSession } from '@/lib/session'
 import { logAudit } from '@/lib/audit'
 import { logger } from '@/lib/logger'
 import { hasStaffRole } from '@/lib/roles'
+import { homeRouteForRoles } from '@/lib/home-route'
 
 /**
  * The handshake cookies are written with path '/api/auth/sso'. A delete must
@@ -86,14 +87,7 @@ export async function GET(request: NextRequest) {
       sessionVersion: user.sessionVersion,
     })
     await logAudit({ actorUserId: user.id, action: 'STAFF_SSO_LOGIN', resourceType: 'User', resourceId: user.id })
-    const home =
-      roles.length === 1 && roles.includes('PANEL_MEMBER')
-        ? '/recruitment/interviews'
-        : roles.includes('APPROVER') && !roles.includes('HR_MANAGER')
-          ? '/recruitment/approvals'
-          : roles.includes('COURSE_ADMIN') && !roles.includes('SYSTEM_ADMIN')
-            ? '/admin/courses'
-            : '/recruitment/work'
+    const home = homeRouteForRoles(roles)
     const response = attachSession(NextResponse.redirect(new URL(home, request.url)), token)
     clearSsoCookies(response)
     return response

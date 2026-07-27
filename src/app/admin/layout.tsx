@@ -33,17 +33,28 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!isSystemAdmin && !isCourseAdmin && !isHrManager) redirect('/recruitment/dashboard')
   const nav = isSystemAdmin
     ? NAV_GROUPS
-    : isCourseAdmin
+    : isCourseAdmin && !isHrManager
       ? [{ label: 'Courses', items: [{ href: '/admin/courses', label: 'Course administration' }, { href: '/admin/configuration-releases', label: 'Course change drafts' }] }]
-      : [{ label: 'Recruitment operations', items: [{ href: '/admin/automations', label: 'Automation controls' }, { href: '/admin/fraud-reports', label: 'Fraud reports' }] }]
+      : [
+          { label: 'Recruitment setup', items: [
+            { href: '/admin/departments', label: 'Departments' },
+            { href: '/admin/projects', label: 'Projects' },
+            { href: '/admin/duty-stations', label: 'Locations' },
+            { href: '/admin/contract-types', label: 'Contracts' },
+            { href: '/admin/vacancy-categories', label: 'Categories' },
+            { href: '/admin/document-types', label: 'Document types' },
+            { href: '/admin/document-requirements', label: 'Document requirements' },
+          ] },
+          { label: 'Recruitment operations', items: [{ href: '/admin/automations', label: 'Automation schedules' }, { href: '/admin/fraud-reports', label: 'Fraud reports' }] },
+        ]
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Header currentUser={user} />
       <main id="main-content" className="flex-1 py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <Link href={isSystemAdmin ? '/admin/departments' : isCourseAdmin ? '/admin/courses' : '/admin/automations'} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600">
-            <ArrowLeft className="h-4 w-4" /> Administration
+          <Link href="/recruitment/dashboard" className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-brand-700">
+            <ArrowLeft className="h-4 w-4" /> Back to dashboard
           </Link>
           <AdminNav groups={nav} />
           {children}

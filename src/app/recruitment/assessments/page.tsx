@@ -57,7 +57,7 @@ export default async function RecruitmentAssessmentsPage() {
                 <div key={a.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <h4 className="font-bold text-slate-900 text-sm">{a.title}</h4>
-                    <p className="text-xs text-slate-500">{a.vacancy.title} • {a.type} • {a._count.questions} questions • {a._count.candidateAssessments} candidate(s)</p>
+                    <p className="text-xs text-slate-500">{a.vacancy.title} • {a.type} • {a._count.questions} questions • {a._count.candidateAssessments} {a._count.candidateAssessments === 1 ? 'candidate' : 'candidates'}</p>
                   </div>
                   <span className="px-3 py-1 rounded-full text-xs font-bold border bg-slate-100 text-slate-700 border-slate-300">Pass mark {a.passMark}%</span>
                 </div>

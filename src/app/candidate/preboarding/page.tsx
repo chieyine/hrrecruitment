@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
-import { CheckCircle2, FileText, Upload, Shield, BookOpen, MapPin, CheckSquare, Calendar, Info } from 'lucide-react'
+import { FileText, Upload, Shield, BookOpen, MapPin, CheckSquare, Calendar, Info } from 'lucide-react'
+import { PageIntro } from '@/components/ui/PageElements'
 
 const EMPTY = { id: '', overallCompletionPercentage: 0, readinessStatus: 'NOT_STARTED', confirmedStartDate: null, proposedStartDate: null, reportingLocation: '', forms: [], documents: [], policies: [], courses: [], tasks: [], meetings: [], infoItems: [] }
 
@@ -53,10 +54,10 @@ export default function CandidatePreboardingPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col bg-slate-50">
+      <div className="flex min-h-screen flex-col bg-stone-50">
         <Header />
         <main id="main-content" className="flex-1 flex items-center justify-center">
-          <p className="text-xs text-slate-500 font-semibold">Loading your preboarding hub…</p>
+          <p className="text-sm font-medium text-stone-500">Loading your preboarding requirements…</p>
         </main>
         <Footer />
       </div>
@@ -64,40 +65,22 @@ export default function CandidatePreboardingPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-stone-50">
       <Header />
 
-      <main className="flex-1 py-10">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 space-y-8">
-          {/* Header Banner */}
-          <div className="rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 p-8 text-white shadow-xl space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-300 border border-emerald-400/30">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Active Preboarding Clearance
-                </span>
-                <h1 className="text-3xl font-extrabold tracking-tight mt-2">
-                  Before you start
-                </h1>
-                <p className="text-xs text-slate-300">
-                  Complete required forms, document verification, policy sign-offs, and compulsory orientation courses.
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-white/10 backdrop-blur p-4 border border-white/10 text-xs space-y-1 text-right">
-                <span className="text-slate-300">Mandatory Completion:</span>
-                <span className="block text-2xl font-extrabold text-emerald-400">
-                  {preboarding.overallCompletionPercentage}%
-                </span>
-              </div>
-            </div>
-
-            <div className="h-2 w-full rounded-full bg-white/20 overflow-hidden">
-              <div
-                className="h-full bg-emerald-400 rounded-full transition-all duration-500"
-                style={{ width: `${preboarding.overallCompletionPercentage}%` }}
-              />
-            </div>
+      <main id="main-content" className="flex-1 py-8">
+        <div className="page-shell max-w-5xl space-y-7">
+          <PageIntro
+            eyebrow="Preboarding"
+            title="Before you start"
+            description="Complete the forms, documents, policies, courses and other actions requested by the recruitment team."
+            actions={<div className="text-right"><span className="text-xs font-semibold text-stone-500">Required items complete</span><span className="block text-3xl font-bold text-stone-950">{preboarding.overallCompletionPercentage}%</span></div>}
+          />
+          <div className="h-2 w-full overflow-hidden rounded-full bg-stone-200" aria-label={`${preboarding.overallCompletionPercentage}% complete`}>
+            <div
+              className="h-full rounded-full bg-brand-700 transition-all duration-500"
+              style={{ width: `${preboarding.overallCompletionPercentage}%` }}
+            />
           </div>
 
           {/* Reporting & Start Info Card */}

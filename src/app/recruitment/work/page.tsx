@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { AlertTriangle, CheckCircle2, Clock3, ListTodo, Bot, ArrowRight } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock3, ListTodo, RefreshCw, ArrowRight } from 'lucide-react'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import WorkItemActions from '@/components/admin/WorkItemActions'
@@ -153,8 +153,8 @@ export default async function MyWorkPage({ searchParams }: { searchParams: Promi
 
           <section aria-labelledby="automation-heading" className="section-panel">
             <div className="section-heading">
-              <div><h2 id="automation-heading" className="flex items-center gap-2 text-lg font-bold text-slate-950"><Bot className="h-5 w-5 text-blue-700" />Handled automatically</h2><p className="mt-1 text-sm text-slate-600">Routine reminders, expiry checks, escalations and scheduled reports completed in the last seven days.</p></div>
-              <Link href="/admin/automations" className="text-sm font-semibold text-blue-700 underline">Review controls</Link>
+              <div><h2 id="automation-heading" className="flex items-center gap-2 text-lg font-bold text-slate-950"><RefreshCw className="h-5 w-5 text-brand-700" />Scheduled activity</h2><p className="mt-1 text-sm text-slate-600">Reminders, expiry checks, escalations and report deliveries completed in the last seven days.</p></div>
+              {(user.roles.includes('HR_MANAGER') || user.roles.includes('SYSTEM_ADMIN')) && <Link href="/admin/automations" className="text-sm font-semibold text-brand-700 underline">Manage schedules</Link>}
             </div>
             <div className="grid gap-px border border-slate-200 bg-slate-200 sm:grid-cols-3">
               <div className="bg-white p-4"><p className="text-xs font-semibold text-slate-600">Actions completed</p><p className="mt-1 text-2xl font-bold text-slate-950">{automated}</p></div>
@@ -182,7 +182,7 @@ export default async function MyWorkPage({ searchParams }: { searchParams: Promi
                       {item.description && <p className="mt-1 text-xs text-slate-500">{item.description}</p>}
                       <p className="mt-2 text-[11px] text-slate-500">Owner: {item.assignedUserId === user.userId ? 'you' : item.assignedRole ? item.assignedRole.replaceAll('_', ' ').toLowerCase() : 'team queue'} · Due {item.dueAt ? formatDate(item.dueAt) : 'without a configured target'}{item.blockedReason ? ` · Blocked: ${item.blockedReason}` : ''}</p>
                     </div>
-                    <div className="flex flex-wrap items-center justify-end gap-2"><Link href={workItemHref(item)} className="btn-primary">Safest next action <ArrowRight className="h-4 w-4" /></Link><WorkItemActions id={item.id} status={item.status} lockVersion={item.lockVersion} /></div>
+                    <div className="flex flex-wrap items-center justify-end gap-2"><Link href={workItemHref(item)} className="btn-primary">Open record <ArrowRight className="h-4 w-4" /></Link><WorkItemActions id={item.id} status={item.status} lockVersion={item.lockVersion} /></div>
                   </div>
                 )
               })}

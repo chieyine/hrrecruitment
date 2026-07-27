@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Header from '@/components/shared/Header'
 import { Lock, Mail, AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react'
-import { hasStaffRole, isCandidateOnly } from '@/lib/roles'
+import { homeRouteForRoles } from '@/lib/home-route'
 
 const SSO_ERROR_MESSAGES: Record<string, string> = {
   sso_failed: 'Staff single sign-on could not be completed. Please try again or sign in with your password.',
@@ -34,19 +34,10 @@ export default function LoginPage() {
   }, [])
 
   const goHome = (roles: string[]) => {
-    const candidateOnly = isCandidateOnly(roles)
-    const staff = hasStaffRole(roles)
-    const staffHome = roles.length === 1 && roles.includes('PANEL_MEMBER')
-      ? '/recruitment/interviews'
-      : roles.includes('APPROVER') && !roles.includes('HR_MANAGER')
-        ? '/recruitment/approvals'
-        : roles.includes('COURSE_ADMIN') && !roles.includes('SYSTEM_ADMIN')
-          ? '/admin/courses'
-          : '/recruitment/work'
     // The destination navigation will fetch fresh server state with the new
     // session cookie. Refreshing immediately after push can race the navigation
     // and leave the user on the login page under load.
-    router.replace(nextPath || (candidateOnly ? '/candidate/dashboard' : staff ? staffHome : '/careers'))
+    router.replace(nextPath || homeRouteForRoles(roles))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

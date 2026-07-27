@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { LogIn, LogOut, Menu, X } from 'lucide-react'
 import type { UserSession } from '@/lib/auth'
 import { hasStaffRole, isCandidateOnly } from '@/lib/roles'
+import { homeRouteForRoles } from '@/lib/home-route'
 
 const PUBLIC_LINKS = [
   { href: '/careers', label: 'Vacancies' },
@@ -41,9 +42,7 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
   const isApprover = Boolean(resolvedUser?.roles?.includes('APPROVER') && !resolvedUser.roles.includes('HR_MANAGER'))
   const isPanelOnly = Boolean(resolvedUser?.roles?.length === 1 && resolvedUser.roles.includes('PANEL_MEMBER'))
   const isAuditorOnly = Boolean(resolvedUser?.roles?.length === 1 && resolvedUser.roles.includes('AUDITOR'))
-  const home = resolvedUser
-    ? isCandidate ? '/candidate/dashboard' : !isStaff ? '/careers' : isCourseAdmin ? '/admin/courses' : isApprover ? '/recruitment/approvals' : isPanelOnly ? '/recruitment/interviews' : isAuditorOnly ? '/recruitment/audit' : '/recruitment/work'
-    : '/careers'
+  const home = resolvedUser ? homeRouteForRoles(resolvedUser.roles) : '/careers'
   const navLinks = resolvedUser && (isCandidate || isStaff)
     ? isCandidate
       ? [
@@ -68,6 +67,7 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
           : isAuditorOnly
             ? [{ href: '/recruitment/audit', label: 'Audit trail' }, { href: '/recruitment/reports', label: 'Reports' }]
         : [
+          { href: '/recruitment/dashboard', label: 'Dashboard' },
           { href: '/recruitment/work', label: 'My work' },
           { href: '/recruitment/vacancies', label: 'Vacancies' },
           { href: '/recruitment/applications', label: 'Candidates' },
@@ -76,6 +76,9 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
           { href: '/recruitment/selections', label: 'Selections' },
           { href: '/recruitment/search', label: 'Search' },
           { href: '/recruitment/reports', label: 'Reports' },
+          ...(resolvedUser.roles.includes('SYSTEM_ADMIN') || resolvedUser.roles.includes('HR_MANAGER')
+            ? [{ href: '/admin/projects', label: 'Administration' }]
+            : []),
         ]
     : PUBLIC_LINKS
 
@@ -107,7 +110,7 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
           </div>
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-7 text-[13px] font-semibold text-stone-600 lg:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-5 text-[13px] font-semibold text-stone-600 lg:flex">
           {navLinks.map((link) => (
             <Link key={link.href} href={link.href} aria-current={pathname === link.href || (link.href !== '/careers' && pathname.startsWith(`${link.href}/`)) ? 'page' : undefined} className={`border-b-2 py-2 transition-colors ${pathname === link.href || (link.href !== '/careers' && pathname.startsWith(`${link.href}/`)) ? 'border-brand-700 text-stone-950' : 'border-transparent hover:border-brand-300 hover:text-stone-950'}`}>
               {link.label}

@@ -104,6 +104,13 @@ export async function proxy(req: NextRequest) {
       const hrManagerPath =
         pathname === '/admin/automations' ||
         pathname === '/api/admin/automations' ||
+        pathname === '/admin/departments' ||
+        pathname === '/admin/projects' ||
+        pathname === '/admin/duty-stations' ||
+        pathname === '/admin/contract-types' ||
+        pathname === '/admin/vacancy-categories' ||
+        pathname === '/admin/document-types' ||
+        pathname === '/admin/document-requirements' ||
         // Fraud reports are triaged by HR managers as well as system admins;
         // the route handlers enforce the same pair of roles.
         pathname === '/admin/fraud-reports' ||

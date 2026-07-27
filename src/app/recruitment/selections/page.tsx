@@ -5,6 +5,7 @@ import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import { Award, CheckCircle2, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { PageIntro } from '@/components/ui/PageElements'
 
 export default function SelectionRankingPage() {
   const [candidates, setCandidates] = useState<any[]>([])
@@ -77,16 +78,16 @@ export default function SelectionRankingPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-stone-50">
       <Header />
 
-      <main id="main-content" className="flex-1 py-10">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-8">
+      <main id="main-content" className="flex-1 py-8">
+        <div className="page-shell max-w-6xl space-y-7">
           <Link
             href="/recruitment/dashboard"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 transition-colors hover:text-brand-700"
           >
-            <ArrowLeft className="h-4 w-4" /> Back to Dashboard
+            <ArrowLeft className="h-4 w-4" /> Back to dashboard
           </Link>
 
           {msg && (
@@ -96,18 +97,14 @@ export default function SelectionRankingPage() {
             </div>
           )}
 
-          <div className="rounded-3xl bg-slate-900 p-8 text-white shadow-xl space-y-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-400 bg-blue-500/20 px-3 py-1 rounded-full border border-blue-400/30">
-              Selection & Ranking Workspace
-            </span>
-            <h1 className="text-3xl font-extrabold">Final Candidate Weighted Ranking</h1>
-            <p className="text-xs text-slate-300">
-              Screening, assessment and panel scores are normalised to percentages before the configured 20/30/50 weighting is applied.
-            </p>
-          </div>
+          <PageIntro
+            eyebrow="Selection"
+            title="Final candidate ranking"
+            description="Compare screening, assessment and interview results using the approved weighting for the vacancy."
+          />
 
           {/* Ranking Table */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm space-y-6">
+          <div className="section-panel space-y-6 p-6 sm:p-8">
             <h2 className="text-base font-bold text-slate-900 uppercase tracking-wider text-xs border-b border-slate-100 pb-2">
               Candidate Weighted Score Matrix
             </h2>

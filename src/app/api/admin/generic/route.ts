@@ -6,9 +6,10 @@ import { logAudit } from '@/lib/audit'
 
 /**
  * Generic admin CRUD over a whitelist of configuration entities.
- * Every operation requires SYSTEM_ADMIN, except `courses`, which is delegated
- * to the `course.manage` permission. Only whitelisted fields are ever
- * persisted, so the endpoint cannot be used to set arbitrary columns.
+ * Security and platform configuration requires SYSTEM_ADMIN. Recruitment
+ * master data is maintained by HR_MANAGER or SYSTEM_ADMIN, while `courses` is
+ * delegated to the `course.manage` permission. Only whitelisted fields are
+ * ever persisted, so the endpoint cannot be used to set arbitrary columns.
  */
 
 type FieldType = 'string' | 'int' | 'float' | 'bool' | 'date'
@@ -95,8 +96,22 @@ const STAFF_READABLE_ENTITIES = new Set([
   'projects',
 ])
 
+// These records describe the organisation and the choices available when HR
+// opens a vacancy. They are operational recruitment data, not platform or
+// access-control settings.
+const HR_MANAGED_ENTITIES = new Set([
+  'departments',
+  'projects',
+  'duty-stations',
+  'contract-types',
+  'vacancy-categories',
+  'document-types',
+  'document-requirements',
+])
+
 async function authorizeEntity(entity: string, mode: 'read' | 'write' = 'write') {
   if (mode === 'read' && STAFF_READABLE_ENTITIES.has(entity)) return requireStaff()
+  if (HR_MANAGED_ENTITIES.has(entity)) return requireRole('HR_MANAGER', 'SYSTEM_ADMIN')
   return entity === 'courses'
     ? requirePermission('course.manage')
     : requireRole('SYSTEM_ADMIN')

@@ -21,6 +21,7 @@ export default async function RecruitmentDashboardPage() {
   if (user.roles.includes('COURSE_ADMIN') && user.roles.every((role) => role === 'COURSE_ADMIN')) redirect('/admin/courses')
   const readAll = await hasPermission(user.userId, 'vacancy.read.all')
   const readAssigned = await hasPermission(user.userId, 'vacancy.read.assigned')
+  const canCreateVacancy = await hasPermission(user.userId, 'vacancy.create.all')
   if (!readAll && !readAssigned) redirect('/')
   const vacancyWhere = readAll ? {} : { ownerUserId: user.userId }
   const applicationWhere = readAll ? {} : {
@@ -64,7 +65,7 @@ export default async function RecruitmentDashboardPage() {
             eyebrow="Recruitment"
             title="Recruitment overview"
             description="Open your assigned work first, then use this page to check current volumes and recent candidate activity."
-            actions={<><Link href="/recruitment/work" className="btn-primary"><Users className="mr-2 h-4 w-4" />My work</Link><Link href="/recruitment/vacancies/new" className="btn-secondary">Create vacancy</Link><Link href="/recruitment/operations" className="btn-secondary">Operational checks</Link><Link href="/recruitment/insights" className="btn-secondary">Management insight</Link></>}
+            actions={<><Link href="/recruitment/work" className="btn-primary"><Users className="mr-2 h-4 w-4" />My work</Link>{canCreateVacancy && <Link href="/recruitment/vacancies/new" className="btn-secondary">Create vacancy</Link>}<Link href="/recruitment/operations" className="btn-secondary">Operational checks</Link><Link href="/recruitment/insights" className="btn-secondary">Recruitment insights</Link></>}
           />
 
           {/* Operational Metrics Grid */}

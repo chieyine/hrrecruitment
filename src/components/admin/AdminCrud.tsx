@@ -48,6 +48,11 @@ export default function AdminCrud({
   const [effectiveTo, setEffectiveTo] = useState('')
   const [query, setQuery] = useState('')
   const { toast } = useToast()
+  const singularTitle = title.endsWith('ies')
+    ? `${title.slice(0, -3)}y`
+    : title.endsWith('s')
+      ? title.slice(0, -1)
+      : title
   const visibleItems = query.trim()
     ? items.filter((item) => columns.some((column) => String(item[column.name] ?? '').toLowerCase().includes(query.trim().toLowerCase())))
     : items
@@ -194,7 +199,7 @@ export default function AdminCrud({
           {subtitle && <p className="text-slate-600 text-sm mt-1">{subtitle}</p>}
         </div>
         <div className="flex items-center gap-2">
-          <a href="/admin/configuration-releases" className="btn-secondary min-h-0 px-3 py-2">Review drafts</a>
+          {items.some((item) => item.version !== undefined) && <a href="/admin/configuration-releases" className="btn-secondary min-h-0 px-3 py-2">Review drafts</a>}
           <button
             onClick={load}
             className="btn-secondary min-h-0 px-3 py-2"
@@ -206,7 +211,7 @@ export default function AdminCrud({
               onClick={openCreate}
               className="btn-primary min-h-0 px-4 py-2"
             >
-              <Plus className="w-4 h-4" /> New
+              <Plus className="w-4 h-4" /> Add {singularTitle.toLowerCase()}
             </button>
           )}
         </div>
@@ -282,7 +287,7 @@ export default function AdminCrud({
       <Dialog
         open={showForm}
         onClose={() => setShowForm(false)}
-        title={`${editing ? 'Edit' : 'Create'} ${title.replace(/s$/, '')}`}
+        title={`${editing ? 'Edit' : 'Add'} ${singularTitle.toLowerCase()}`}
       >
         <div className="max-h-[70vh] overflow-y-auto pr-1">
             <div className="space-y-4">
