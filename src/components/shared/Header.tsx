@@ -93,9 +93,6 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
 
   return (
     <header className="sticky top-0 z-50 border-b border-stone-200 bg-white/95 backdrop-blur">
-      <a href="#main-content" className="sr-only z-[60] bg-white px-4 py-3 font-bold text-brand-900 focus:not-sr-only focus:absolute focus:left-3 focus:top-3">
-        Skip to main content
-      </a>
       <div className="h-0.5 bg-brand-700" />
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link href={home} aria-label={resolvedUser ? isCandidate ? 'Candidate account' : 'Staff workspace' : 'FRAD careers'} className="group flex items-center gap-3">
