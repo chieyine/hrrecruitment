@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { FileText, Loader2, ChevronDown } from 'lucide-react'
+import { formatDateTime } from '@/lib/utils'
 
 /**
  * A candidate's read-only view of the answers they submitted.
@@ -58,9 +59,13 @@ export default function AssessmentSubmissionReview({ candidateAssessmentId }: { 
           type="button"
           onClick={load}
           disabled={loading}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:border-blue-400 hover:text-blue-700 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:border-brand-400 hover:text-brand-700 disabled:opacity-50"
         >
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <FileText className="h-3.5 w-3.5" aria-hidden />}
+          {loading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <FileText className="h-3.5 w-3.5" aria-hidden />
+          )}
           Review my answers
         </button>
         {error && (
@@ -79,10 +84,14 @@ export default function AssessmentSubmissionReview({ candidateAssessmentId }: { 
       <div className="flex items-center justify-between border-b border-slate-200 p-3">
         <p className="text-xs font-bold text-slate-900">
           Your answers · submitted{' '}
-          {review.submittedAt ? new Date(review.submittedAt).toLocaleString('en-GB') : 'recently'}
+          {review.submittedAt ? formatDateTime(review.submittedAt) : 'recently'}
           {review.autoSubmitted && ' (submitted automatically when time ran out)'}
         </p>
-        <button type="button" onClick={() => setOpen(false)} className="inline-flex items-center gap-1 text-xs font-bold text-slate-600">
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="inline-flex items-center gap-1 text-xs font-bold text-slate-600"
+        >
           <ChevronDown className="h-4 w-4 rotate-180" aria-hidden /> Hide
         </button>
       </div>

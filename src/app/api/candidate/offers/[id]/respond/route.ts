@@ -9,14 +9,20 @@ import { claimIdempotency, completeIdempotency, abandonIdempotency, type Idempot
 import { clientIp } from '@/lib/rate-limit'
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   let claim: IdempotencyClaim | null = null
   try {
     const user = await requireUser()
     const parsed = await parseBody(request, offerResponseSchema)
     const { action, candidateComment, signatureName, signedFileId, proposedStartDate } = parsed
-    if (action !== 'CLARIFY' && !request.headers.get('idempotency-key')?.trim()) throw new AuthzError('Idempotency-Key is required for an offer decision', 400)
-    claim = await claimIdempotency({ request, scope: `OFFER_RESPONSE:${params.id}`, actorUserId: user.userId, payload: parsed })
+    if (action !== 'CLARIFY' && !request.headers.get('idempotency-key')?.trim())
+      throw new AuthzError('Idempotency-Key is required for an offer decision', 400)
+    claim = await claimIdempotency({
+      request,
+      scope: `OFFER_RESPONSE:${params.id}`,
+      actorUserId: user.userId,
+      payload: parsed,
+    })
     if (claim?.replay) return NextResponse.json(claim.body, { status: claim.statusCode })
 
     const offer = await prisma.offer.findUnique({
@@ -41,20 +47,49 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       )
     }
 
-    if (offer.acceptanceDeadline <= new Date()) throw new AuthzError('This offer has expired and can no longer be actioned', 409)
-    if (proposedStartDate && proposedStartDate <= new Date()) throw new AuthzError('Proposed start date must be in the future', 400)
+    if (offer.acceptanceDeadline <= new Date())
+      throw new AuthzError('This offer has expired and can no longer be actioned', 409)
+    if (proposedStartDate && proposedStartDate <= new Date())
+      throw new AuthzError('Proposed start date must be in the future', 400)
     if (signedFileId) {
-      const signedAsset = await prisma.fileAsset.findFirst({ where: { id: signedFileId, ownerUserId: user.userId, virusScanStatus: 'CLEAN', mimeType: 'application/pdf' } })
+      const signedAsset = await prisma.fileAsset.findFirst({
+        where: { id: signedFileId, ownerUserId: user.userId, virusScanStatus: 'CLEAN', mimeType: 'application/pdf' },
+      })
       if (!signedAsset) throw new AuthzError('A clean PDF signed offer owned by you is required', 400)
     }
 
     if (action === 'CLARIFY') {
-      const thread = await prisma.messageThread.create({ data: { applicationId: offer.applicationId, subject: `Offer clarification: ${offer.position}`, category: 'OFFER_CLARIFICATION' } })
-      await prisma.message.create({ data: { messageThreadId: thread.id, senderUserId: user.userId, body: candidateComment!.trim() } })
-      const app = await prisma.application.findUnique({ where: { id: offer.applicationId }, include: { vacancy: { select: { ownerUserId: true } } } })
-      if (app) await createNotification({ userId: app.vacancy.ownerUserId, type: 'OFFER_CLARIFICATION', title: 'Offer clarification requested', body: `A candidate requested clarification about the ${offer.position} offer.` })
-      await prisma.offer.update({ where: { id: offer.id }, data: { candidateComment: candidateComment || null, candidateProposedStartDate: proposedStartDate || null } })
-      await logAudit({ actorUserId: user.userId, action: 'OFFER_CLARIFICATION_REQUESTED', resourceType: 'Offer', resourceId: offer.id })
+      const thread = await prisma.messageThread.create({
+        data: {
+          applicationId: offer.applicationId,
+          subject: `Offer clarification: ${offer.position}`,
+          category: 'OFFER_CLARIFICATION',
+        },
+      })
+      await prisma.message.create({
+        data: { messageThreadId: thread.id, senderUserId: user.userId, body: candidateComment!.trim() },
+      })
+      const app = await prisma.application.findUnique({
+        where: { id: offer.applicationId },
+        include: { vacancy: { select: { ownerUserId: true } } },
+      })
+      if (app)
+        await createNotification({
+          userId: app.vacancy.ownerUserId,
+          type: 'OFFER_CLARIFICATION',
+          title: 'Offer clarification requested',
+          body: `A candidate requested clarification about the ${offer.position} offer.`,
+        })
+      await prisma.offer.update({
+        where: { id: offer.id },
+        data: { candidateComment: candidateComment || null, candidateProposedStartDate: proposedStartDate || null },
+      })
+      await logAudit({
+        actorUserId: user.userId,
+        action: 'OFFER_CLARIFICATION_REQUESTED',
+        resourceType: 'Offer',
+        resourceId: offer.id,
+      })
       const responseBody = { success: true, threadId: thread.id }
       await completeIdempotency(claim, 200, responseBody)
       return NextResponse.json(responseBody)
@@ -77,12 +112,52 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       ]
       const accepted = await prisma.$transaction(async (tx) => {
         const trustedIp = clientIp(request)
-        const changed = await tx.offer.updateMany({ where: { id: offer.id, version: offer.version, status: { in: ['SENT', 'VIEWED'] } }, data: { status: 'ACCEPTED', acceptedAt: new Date(), candidateComment: candidateComment || null, signedFileId: signedFileId || null, signatureName, signatureMethod: signedFileId ? 'TYPED_NAME_AND_SIGNED_UPLOAD' : 'TYPED_NAME', signatureIpAddress: trustedIp === 'unknown' ? null : trustedIp, signatureUserAgent: request.headers.get('user-agent') } })
+        const changed = await tx.offer.updateMany({
+          where: { id: offer.id, version: offer.version, status: { in: ['SENT', 'VIEWED'] } },
+          data: {
+            status: 'ACCEPTED',
+            acceptedAt: new Date(),
+            candidateComment: candidateComment || null,
+            signedFileId: signedFileId || null,
+            signatureName,
+            signatureMethod: signedFileId ? 'TYPED_NAME_AND_SIGNED_UPLOAD' : 'TYPED_NAME',
+            signatureIpAddress: trustedIp === 'unknown' ? null : trustedIp,
+            signatureUserAgent: request.headers.get('user-agent'),
+          },
+        })
         if (changed.count !== 1) throw new AuthzError('Offer changed; refresh and try again', 409)
-        const appChanged = await tx.application.updateMany({ where: { id: offer.applicationId, internalStatus: 'OFFER_SENT' }, data: { offerStatus: 'ACCEPTED', internalStatus: 'OFFER_ACCEPTED', candidateVisibleStatus: 'PREBOARDING_IN_PROGRESS', preboardingStatus: 'IN_PROGRESS', lockVersion: { increment: 1 } } })
+        const appChanged = await tx.application.updateMany({
+          where: { id: offer.applicationId, internalStatus: 'OFFER_SENT' },
+          data: {
+            offerStatus: 'ACCEPTED',
+            internalStatus: 'OFFER_ACCEPTED',
+            candidateVisibleStatus: 'PREBOARDING_IN_PROGRESS',
+            preboardingStatus: 'IN_PROGRESS',
+            lockVersion: { increment: 1 },
+          },
+        })
         if (appChanged.count !== 1) throw new AuthzError('Application is no longer awaiting an offer decision', 409)
-        const preboarding = await tx.candidatePreboarding.upsert({ where: { applicationId: offer.applicationId }, update: {}, create: { applicationId: offer.applicationId, status: 'IN_PROGRESS', readinessStatus: 'NOT_READY', overallCompletionPercentage: 0 } })
-        for (const checkType of checkTypes) await tx.readinessCheck.upsert({ where: { candidatePreboardingId_checkType: { candidatePreboardingId: preboarding.id, checkType } }, update: {}, create: { candidatePreboardingId: preboarding.id, checkType, required: true, status: checkType === 'OFFER_ACCEPTED' ? 'PASSED' : 'PENDING' } })
+        const preboarding = await tx.candidatePreboarding.upsert({
+          where: { applicationId: offer.applicationId },
+          update: {},
+          create: {
+            applicationId: offer.applicationId,
+            status: 'IN_PROGRESS',
+            readinessStatus: 'NOT_READY',
+            overallCompletionPercentage: 0,
+          },
+        })
+        for (const checkType of checkTypes)
+          await tx.readinessCheck.upsert({
+            where: { candidatePreboardingId_checkType: { candidatePreboardingId: preboarding.id, checkType } },
+            update: {},
+            create: {
+              candidatePreboardingId: preboarding.id,
+              checkType,
+              required: true,
+              status: checkType === 'OFFER_ACCEPTED' ? 'PASSED' : 'PENDING',
+            },
+          })
         await instantiatePreboardingPackage(preboarding.id, offer.applicationId, user.userId, undefined, tx)
         return { offer: await tx.offer.findUniqueOrThrow({ where: { id: offer.id } }), preboarding }
       })
@@ -101,9 +176,20 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     // DECLINE
     const updatedOffer = await prisma.$transaction(async (tx) => {
-      const changed = await tx.offer.updateMany({ where: { id: offer.id, version: offer.version, status: { in: ['SENT', 'VIEWED'] } }, data: { status: 'DECLINED', declinedAt: new Date(), candidateComment: candidateComment || null } })
+      const changed = await tx.offer.updateMany({
+        where: { id: offer.id, version: offer.version, status: { in: ['SENT', 'VIEWED'] } },
+        data: { status: 'DECLINED', declinedAt: new Date(), candidateComment: candidateComment || null },
+      })
       if (changed.count !== 1) throw new AuthzError('Offer changed; refresh and try again', 409)
-      const appChanged = await tx.application.updateMany({ where: { id: offer.applicationId, internalStatus: 'OFFER_SENT' }, data: { offerStatus: 'DECLINED', internalStatus: 'OFFER_DECLINED', candidateVisibleStatus: 'RECRUITMENT_COMPLETED', lockVersion: { increment: 1 } } })
+      const appChanged = await tx.application.updateMany({
+        where: { id: offer.applicationId, internalStatus: 'OFFER_SENT' },
+        data: {
+          offerStatus: 'DECLINED',
+          internalStatus: 'OFFER_DECLINED',
+          candidateVisibleStatus: 'RECRUITMENT_COMPLETED',
+          lockVersion: { increment: 1 },
+        },
+      })
       if (appChanged.count !== 1) throw new AuthzError('Application is no longer awaiting an offer decision', 409)
       return tx.offer.findUniqueOrThrow({ where: { id: offer.id } })
     })

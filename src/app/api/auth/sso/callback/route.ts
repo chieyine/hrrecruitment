@@ -65,11 +65,7 @@ export async function GET(request: NextRequest) {
     const user =
       linked?.user ||
       (await prisma.user.findUnique({ where: { email }, include: { userRoles: { include: { role: true } } } }))
-    if (
-      !user ||
-      user.accountStatus !== 'ACTIVE' ||
-      !hasStaffRole(user.userRoles.map((item) => item.role.name))
-    )
+    if (!user || user.accountStatus !== 'ACTIVE' || !hasStaffRole(user.userRoles.map((item) => item.role.name)))
       throw new Error('No active FRAD staff account is linked to this email')
     if (linked && linked.userId !== user.id) throw new Error('SSO identity is linked to another account')
     await prisma.externalIdentity.upsert({

@@ -31,20 +31,23 @@ export default function SelectionRankingPage() {
       .catch(console.error)
   }, [])
 
-  const vacancies = [...new Map(candidates.map((candidate) => [
-    candidate.vacancyId,
-    {
-      id: candidate.vacancyId,
-      title: candidate.vacancyTitle,
-      reference: candidate.vacancyReference,
-      fundedPositions: candidate.fundedPositions,
-    },
-  ])).values()]
+  const vacancies = [
+    ...new Map(
+      candidates.map((candidate) => [
+        candidate.vacancyId,
+        {
+          id: candidate.vacancyId,
+          title: candidate.vacancyTitle,
+          reference: candidate.vacancyReference,
+          fundedPositions: candidate.fundedPositions,
+        },
+      ])
+    ).values(),
+  ]
   const visibleCandidates = candidates.filter((candidate) => candidate.vacancyId === selectedVacancyId)
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedAppId)
   const requiresOverrideJustification =
-    outcome === 'SELECTED' &&
-    Boolean(selectedCandidate && selectedCandidate.rank > selectedCandidate.fundedPositions)
+    outcome === 'SELECTED' && Boolean(selectedCandidate && selectedCandidate.rank > selectedCandidate.fundedPositions)
 
   const handleApproveSelection = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -125,7 +128,7 @@ export default function SelectionRankingPage() {
                 <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
                   {visibleCandidates.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3.5 px-4 font-extrabold text-blue-600 text-sm">#{c.rank}</td>
+                      <td className="py-3.5 px-4 font-extrabold text-brand-600 text-sm">#{c.rank}</td>
                       <td className="py-3.5 px-4 font-bold text-slate-900">
                         {c.name}
                         <span className="block text-[10px] text-slate-500 font-normal">{c.email}</span>
@@ -134,7 +137,8 @@ export default function SelectionRankingPage() {
                       <td className="py-3.5 px-4">{c.assessmentScore}%</td>
                       <td className="py-3.5 px-4">{c.interviewScore}%</td>
                       <td className="py-3.5 px-4 font-mono font-extrabold text-emerald-700 text-sm">
-                        {c.weightedFinalScore ?? '—'}{c.weightedFinalScore == null ? '' : '%'}
+                        {c.weightedFinalScore ?? '—'}
+                        {c.weightedFinalScore == null ? '' : '%'}
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <span className="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold text-[10px] border border-emerald-300">
@@ -149,7 +153,7 @@ export default function SelectionRankingPage() {
           </div>
 
           {/* Selection Approval Form */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm space-y-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm space-y-6">
             <h2 className="text-base font-bold text-slate-900 uppercase tracking-wider text-xs border-b border-slate-100 pb-2">
               Record Final Selection Approval
             </h2>
@@ -166,11 +170,12 @@ export default function SelectionRankingPage() {
                       setSelectedAppId(candidates.find((candidate) => candidate.vacancyId === vacancyId)?.id ?? '')
                       setJustification('')
                     }}
-                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs bg-white focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs bg-white focus:border-brand-600 focus:outline-none"
                   >
                     {vacancies.map((vacancy) => (
                       <option key={vacancy.id} value={vacancy.id}>
-                        {vacancy.reference} — {vacancy.title} ({vacancy.fundedPositions} position{vacancy.fundedPositions === 1 ? '' : 's'})
+                        {vacancy.reference} — {vacancy.title} ({vacancy.fundedPositions} position
+                        {vacancy.fundedPositions === 1 ? '' : 's'})
                       </option>
                     ))}
                   </select>
@@ -184,7 +189,7 @@ export default function SelectionRankingPage() {
                       setSelectedAppId(event.target.value)
                       setJustification('')
                     }}
-                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs bg-white focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs bg-white focus:border-brand-600 focus:outline-none"
                   >
                     {visibleCandidates.map((candidate) => (
                       <option key={candidate.id} value={candidate.id}>
@@ -199,7 +204,7 @@ export default function SelectionRankingPage() {
                   <select
                     value={outcome}
                     onChange={(e) => setOutcome(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs bg-white focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs bg-white focus:border-brand-600 focus:outline-none"
                   >
                     <option value="SELECTED">Selected</option>
                     <option value="FIRST_RESERVE">First reserve</option>
@@ -209,7 +214,9 @@ export default function SelectionRankingPage() {
                 </div>
               </div>
 
-              <div className={`rounded-2xl border p-4 space-y-2 ${requiresOverrideJustification ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+              <div
+                className={`rounded-2xl border p-4 space-y-2 ${requiresOverrideJustification ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}
+              >
                 <p className={`font-bold ${requiresOverrideJustification ? 'text-amber-950' : 'text-slate-800'}`}>
                   {requiresOverrideJustification
                     ? `Ranking override: this candidate is ranked #${selectedCandidate?.rank} for ${selectedCandidate?.fundedPositions} funded position${selectedCandidate?.fundedPositions === 1 ? '' : 's'}.`
@@ -219,7 +226,9 @@ export default function SelectionRankingPage() {
                   Rank and override status are calculated by the server. They cannot be set in this form.
                 </p>
                 <label className="block font-bold text-slate-800">
-                  {requiresOverrideJustification ? 'Mandatory written justification (at least 20 characters)' : 'Justification (optional)'}
+                  {requiresOverrideJustification
+                    ? 'Mandatory written justification (at least 20 characters)'
+                    : 'Justification (optional)'}
                   <textarea
                     required={requiresOverrideJustification}
                     minLength={requiresOverrideJustification ? 20 : undefined}
@@ -227,7 +236,7 @@ export default function SelectionRankingPage() {
                     value={justification}
                     onChange={(event) => setJustification(event.target.value)}
                     placeholder="Record the objective evidence supporting this decision."
-                    className="mt-1.5 w-full rounded-xl border border-slate-300 p-2.5 text-xs focus:border-blue-600 focus:outline-none"
+                    className="mt-1.5 w-full rounded-xl border border-slate-300 p-2.5 text-xs focus:border-brand-600 focus:outline-none"
                   />
                 </label>
               </div>
@@ -235,8 +244,10 @@ export default function SelectionRankingPage() {
               <div className="flex justify-end pt-2">
                 <button
                   type="submit"
-                  disabled={submitting || !selectedAppId || (requiresOverrideJustification && justification.trim().length < 20)}
-                  className="flex items-center gap-2 rounded-xl bg-blue-600 px-8 py-3 text-sm font-bold text-white shadow-lg hover:bg-blue-700 disabled:opacity-50 transition-all"
+                  disabled={
+                    submitting || !selectedAppId || (requiresOverrideJustification && justification.trim().length < 20)
+                  }
+                  className="flex items-center gap-2 rounded-xl bg-brand-600 px-8 py-3 text-sm font-bold text-white shadow-lg hover:bg-brand-700 disabled:opacity-50 transition-all"
                 >
                   {submitting ? 'Submitting decision...' : 'Submit selection for approval'}
                   <Award className="h-4 w-4" />

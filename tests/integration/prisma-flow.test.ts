@@ -129,40 +129,67 @@ describe('offer relation', () => {
 
 describe('reliability and governance controls', () => {
   it('does not let the system-admin wildcard disclose explicit-only confidential content', async () => {
-    const user=await prisma.user.create({data:{email:`system-admin-${uniq()}@t.com`,passwordHash:'x'}})
-    const role=await prisma.role.create({data:{name:`SYSTEM_ADMIN_TEST_${uniq()}`}})
-    const wildcard=await prisma.permission.upsert({where:{code:'*'},update:{},create:{code:'*'}})
-    await prisma.rolePermission.create({data:{roleId:role.id,permissionId:wildcard.id}})
-    await prisma.userRole.create({data:{userId:user.id,roleId:role.id,scopeType:'GLOBAL',scopeId:'GLOBAL'}})
-    expect(await hasPermission(user.id,'vacancy.read.all')).toBe(true)
-    expect(await hasPermission(user.id,'preboarding.restricted.read')).toBe(false)
-    expect(await hasPermission(user.id,'application.read.all')).toBe(false)
-    expect(await hasPermission(user.id,'application.stage.change')).toBe(false)
-    expect(await hasPermission(user.id,'reference.manage')).toBe(false)
-    expect(await hasPermission(user.id,'offer.manage')).toBe(false)
-    expect(await hasPermission(user.id,'report.export')).toBe(false)
-    expect(await hasPermission(user.id,'complaint.manage')).toBe(false)
+    const user = await prisma.user.create({ data: { email: `system-admin-${uniq()}@t.com`, passwordHash: 'x' } })
+    const role = await prisma.role.create({ data: { name: `SYSTEM_ADMIN_TEST_${uniq()}` } })
+    const wildcard = await prisma.permission.upsert({ where: { code: '*' }, update: {}, create: { code: '*' } })
+    await prisma.rolePermission.create({ data: { roleId: role.id, permissionId: wildcard.id } })
+    await prisma.userRole.create({ data: { userId: user.id, roleId: role.id, scopeType: 'GLOBAL', scopeId: 'GLOBAL' } })
+    expect(await hasPermission(user.id, 'vacancy.read.all')).toBe(true)
+    expect(await hasPermission(user.id, 'preboarding.restricted.read')).toBe(false)
+    expect(await hasPermission(user.id, 'application.read.all')).toBe(false)
+    expect(await hasPermission(user.id, 'application.stage.change')).toBe(false)
+    expect(await hasPermission(user.id, 'reference.manage')).toBe(false)
+    expect(await hasPermission(user.id, 'offer.manage')).toBe(false)
+    expect(await hasPermission(user.id, 'report.export')).toBe(false)
+    expect(await hasPermission(user.id, 'complaint.manage')).toBe(false)
   })
   it('enforces outbox deduplication keys', async () => {
     const key = `notification-${uniq()}`
-    await prisma.outboxMessage.create({ data: { channel: 'EMAIL', recipient: 'person@example.org', payloadJson: '{}', deduplicationKey: key } })
-    await expect(prisma.outboxMessage.create({ data: { channel: 'EMAIL', recipient: 'person@example.org', payloadJson: '{}', deduplicationKey: key } })).rejects.toBeTruthy()
+    await prisma.outboxMessage.create({
+      data: { channel: 'EMAIL', recipient: 'person@example.org', payloadJson: '{}', deduplicationKey: key },
+    })
+    await expect(
+      prisma.outboxMessage.create({
+        data: { channel: 'EMAIL', recipient: 'person@example.org', payloadJson: '{}', deduplicationKey: key },
+      })
+    ).rejects.toBeTruthy()
   })
 
   it('rejects an optimistic update that uses a stale application version', async () => {
     const vacancy = await makeVacancy()
     const candidate = await makeCandidate()
     const application = await prisma.application.create({ data: { candidateId: candidate.id, vacancyId: vacancy.id } })
-    const first = await prisma.application.updateMany({ where: { id: application.id, lockVersion: application.lockVersion }, data: { lockVersion: { increment: 1 } } })
-    const stale = await prisma.application.updateMany({ where: { id: application.id, lockVersion: application.lockVersion }, data: { lockVersion: { increment: 1 } } })
+    const first = await prisma.application.updateMany({
+      where: { id: application.id, lockVersion: application.lockVersion },
+      data: { lockVersion: { increment: 1 } },
+    })
+    const stale = await prisma.application.updateMany({
+      where: { id: application.id, lockVersion: application.lockVersion },
+      data: { lockVersion: { increment: 1 } },
+    })
     expect(first.count).toBe(1)
     expect(stale.count).toBe(0)
   })
 
   it('records legal holds and retention evidence runs', async () => {
     const actor = await prisma.user.create({ data: { email: `governance-${uniq()}@t.com`, passwordHash: 'x' } })
-    const hold = await prisma.legalHold.create({ data: { resourceType: 'USER', resourceId: actor.id, reason: 'Active investigation evidence preservation', placedBy: actor.id } })
-    const run = await prisma.retentionRun.create({ data: { policyVersion: 'test-v1', status: 'COMPLETED', completedAt: new Date(), summaryJson: '{}', evidenceHash: 'abc123' } })
+    const hold = await prisma.legalHold.create({
+      data: {
+        resourceType: 'USER',
+        resourceId: actor.id,
+        reason: 'Active investigation evidence preservation',
+        placedBy: actor.id,
+      },
+    })
+    const run = await prisma.retentionRun.create({
+      data: {
+        policyVersion: 'test-v1',
+        status: 'COMPLETED',
+        completedAt: new Date(),
+        summaryJson: '{}',
+        evidenceHash: 'abc123',
+      },
+    })
     expect(hold.status).toBe('ACTIVE')
     expect(run.evidenceHash).toBe('abc123')
   })
@@ -172,8 +199,16 @@ describe('reliability and governance controls', () => {
     const candidate = await makeCandidate()
     const application = await prisma.application.create({ data: { candidateId: candidate.id, vacancyId: vacancy.id } })
     const preboarding = await prisma.candidatePreboarding.create({ data: { applicationId: application.id } })
-    const template = await prisma.preboardingFormTemplate.create({ data: { title: `Personal details ${uniq()}`, schemaJson: '{}' } })
-    const assigned = await prisma.candidatePreboardingForm.create({ data: { candidatePreboardingId: preboarding.id, formTemplateId: template.id, templateSnapshotJson: JSON.stringify({ title: template.title }) } })
+    const template = await prisma.preboardingFormTemplate.create({
+      data: { title: `Personal details ${uniq()}`, schemaJson: '{}' },
+    })
+    const assigned = await prisma.candidatePreboardingForm.create({
+      data: {
+        candidatePreboardingId: preboarding.id,
+        formTemplateId: template.id,
+        templateSnapshotJson: JSON.stringify({ title: template.title }),
+      },
+    })
     await prisma.preboardingFormTemplate.update({ where: { id: template.id }, data: { title: 'Changed later' } })
     expect(JSON.parse(assigned.templateSnapshotJson || '{}').title).toBe(template.title)
   })
@@ -181,57 +216,145 @@ describe('reliability and governance controls', () => {
   it('deduplicates operational work and enforces optimistic work updates', async () => {
     const key = `application-review:${uniq()}`
     const work = await prisma.workItem.create({
-      data: { deduplicationKey: key, workType: 'APPLICATION_REVIEW', title: 'Review candidate', resourceType: 'APPLICATION', resourceId: uniq() },
+      data: {
+        deduplicationKey: key,
+        workType: 'APPLICATION_REVIEW',
+        title: 'Review candidate',
+        resourceType: 'APPLICATION',
+        resourceId: uniq(),
+      },
     })
-    await expect(prisma.workItem.create({
-      data: { deduplicationKey: key, workType: 'APPLICATION_REVIEW', title: 'Duplicate', resourceType: 'APPLICATION', resourceId: uniq() },
-    })).rejects.toBeTruthy()
-    const claimed = await prisma.workItem.updateMany({ where: { id: work.id, lockVersion: 1 }, data: { status: 'IN_PROGRESS', lockVersion: { increment: 1 } } })
-    const stale = await prisma.workItem.updateMany({ where: { id: work.id, lockVersion: 1 }, data: { status: 'COMPLETED' } })
+    await expect(
+      prisma.workItem.create({
+        data: {
+          deduplicationKey: key,
+          workType: 'APPLICATION_REVIEW',
+          title: 'Duplicate',
+          resourceType: 'APPLICATION',
+          resourceId: uniq(),
+        },
+      })
+    ).rejects.toBeTruthy()
+    const claimed = await prisma.workItem.updateMany({
+      where: { id: work.id, lockVersion: 1 },
+      data: { status: 'IN_PROGRESS', lockVersion: { increment: 1 } },
+    })
+    const stale = await prisma.workItem.updateMany({
+      where: { id: work.id, lockVersion: 1 },
+      data: { status: 'COMPLETED' },
+    })
     expect(claimed.count).toBe(1)
     expect(stale.count).toBe(0)
   })
 
   it('prevents reuse of an ERP personnel number across candidates', async () => {
-    const firstApplication = await prisma.application.create({ data: { candidateId: (await makeCandidate()).id, vacancyId: (await makeVacancy()).id } })
-    const secondApplication = await prisma.application.create({ data: { candidateId: (await makeCandidate()).id, vacancyId: (await makeVacancy()).id } })
+    const firstApplication = await prisma.application.create({
+      data: { candidateId: (await makeCandidate()).id, vacancyId: (await makeVacancy()).id },
+    })
+    const secondApplication = await prisma.application.create({
+      data: { candidateId: (await makeCandidate()).id, vacancyId: (await makeVacancy()).id },
+    })
     const personnelNumber = `ERP-${uniq()}`
-    await prisma.eRPTransferRecord.create({ data: { applicationId: firstApplication.id, erpPersonnelNumber: personnelNumber, recordedBy: 'test' } })
-    await expect(prisma.eRPTransferRecord.create({ data: { applicationId: secondApplication.id, erpPersonnelNumber: personnelNumber, recordedBy: 'test' } })).rejects.toBeTruthy()
+    await prisma.eRPTransferRecord.create({
+      data: { applicationId: firstApplication.id, erpPersonnelNumber: personnelNumber, recordedBy: 'test' },
+    })
+    await expect(
+      prisma.eRPTransferRecord.create({
+        data: { applicationId: secondApplication.id, erpPersonnelNumber: personnelNumber, recordedBy: 'test' },
+      })
+    ).rejects.toBeTruthy()
   })
 
   it('records consent-led talent pool membership once per pool and candidate', async () => {
     const candidate = await makeCandidate()
     const actor = await prisma.user.create({ data: { email: `pool-owner-${uniq()}@t.com`, passwordHash: 'x' } })
-    await prisma.consentRecord.create({ data: { candidateId: candidate.id, consentType: 'TALENT_POOL', noticeVersion: 'test', decision: true } })
+    await prisma.consentRecord.create({
+      data: { candidateId: candidate.id, consentType: 'TALENT_POOL', noticeVersion: 'test', decision: true },
+    })
     const pool = await prisma.talentPool.create({ data: { name: `Pool ${uniq()}`, createdBy: actor.id } })
-    await prisma.talentPoolMember.create({ data: { talentPoolId: pool.id, candidateId: candidate.id, addedBy: actor.id } })
-    await expect(prisma.talentPoolMember.create({ data: { talentPoolId: pool.id, candidateId: candidate.id, addedBy: actor.id } })).rejects.toBeTruthy()
+    await prisma.talentPoolMember.create({
+      data: { talentPoolId: pool.id, candidateId: candidate.id, addedBy: actor.id },
+    })
+    await expect(
+      prisma.talentPoolMember.create({ data: { talentPoolId: pool.id, candidateId: candidate.id, addedBy: actor.id } })
+    ).rejects.toBeTruthy()
   })
 
   it('records governed automation modes and every considered action', async () => {
     const actor = await prisma.user.create({ data: { email: `automation-owner-${uniq()}@t.com`, passwordHash: 'x' } })
     const code = `TEST_AUTOMATION_${uniq()}`
-    const control = await prisma.automationControl.create({ data: { code, name: 'Test automation', description: 'Integration test', mode: 'PREVIEW', updatedBy: actor.id } })
-    const action = await prisma.automationActionLog.create({ data: { automationCode: code, action: 'REMIND', targetType: 'Application', targetId: uniq(), status: 'PREVIEWED' } })
+    const control = await prisma.automationControl.create({
+      data: { code, name: 'Test automation', description: 'Integration test', mode: 'PREVIEW', updatedBy: actor.id },
+    })
+    const action = await prisma.automationActionLog.create({
+      data: {
+        automationCode: code,
+        action: 'REMIND',
+        targetType: 'Application',
+        targetId: uniq(),
+        status: 'PREVIEWED',
+      },
+    })
     expect(control.mode).toBe('PREVIEW')
     expect(action.status).toBe('PREVIEWED')
   })
 
   it('stores configuration release scheduling and rollback evidence', async () => {
     const actor = await prisma.user.create({ data: { email: `release-owner-${uniq()}@t.com`, passwordHash: 'x' } })
-    const release = await prisma.configurationChangeRequest.create({ data: { changeType: 'GENERIC_CONFIG_UPDATE:policies', resourceId: uniq(), proposedJson: '{"active":true}', previousJson: '{"active":false}', reason: 'Controlled integration-test release', status: 'DRAFT', requestedBy: actor.id, scheduledFor: new Date(Date.now() + 86_400_000), effectiveFrom: new Date(Date.now() + 86_400_000) } })
+    const release = await prisma.configurationChangeRequest.create({
+      data: {
+        changeType: 'GENERIC_CONFIG_UPDATE:policies',
+        resourceId: uniq(),
+        proposedJson: '{"active":true}',
+        previousJson: '{"active":false}',
+        reason: 'Controlled integration-test release',
+        status: 'DRAFT',
+        requestedBy: actor.id,
+        scheduledFor: new Date(Date.now() + 86_400_000),
+        effectiveFrom: new Date(Date.now() + 86_400_000),
+      },
+    })
     expect(release.previousJson).toContain('false')
     expect(release.scheduledFor).toBeTruthy()
   })
 
   it('retains bulk-action receipts and prevents duplicate merge reviews', async () => {
     const actor = await prisma.user.create({ data: { email: `bulk-owner-${uniq()}@t.com`, passwordHash: 'x' } })
-    const run = await prisma.bulkActionRun.create({ data: { actionType: 'ASSIGN_REVIEWER', requestedBy: actor.id, requestedCount: 2, eligibleCount: 1, failedCount: 1, status: 'PARTIAL', requestJson: '{}', resultJson: '{}', reversibleUntil: new Date(Date.now() + 900_000) } })
+    const run = await prisma.bulkActionRun.create({
+      data: {
+        actionType: 'ASSIGN_REVIEWER',
+        requestedBy: actor.id,
+        requestedCount: 2,
+        eligibleCount: 1,
+        failedCount: 1,
+        status: 'PARTIAL',
+        requestJson: '{}',
+        resultJson: '{}',
+        reversibleUntil: new Date(Date.now() + 900_000),
+      },
+    })
     expect(run.failedCount).toBe(1)
     const primary = await makeCandidate()
     const duplicate = await makeCandidate()
-    await prisma.candidateMergeReview.create({ data: { primaryCandidateId: primary.id, duplicateCandidateId: duplicate.id, requestedBy: actor.id, previewJson: '{}', reason: 'Possible duplicate candidates for integration test' } })
-    await expect(prisma.candidateMergeReview.create({ data: { primaryCandidateId: primary.id, duplicateCandidateId: duplicate.id, requestedBy: actor.id, previewJson: '{}', reason: 'Duplicate review must not be created twice' } })).rejects.toBeTruthy()
+    await prisma.candidateMergeReview.create({
+      data: {
+        primaryCandidateId: primary.id,
+        duplicateCandidateId: duplicate.id,
+        requestedBy: actor.id,
+        previewJson: '{}',
+        reason: 'Possible duplicate candidates for integration test',
+      },
+    })
+    await expect(
+      prisma.candidateMergeReview.create({
+        data: {
+          primaryCandidateId: primary.id,
+          duplicateCandidateId: duplicate.id,
+          requestedBy: actor.id,
+          previewJson: '{}',
+          reason: 'Duplicate review must not be created twice',
+        },
+      })
+    ).rejects.toBeTruthy()
   })
 })

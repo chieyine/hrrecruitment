@@ -20,11 +20,16 @@ export default function DocumentRequirementsPage() {
         { name: 'documentType', label: 'Document type code', required: true },
         { name: 'allowedFileTypes', label: 'Allowed file extensions', required: true, placeholder: 'pdf,jpg,png' },
         { name: 'maximumFileSize', label: 'Maximum file size (bytes)', type: 'number', required: true },
-        { name: 'sensitivityClass', label: 'Sensitivity', type: 'select', options: [
-          { value: 'STANDARD', label: 'Standard' },
-          { value: 'CONFIDENTIAL', label: 'Confidential' },
-          { value: 'RESTRICTED', label: 'Restricted' },
-        ] },
+        {
+          name: 'sensitivityClass',
+          label: 'Sensitivity',
+          type: 'select',
+          options: [
+            { value: 'STANDARD', label: 'Standard' },
+            { value: 'CONFIDENTIAL', label: 'Confidential' },
+            { value: 'RESTRICTED', label: 'Restricted' },
+          ],
+        },
         { name: 'required', label: 'Required', type: 'checkbox' },
         { name: 'expiryRequired', label: 'Expiry date required', type: 'checkbox' },
         { name: 'reviewRequired', label: 'HR review required', type: 'checkbox' },

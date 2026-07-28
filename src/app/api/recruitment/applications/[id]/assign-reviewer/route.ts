@@ -9,7 +9,7 @@ import { hasPermission } from '@/lib/rbac'
 import { hasStaffRole } from '@/lib/roles'
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requirePermission('application.stage.change')
 
@@ -26,10 +26,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!reviewer) return NextResponse.json({ error: 'Reviewer not found' }, { status: 404 })
     if (reviewer.accountStatus !== 'ACTIVE') throw new AuthzError('Reviewer account is not active', 409)
     const isStaff = hasStaffRole(reviewer.userRoles.map((assignment) => assignment.role.name))
-    const canReview = await hasPermission(reviewer.id, 'application.read.assigned', {
-      type: 'VACANCY',
-      id: application.vacancyId,
-    }) || await hasPermission(reviewer.id, 'application.read.all')
+    const canReview =
+      (await hasPermission(reviewer.id, 'application.read.assigned', {
+        type: 'VACANCY',
+        id: application.vacancyId,
+      })) || (await hasPermission(reviewer.id, 'application.read.all'))
     if (!isStaff || !canReview) throw new AuthzError('Selected user is not configured to review applications', 422)
 
     const updated = await prisma.application.update({

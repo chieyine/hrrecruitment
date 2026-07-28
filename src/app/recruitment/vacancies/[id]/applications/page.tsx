@@ -33,7 +33,10 @@ export default function VacancyApplicationsPage(props: { params: Promise<{ id: s
       <main id="main-content" className="max-w-6xl mx-auto px-4 py-8 flex-1 w-full">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Link href={`/recruitment/vacancies/${params.id}`} className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">
+            <Link
+              href={`/recruitment/vacancies/${params.id}`}
+              className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+            >
               <ArrowLeft className="w-4 h-4 text-slate-600" />
             </Link>
             <div>
@@ -44,7 +47,11 @@ export default function VacancyApplicationsPage(props: { params: Promise<{ id: s
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          {error && <p role="alert" className="border-b border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">{error}</p>}
+          {error && (
+            <p role="alert" className="border-b border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
+              {error}
+            </p>
+          )}
           <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <span className="text-sm font-semibold text-slate-700">Total Applicants ({applications.length})</span>
           </div>

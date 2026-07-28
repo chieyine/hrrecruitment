@@ -87,7 +87,7 @@ export default function OfferCorrection({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-400 hover:text-blue-700"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-brand-400 hover:text-brand-700"
       >
         <PencilLine className="h-3.5 w-3.5" aria-hidden /> Correct terms
       </button>
@@ -107,7 +107,7 @@ export default function OfferCorrection({
   )
 
   return (
-    <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50/40 p-4">
+    <div className="mt-3 rounded-2xl border border-brand-200 bg-brand-50/40 p-4">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-bold text-slate-950">Correct offer terms</h4>
         <button type="button" onClick={() => setOpen(false)} className="text-xs font-bold text-slate-600">
@@ -143,7 +143,7 @@ export default function OfferCorrection({
         type="button"
         onClick={submit}
         disabled={busy || !form.position || !form.salary || !form.startDate || !form.acceptanceDeadline}
-        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
       >
         {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
         Supersede and send for approval

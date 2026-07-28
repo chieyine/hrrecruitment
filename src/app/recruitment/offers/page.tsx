@@ -18,27 +18,46 @@ export default async function RecruitmentOffersPage() {
   if (!user || !hasStaffRole(user.roles)) {
     redirect('/auth/login')
   }
-  if (!await hasPermission(user.userId, 'offer.manage')) redirect('/recruitment/dashboard')
+  if (!(await hasPermission(user.userId, 'offer.manage'))) redirect('/recruitment/dashboard')
 
   const offers = await prisma.offer.findMany({
     orderBy: { startDate: 'desc' },
     include: { application: { include: { candidate: true } } },
     take: 100,
   })
-  const eligible = await prisma.application.findMany({ where: { internalStatus: { in: ['RECOMMENDED', 'OFFER_DRAFT'] }, offers: { none: { status: { notIn: ['DECLINED', 'EXPIRED', 'WITHDRAWN', 'SUPERSEDED'] } } } }, include: { candidate: true, vacancy: { include: { dutyStation: true } } } })
-  const templates = await prisma.offerTemplate.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } })
-  const candidates = eligible.map((application) => ({ id: application.id, name: `${application.candidate.legalFirstName} ${application.candidate.lastName}`, position: application.vacancy.title, dutyStation: application.vacancy.dutyStation.name, contractType: application.vacancy.contractType }))
+  const eligible = await prisma.application.findMany({
+    where: {
+      internalStatus: { in: ['RECOMMENDED', 'OFFER_DRAFT'] },
+      offers: { none: { status: { notIn: ['DECLINED', 'EXPIRED', 'WITHDRAWN', 'SUPERSEDED'] } } },
+    },
+    include: { candidate: true, vacancy: { include: { dutyStation: true } } },
+  })
+  const templates = await prisma.offerTemplate.findMany({
+    where: { active: true },
+    select: { id: true, name: true },
+    orderBy: { name: 'asc' },
+  })
+  const candidates = eligible.map((application) => ({
+    id: application.id,
+    name: `${application.candidate.legalFirstName} ${application.candidate.lastName}`,
+    position: application.vacancy.title,
+    dutyStation: application.vacancy.dutyStation.name,
+    contractType: application.vacancy.contractType,
+  }))
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Header currentUser={user} />
       <main id="main-content" className="flex-1 py-10">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-8">
-          <Link href="/recruitment/dashboard" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600">
+          <Link
+            href="/recruitment/dashboard"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600"
+          >
             <ArrowLeft className="h-4 w-4" /> Back to Dashboard
           </Link>
           <div className="flex items-center gap-3">
-            <FileSignature className="h-7 w-7 text-blue-600" />
+            <FileSignature className="h-7 w-7 text-brand-600" />
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Job Offers</h1>
               <p className="text-sm text-slate-600">{offers.length} offer(s) issued.</p>
@@ -60,29 +79,43 @@ export default async function RecruitmentOffersPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {offers.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No offers issued yet.</td></tr>
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                      No offers issued yet.
+                    </td>
+                  </tr>
                 ) : (
                   offers.map((o) => (
                     <tr key={o.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium text-slate-800">{o.application.candidate.legalFirstName} {o.application.candidate.lastName}</td>
+                      <td className="px-4 py-3 font-medium text-slate-800">
+                        {o.application.candidate.legalFirstName} {o.application.candidate.lastName}
+                      </td>
                       <td className="px-4 py-3 text-slate-600">{o.position}</td>
                       <td className="px-4 py-3 text-slate-600">{formatDate(o.startDate)}</td>
                       <td className="px-4 py-3 text-slate-600">{formatDate(o.acceptanceDeadline)}</td>
-                      <td className="px-4 py-3 space-y-2"><span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusBadgeClass(o.status)}`}>{o.status}</span><OfferActions id={o.id} status={o.status} /><OfferCorrection
-                        offerId={o.id}
-                        status={o.status}
-                        current={{
-                          position: o.position,
-                          salary: o.salary,
-                          startDate: o.startDate.toISOString(),
-                          endDate: o.endDate ? o.endDate.toISOString() : null,
-                          acceptanceDeadline: o.acceptanceDeadline.toISOString(),
-                          probationPeriod: o.probationPeriod,
-                          reportingLine: o.reportingLine,
-                          conditions: o.conditions,
-                          contractDuration: o.contractDuration,
-                        }}
-                      /></td>
+                      <td className="px-4 py-3 space-y-2">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusBadgeClass(o.status)}`}
+                        >
+                          {o.status}
+                        </span>
+                        <OfferActions id={o.id} status={o.status} />
+                        <OfferCorrection
+                          offerId={o.id}
+                          status={o.status}
+                          current={{
+                            position: o.position,
+                            salary: o.salary,
+                            startDate: o.startDate.toISOString(),
+                            endDate: o.endDate ? o.endDate.toISOString() : null,
+                            acceptanceDeadline: o.acceptanceDeadline.toISOString(),
+                            probationPeriod: o.probationPeriod,
+                            reportingLine: o.reportingLine,
+                            conditions: o.conditions,
+                            contractDuration: o.contractDuration,
+                          }}
+                        />
+                      </td>
                     </tr>
                   ))
                 )}

@@ -24,7 +24,9 @@ export async function assertPageRenders(page: Page, path: string) {
       const response = await page.goto(path, { waitUntil: 'domcontentloaded' })
       expect(response, `No navigation response for ${path}`).not.toBeNull()
       expect(response!.status(), `${path} returned ${response!.status()}`).toBeLessThan(400)
-      await expect(page.locator('body')).not.toContainText(/application error|internal server error|this page could not be found/i)
+      await expect(page.locator('body')).not.toContainText(
+        /application error|internal server error|this page could not be found/i
+      )
       await expect(page.locator('main').first()).toBeVisible()
       expect(runtimeErrors, `Browser runtime errors on ${path}`).toEqual([])
     } finally {

@@ -10,8 +10,16 @@ import { expectedVersion, staleRecord } from '@/lib/concurrency'
 
 const schema = z.object({
   action: z.enum([
-    'ASSIGN_PACKAGE', 'ADD_DOCUMENT', 'REVIEW_FORM', 'REVIEW_DOCUMENT',
-    'REVIEW_POLICY', 'REVIEW_TASK', 'REVIEW_COURSE', 'ADD_INFORMATION', 'ADD_MEETING', 'UPDATE_MEETING',
+    'ASSIGN_PACKAGE',
+    'ADD_DOCUMENT',
+    'REVIEW_FORM',
+    'REVIEW_DOCUMENT',
+    'REVIEW_POLICY',
+    'REVIEW_TASK',
+    'REVIEW_COURSE',
+    'ADD_INFORMATION',
+    'ADD_MEETING',
+    'UPDATE_MEETING',
   ]),
   resourceId: z.string().optional(),
   status: z.string().optional(),
@@ -30,7 +38,7 @@ function requireUpdated(count: number, message: string) {
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requirePermission('preboarding.manage')
     const input = await parseBody(request, schema)
@@ -47,7 +55,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         include: { formTemplate: { select: { sensitivityClass: true } } },
       })
       if (!form) throw new AuthzError('Form not found', 404)
-      if (form.formTemplate.sensitivityClass === 'RESTRICTED' && !await hasPermission(user.userId, 'preboarding.restricted.read')) {
+      if (
+        form.formTemplate.sensitivityClass === 'RESTRICTED' &&
+        !(await hasPermission(user.userId, 'preboarding.restricted.read'))
+      ) {
         throw new AuthzError('Restricted form permission is required', 403)
       }
     }
@@ -72,7 +83,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         if (!assigned) throw new AuthzError('Preboarding package not found', 404)
       } else if (input.action === 'ADD_DOCUMENT') {
         const requirementId = requiredResource(input.resourceId, 'Document requirement is required')
-        const requirement = await tx.documentRequirement.findUnique({ where: { id: requirementId }, select: { id: true } })
+        const requirement = await tx.documentRequirement.findUnique({
+          where: { id: requirementId },
+          select: { id: true },
+        })
         if (!requirement) throw new AuthzError('Document requirement not found', 404)
         await tx.candidateRequiredDocument.upsert({
           where: {
@@ -89,7 +103,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         })
       } else if (input.action === 'REVIEW_FORM') {
         const resourceId = requiredResource(input.resourceId, 'Form is required')
-        if (!['APPROVED', 'RETURNED'].includes(input.status || '')) throw new AuthzError('Valid form review is required', 400)
+        if (!['APPROVED', 'RETURNED'].includes(input.status || ''))
+          throw new AuthzError('Valid form review is required', 400)
         const result = await tx.candidatePreboardingForm.updateMany({
           where: {
             id: resourceId,
@@ -106,7 +121,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         requireUpdated(result.count, 'The form is not awaiting review')
       } else if (input.action === 'REVIEW_DOCUMENT') {
         const resourceId = requiredResource(input.resourceId, 'Document is required')
-        if (!['APPROVED', 'REJECTED', 'RESUBMISSION_REQUIRED'].includes(input.status || '')) throw new AuthzError('Valid document review is required', 400)
+        if (!['APPROVED', 'REJECTED', 'RESUBMISSION_REQUIRED'].includes(input.status || ''))
+          throw new AuthzError('Valid document review is required', 400)
         const result = await tx.candidateRequiredDocument.updateMany({
           where: {
             id: resourceId,
@@ -125,7 +141,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         requireUpdated(result.count, 'The document is not awaiting review')
       } else if (input.action === 'REVIEW_POLICY') {
         const resourceId = requiredResource(input.resourceId, 'Policy acknowledgement is required')
-        if (!['APPROVED', 'REJECTED'].includes(input.status || '')) throw new AuthzError('Valid policy review is required', 400)
+        if (!['APPROVED', 'REJECTED'].includes(input.status || ''))
+          throw new AuthzError('Valid policy review is required', 400)
         const result = await tx.candidatePolicyAcknowledgement.updateMany({
           where: {
             id: resourceId,
@@ -137,7 +154,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         requireUpdated(result.count, 'The policy is not awaiting review')
       } else if (input.action === 'REVIEW_TASK') {
         const resourceId = requiredResource(input.resourceId, 'Task is required')
-        if (!['APPROVED', 'RETURNED'].includes(input.status || '')) throw new AuthzError('Valid task review is required', 400)
+        if (!['APPROVED', 'RETURNED'].includes(input.status || ''))
+          throw new AuthzError('Valid task review is required', 400)
         const result = await tx.candidatePreboardingTask.updateMany({
           where: {
             id: resourceId,
@@ -155,16 +173,26 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       } else if (input.action === 'REVIEW_COURSE') {
         const resourceId = requiredResource(input.resourceId, 'Course is required')
         if (input.status === 'RESET_ATTEMPTS') {
-          if (!input.comment || input.comment.length < 5) throw new AuthzError('Record a reason for resetting attempts', 400)
+          if (!input.comment || input.comment.length < 5)
+            throw new AuthzError('Record a reason for resetting attempts', 400)
           const result = await tx.candidateCourse.updateMany({
-            where: { id: resourceId, candidatePreboardingId: preboarding.id, status: { notIn: ['COMPLETED', 'WAIVED'] } },
+            where: {
+              id: resourceId,
+              candidatePreboardingId: preboarding.id,
+              status: { notIn: ['COMPLETED', 'WAIVED'] },
+            },
             data: { attempts: 0, status: 'NOT_STARTED' },
           })
           requireUpdated(result.count, 'Course not found or already closed')
         } else if (input.status === 'WAIVED') {
-          if (!input.comment || input.comment.length < 5) throw new AuthzError('Record a reason for waiving this course', 400)
+          if (!input.comment || input.comment.length < 5)
+            throw new AuthzError('Record a reason for waiving this course', 400)
           const result = await tx.candidateCourse.updateMany({
-            where: { id: resourceId, candidatePreboardingId: preboarding.id, status: { notIn: ['COMPLETED', 'WAIVED'] } },
+            where: {
+              id: resourceId,
+              candidatePreboardingId: preboarding.id,
+              status: { notIn: ['COMPLETED', 'WAIVED'] },
+            },
             data: { status: 'WAIVED', completedAt: new Date() },
           })
           requireUpdated(result.count, 'Course not found or already closed')
@@ -196,7 +224,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         if (title.length > 200) throw new AuthzError('Meeting title is too long', 400)
         const meetingLink = data.meetingLink ? String(data.meetingLink) : null
         if (meetingLink) {
-          try { new URL(meetingLink) } catch { throw new AuthzError('Meeting link must be a valid URL', 400) }
+          try {
+            new URL(meetingLink)
+          } catch {
+            throw new AuthzError('Meeting link must be a valid URL', 400)
+          }
         }
         await tx.preboardingMeeting.create({
           data: {
@@ -214,9 +246,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         })
       } else {
         const meetingId = requiredResource(input.resourceId, 'Meeting is required')
-        const status = z.enum(['SCHEDULED', 'CONFIRMED', 'ATTENDED', 'MISSED', 'CANCELLED', 'WAIVED']).parse(input.status)
+        const status = z
+          .enum(['SCHEDULED', 'CONFIRMED', 'ATTENDED', 'MISSED', 'CANCELLED', 'WAIVED'])
+          .parse(input.status)
         const attendanceComment = String(input.comment || '').trim()
-        if (['MISSED', 'CANCELLED', 'WAIVED'].includes(status) && attendanceComment.length < 5) throw new AuthzError('Record a reason for this meeting outcome', 400)
+        if (['MISSED', 'CANCELLED', 'WAIVED'].includes(status) && attendanceComment.length < 5)
+          throw new AuthzError('Record a reason for this meeting outcome', 400)
         const changed = await tx.preboardingMeeting.updateMany({
           where: { id: meetingId, candidatePreboardingId: preboarding.id },
           data: { status, attendanceComment: attendanceComment || null },

@@ -42,19 +42,35 @@ export async function rateLimitDistributed(key: string, limit = 10, windowMs = 6
   const now = new Date()
   const keyHash = createHash('sha256').update(key).digest('hex')
   const expiresAt = new Date(now.getTime() + windowMs)
-  const reset = await prisma.rateLimitBucket.updateMany({ where: { keyHash, expiresAt: { lte: now } }, data: { count: 1, windowStart: now, expiresAt } })
+  const reset = await prisma.rateLimitBucket.updateMany({
+    where: { keyHash, expiresAt: { lte: now } },
+    data: { count: 1, windowStart: now, expiresAt },
+  })
   if (reset.count === 0) {
-    const incremented = await prisma.rateLimitBucket.updateMany({ where: { keyHash, expiresAt: { gt: now } }, data: { count: { increment: 1 } } })
+    const incremented = await prisma.rateLimitBucket.updateMany({
+      where: { keyHash, expiresAt: { gt: now } },
+      data: { count: { increment: 1 } },
+    })
     if (incremented.count === 0) {
-      try { await prisma.rateLimitBucket.create({ data: { keyHash, count: 1, windowStart: now, expiresAt } }) }
-      catch { // A concurrent creator won the unique key; increment its live bucket.
-        await prisma.rateLimitBucket.updateMany({ where: { keyHash, expiresAt: { gt: now } }, data: { count: { increment: 1 } } })
+      try {
+        await prisma.rateLimitBucket.create({ data: { keyHash, count: 1, windowStart: now, expiresAt } })
+      } catch {
+        // A concurrent creator won the unique key; increment its live bucket.
+        await prisma.rateLimitBucket.updateMany({
+          where: { keyHash, expiresAt: { gt: now } },
+          data: { count: { increment: 1 } },
+        })
       }
     }
   }
   const bucket = await prisma.rateLimitBucket.findUniqueOrThrow({ where: { keyHash } })
-  if (bucket.count > limit) return { allowed: false, remaining: 0, retryAfterSeconds: Math.max(1,Math.ceil((bucket.expiresAt.getTime()-now.getTime())/1000)) }
-  return { allowed: true, remaining: Math.max(0,limit-bucket.count), retryAfterSeconds: 0 }
+  if (bucket.count > limit)
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfterSeconds: Math.max(1, Math.ceil((bucket.expiresAt.getTime() - now.getTime()) / 1000)),
+    }
+  return { allowed: true, remaining: Math.max(0, limit - bucket.count), retryAfterSeconds: 0 }
 }
 
 /** Client IP accepted only from the explicitly configured trusted proxy header. */

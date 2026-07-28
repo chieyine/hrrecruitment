@@ -50,7 +50,10 @@ export async function GET(request: Request) {
     const emailById = new Map(triagers.map((user) => [user.id, user.email]))
 
     return NextResponse.json({
-      reports: reports.map((report) => ({ ...report, triagedByEmail: report.triagedBy ? emailById.get(report.triagedBy) ?? null : null })),
+      reports: reports.map((report) => ({
+        ...report,
+        triagedByEmail: report.triagedBy ? (emailById.get(report.triagedBy) ?? null) : null,
+      })),
       page,
       pageSize: PAGE_SIZE,
       total,

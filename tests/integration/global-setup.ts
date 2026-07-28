@@ -9,7 +9,9 @@ import { execSync } from 'child_process'
 export async function setup() {
   const databaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
   if (!databaseUrl || !/^postgres(?:ql)?:\/\//.test(databaseUrl)) {
-    throw new Error('Integration tests require TEST_DATABASE_URL or DATABASE_URL pointing to a disposable PostgreSQL database')
+    throw new Error(
+      'Integration tests require TEST_DATABASE_URL or DATABASE_URL pointing to a disposable PostgreSQL database'
+    )
   }
   process.env.DATABASE_URL = databaseUrl
 

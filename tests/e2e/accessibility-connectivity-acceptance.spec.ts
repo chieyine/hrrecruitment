@@ -14,16 +14,26 @@ async function accessibilityIssues(page: import('@playwright/test').Page) {
     for (const image of Array.from(document.querySelectorAll('img'))) {
       if (!image.hasAttribute('alt')) issues.push(`Image without alt: ${image.getAttribute('src') || 'unknown'}`)
     }
-    for (const control of Array.from(document.querySelectorAll<HTMLElement>('input:not([type="hidden"]), select, textarea'))) {
+    for (const control of Array.from(
+      document.querySelectorAll<HTMLElement>('input:not([type="hidden"]), select, textarea')
+    )) {
       const labels = 'labels' in control ? Array.from((control as HTMLInputElement).labels || []) : []
-      const named = labels.some((label) => Boolean(label.textContent?.trim()))
-        || Boolean(control.getAttribute('aria-label')?.trim())
-        || Boolean(control.getAttribute('aria-labelledby')?.trim())
-        || Boolean(control.getAttribute('title')?.trim())
-      if (!named) issues.push(`Unlabelled ${control.tagName.toLowerCase()}: ${control.id || control.getAttribute('name') || 'unknown'}`)
+      const named =
+        labels.some((label) => Boolean(label.textContent?.trim())) ||
+        Boolean(control.getAttribute('aria-label')?.trim()) ||
+        Boolean(control.getAttribute('aria-labelledby')?.trim()) ||
+        Boolean(control.getAttribute('title')?.trim())
+      if (!named)
+        issues.push(
+          `Unlabelled ${control.tagName.toLowerCase()}: ${control.id || control.getAttribute('name') || 'unknown'}`
+        )
     }
     for (const button of Array.from(document.querySelectorAll<HTMLButtonElement>('button'))) {
-      if (!button.textContent?.trim() && !button.getAttribute('aria-label')?.trim() && !button.getAttribute('title')?.trim()) {
+      if (
+        !button.textContent?.trim() &&
+        !button.getAttribute('aria-label')?.trim() &&
+        !button.getAttribute('title')?.trim()
+      ) {
         issues.push(`Unnamed button: ${button.outerHTML.slice(0, 120)}`)
       }
     }
@@ -95,7 +105,11 @@ test.describe('accessibility and interrupted-connectivity acceptance', () => {
     await page.goto(`/candidate/applications/apply?vacancyId=${vacancy.id}`)
     const answer = 'This draft must remain available while the application APIs are temporarily unreachable.'
     await page.getByLabel('Why are you interested?').fill(answer)
-    await expect.poll(async () => page.evaluate((id) => Boolean(localStorage.getItem(`frad-application-draft:${id}`)), vacancy.id)).toBe(true)
+    await expect
+      .poll(async () =>
+        page.evaluate((id) => Boolean(localStorage.getItem(`frad-application-draft:${id}`)), vacancy.id)
+      )
+      .toBe(true)
 
     await page.route('**/api/**', (route) => route.abort('failed'))
     await page.reload()

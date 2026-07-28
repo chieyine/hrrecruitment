@@ -37,7 +37,8 @@ async function main() {
   // 2. Default System Admin & Users
   // Demo password comes from env so it can be rotated / not committed.
   const seedPassword = process.env.SEED_PASSWORD
-  if (!seedPassword || seedPassword.length < 12 || !/[A-Za-z]/.test(seedPassword) || !/[0-9]/.test(seedPassword)) throw new Error('SEED_PASSWORD must be explicitly set and contain at least 12 characters, a letter, and a number')
+  if (!seedPassword || seedPassword.length < 12 || !/[A-Za-z]/.test(seedPassword) || !/[0-9]/.test(seedPassword))
+    throw new Error('SEED_PASSWORD must be explicitly set and contain at least 12 characters, a letter, and a number')
   const passwordHash = await bcrypt.hash(seedPassword, 10)
 
   const adminUser = await prisma.user.upsert({
@@ -155,7 +156,14 @@ async function main() {
     })
     const role = await prisma.role.findUniqueOrThrow({ where: { name: roleName } })
     await prisma.userRole.upsert({
-      where: { userId_roleId_scopeType_scopeId: { userId: persona.id, roleId: role.id, scopeType: 'GLOBAL', scopeId: 'GLOBAL' } },
+      where: {
+        userId_roleId_scopeType_scopeId: {
+          userId: persona.id,
+          roleId: role.id,
+          scopeType: 'GLOBAL',
+          scopeId: 'GLOBAL',
+        },
+      },
       update: {},
       create: { userId: persona.id, roleId: role.id, scopeType: 'GLOBAL', scopeId: 'GLOBAL' },
     })
@@ -226,7 +234,12 @@ async function main() {
 
   // 5. Duty Stations
   const dutyStations = [
-    { name: 'Abuja HQ', state: 'FCT', lga: 'Abuja Municipal', address: 'Plot 402 Cadastral Zone, Central Business District' },
+    {
+      name: 'Abuja HQ',
+      state: 'FCT',
+      lga: 'Abuja Municipal',
+      address: 'Plot 402 Cadastral Zone, Central Business District',
+    },
     { name: 'Maiduguri Field Office', state: 'Borno', lga: 'Maiduguri', address: '12 Damboa Road, Maiduguri' },
     { name: 'Damaturu Field Office', state: 'Yobe', lga: 'Damaturu', address: '5 Gujba Road, Damaturu' },
     { name: 'Yola Field Office', state: 'Adamawa', lga: 'Yola North', address: '18 Army Barracks Road, Yola' },
@@ -240,70 +253,216 @@ async function main() {
   }
   console.log('✅ Duty Stations & Projects created')
 
-  const contractTypes = ['Permanent', 'Fixed term', 'Temporary', 'Consultant', 'Intern', 'Volunteer', 'Casual worker', 'Enumerator', 'Community worker']
+  const contractTypes = [
+    'Permanent',
+    'Fixed term',
+    'Temporary',
+    'Consultant',
+    'Intern',
+    'Volunteer',
+    'Casual worker',
+    'Enumerator',
+    'Community worker',
+  ]
   for (const name of contractTypes) {
     const code = name.toUpperCase().replace(/\s+/g, '_')
     await prisma.contractType.upsert({ where: { code }, update: { name, active: true }, create: { code, name } })
   }
-  const vacancyCategories = ['Programme', 'Technical', 'Operations', 'Finance', 'Human resources', 'MEAL', 'Security', 'Communications', 'Information technology', 'Consultancy', 'Internship', 'Volunteer']
+  const vacancyCategories = [
+    'Programme',
+    'Technical',
+    'Operations',
+    'Finance',
+    'Human resources',
+    'MEAL',
+    'Security',
+    'Communications',
+    'Information technology',
+    'Consultancy',
+    'Internship',
+    'Volunteer',
+  ]
   for (const name of vacancyCategories) {
     const code = name.toUpperCase().replace(/\s+/g, '_')
     await prisma.vacancyCategory.upsert({ where: { code }, update: { name, active: true }, create: { code, name } })
   }
   const documentTypes = [
-    ['CV', 'Curriculum Vitae'], ['COVER_LETTER', 'Cover Letter'], ['IDENTITY', 'Identity Document'],
-    ['PASSPORT_PHOTO', 'Passport Photograph'], ['ACADEMIC_CERTIFICATE', 'Academic Certificate'],
-    ['PROFESSIONAL_LICENCE', 'Professional Licence'], ['SIGNED_OFFER', 'Signed Offer'],
+    ['CV', 'Curriculum Vitae'],
+    ['COVER_LETTER', 'Cover Letter'],
+    ['IDENTITY', 'Identity Document'],
+    ['PASSPORT_PHOTO', 'Passport Photograph'],
+    ['ACADEMIC_CERTIFICATE', 'Academic Certificate'],
+    ['PROFESSIONAL_LICENCE', 'Professional Licence'],
+    ['SIGNED_OFFER', 'Signed Offer'],
   ]
-  for (const [code, name] of documentTypes) await prisma.documentType.upsert({ where: { code }, update: { name, active: true }, create: { code, name } })
+  for (const [code, name] of documentTypes)
+    await prisma.documentType.upsert({ where: { code }, update: { name, active: true }, create: { code, name } })
   const settings = [
     { key: 'RETENTION_UNSUBMITTED_DRAFT_DAYS', valueJson: '90', description: 'Days to retain abandoned drafts' },
     { key: 'RETENTION_NOTIFICATION_DAYS', valueJson: '90', description: 'Days to retain read notifications' },
-    { key: 'RETENTION_EXPIRED_REFERENCE_DAYS', valueJson: '365', description: 'Days to retain expired reference request tokens' },
+    {
+      key: 'RETENTION_EXPIRED_REFERENCE_DAYS',
+      valueJson: '365',
+      description: 'Days to retain expired reference request tokens',
+    },
   ]
-  for (const setting of settings) await prisma.systemSetting.upsert({ where: { key: setting.key }, update: setting, create: setting })
+  for (const setting of settings)
+    await prisma.systemSetting.upsert({ where: { key: setting.key }, update: setting, create: setting })
   const notificationTemplates = [
-    { code: 'APPLICATION_RECEIVED', subject: 'Application received', bodyTemplate: 'Dear {{candidate_name}}, your application for {{vacancy_title}} has been received.' },
-    { code: 'ASSESSMENT_INVITATION', subject: 'Assessment for {{vacancy_title}}', bodyTemplate: 'Dear {{candidate_first_name}}, an assessment is ready in your account for {{vacancy_title}}. Please review the instructions and deadline before you begin.' },
-    { code: 'INTERVIEW_SCHEDULED', subject: 'Interview for {{vacancy_title}}', bodyTemplate: 'Dear {{candidate_first_name}}, we would like to meet with you about {{vacancy_title}}. Your account contains the interview time, format and response options.' },
-    { code: 'INTERVIEW_RESCHEDULED', subject: 'Updated interview arrangements', bodyTemplate: 'Dear {{candidate_first_name}}, the interview arrangements for {{vacancy_title}} have changed. Please review and respond to the updated details in your account.' },
-    { code: 'REFERENCE_UPDATE', subject: 'Reference check update', bodyTemplate: 'Dear {{candidate_first_name}}, we are completing the reference stage for {{vacancy_title}}. We will contact you through your account if anything else is needed.' },
-    { code: 'PROCESS_DELAY', subject: 'An update on {{vacancy_title}}', bodyTemplate: 'Dear {{candidate_first_name}}, our review for {{vacancy_title}} is taking longer than planned. Your application remains active and we will contact you when there is a decision.' },
-    { code: 'NOT_SELECTED', subject: 'Outcome of your application', bodyTemplate: 'Dear {{candidate_first_name}}, thank you for your interest in {{vacancy_title}}. We will not be progressing your application further on this occasion.' },
-    { code: 'OFFER_SENT', subject: 'Your FRAD offer is ready', bodyTemplate: 'Dear {{candidate_name}}, review your offer for {{vacancy_title}} before {{deadline}}.' },
-    { code: 'OFFER_CLARIFICATION', subject: 'Your offer question', bodyTemplate: 'Dear {{candidate_first_name}}, we have received your question about the offer for {{vacancy_title}}. A member of the recruitment team will respond through your account.' },
-    { code: 'PREBOARDING_REMINDER', subject: 'Preboarding action required', bodyTemplate: 'Dear {{candidate_name}}, please complete {{item_title}} by {{due_date}}.' },
+    {
+      code: 'APPLICATION_RECEIVED',
+      subject: 'Application received',
+      bodyTemplate: 'Dear {{candidate_name}}, your application for {{vacancy_title}} has been received.',
+    },
+    {
+      code: 'ASSESSMENT_INVITATION',
+      subject: 'Assessment for {{vacancy_title}}',
+      bodyTemplate:
+        'Dear {{candidate_first_name}}, an assessment is ready in your account for {{vacancy_title}}. Please review the instructions and deadline before you begin.',
+    },
+    {
+      code: 'INTERVIEW_SCHEDULED',
+      subject: 'Interview for {{vacancy_title}}',
+      bodyTemplate:
+        'Dear {{candidate_first_name}}, we would like to meet with you about {{vacancy_title}}. Your account contains the interview time, format and response options.',
+    },
+    {
+      code: 'INTERVIEW_RESCHEDULED',
+      subject: 'Updated interview arrangements',
+      bodyTemplate:
+        'Dear {{candidate_first_name}}, the interview arrangements for {{vacancy_title}} have changed. Please review and respond to the updated details in your account.',
+    },
+    {
+      code: 'REFERENCE_UPDATE',
+      subject: 'Reference check update',
+      bodyTemplate:
+        'Dear {{candidate_first_name}}, we are completing the reference stage for {{vacancy_title}}. We will contact you through your account if anything else is needed.',
+    },
+    {
+      code: 'PROCESS_DELAY',
+      subject: 'An update on {{vacancy_title}}',
+      bodyTemplate:
+        'Dear {{candidate_first_name}}, our review for {{vacancy_title}} is taking longer than planned. Your application remains active and we will contact you when there is a decision.',
+    },
+    {
+      code: 'NOT_SELECTED',
+      subject: 'Outcome of your application',
+      bodyTemplate:
+        'Dear {{candidate_first_name}}, thank you for your interest in {{vacancy_title}}. We will not be progressing your application further on this occasion.',
+    },
+    {
+      code: 'OFFER_SENT',
+      subject: 'Your FRAD offer is ready',
+      bodyTemplate: 'Dear {{candidate_name}}, review your offer for {{vacancy_title}} before {{deadline}}.',
+    },
+    {
+      code: 'OFFER_CLARIFICATION',
+      subject: 'Your offer question',
+      bodyTemplate:
+        'Dear {{candidate_first_name}}, we have received your question about the offer for {{vacancy_title}}. A member of the recruitment team will respond through your account.',
+    },
+    {
+      code: 'PREBOARDING_REMINDER',
+      subject: 'Preboarding action required',
+      bodyTemplate: 'Dear {{candidate_name}}, please complete {{item_title}} by {{due_date}}.',
+    },
   ]
-  for (const template of notificationTemplates) await prisma.notificationTemplate.upsert({ where: { code: template.code }, update: template, create: template })
+  for (const template of notificationTemplates)
+    await prisma.notificationTemplate.upsert({ where: { code: template.code }, update: template, create: template })
 
   // 6. Default Screening Scorecard Template
-  let defaultScorecard = await prisma.scorecardTemplate.findFirst({ where: { name: 'Default FRAD Recruitment Scorecard', scorecardType: 'SCREENING' } })
-  if (!defaultScorecard) defaultScorecard = await prisma.scorecardTemplate.create({
-    data: {
-      name: 'Default FRAD Recruitment Scorecard',
-      scorecardType: 'SCREENING',
-      description: 'Standard screening criteria for FRAD candidate evaluation',
-      criteria: {
-        create: [
-          { name: 'Required Qualification', maximumScore: 10, weight: 1.0, required: true, guidance: 'Highest level of education relevant to the role' },
-          { name: 'Relevant Work Experience', maximumScore: 25, weight: 1.0, required: true, guidance: 'Years and direct relevance of past experience' },
-          { name: 'NGO / Humanitarian Experience', maximumScore: 15, weight: 1.0, required: false, guidance: 'Experience in emergency or development setting' },
-          { name: 'Technical Competency & Skills', maximumScore: 20, weight: 1.0, required: true, guidance: 'Demonstrated domain technical knowledge' },
-          { name: 'Duty-Location & Field Readiness', maximumScore: 10, weight: 1.0, required: false, guidance: 'Familiarity or readiness for duty station environment' },
-          { name: 'Communication & Application Quality', maximumScore: 10, weight: 1.0, required: true, guidance: 'Clarity, grammar, completeness of application' },
-          { name: 'Additional Relevant Certifications', maximumScore: 10, weight: 1.0, required: false, guidance: 'Professional licences, certifications, IT skills' },
-        ],
-      },
-    },
+  let defaultScorecard = await prisma.scorecardTemplate.findFirst({
+    where: { name: 'Default FRAD Recruitment Scorecard', scorecardType: 'SCREENING' },
   })
+  if (!defaultScorecard)
+    defaultScorecard = await prisma.scorecardTemplate.create({
+      data: {
+        name: 'Default FRAD Recruitment Scorecard',
+        scorecardType: 'SCREENING',
+        description: 'Standard screening criteria for FRAD candidate evaluation',
+        criteria: {
+          create: [
+            {
+              name: 'Required Qualification',
+              maximumScore: 10,
+              weight: 1.0,
+              required: true,
+              guidance: 'Highest level of education relevant to the role',
+            },
+            {
+              name: 'Relevant Work Experience',
+              maximumScore: 25,
+              weight: 1.0,
+              required: true,
+              guidance: 'Years and direct relevance of past experience',
+            },
+            {
+              name: 'NGO / Humanitarian Experience',
+              maximumScore: 15,
+              weight: 1.0,
+              required: false,
+              guidance: 'Experience in emergency or development setting',
+            },
+            {
+              name: 'Technical Competency & Skills',
+              maximumScore: 20,
+              weight: 1.0,
+              required: true,
+              guidance: 'Demonstrated domain technical knowledge',
+            },
+            {
+              name: 'Duty-Location & Field Readiness',
+              maximumScore: 10,
+              weight: 1.0,
+              required: false,
+              guidance: 'Familiarity or readiness for duty station environment',
+            },
+            {
+              name: 'Communication & Application Quality',
+              maximumScore: 10,
+              weight: 1.0,
+              required: true,
+              guidance: 'Clarity, grammar, completeness of application',
+            },
+            {
+              name: 'Additional Relevant Certifications',
+              maximumScore: 10,
+              weight: 1.0,
+              required: false,
+              guidance: 'Professional licences, certifications, IT skills',
+            },
+          ],
+        },
+      },
+    })
   console.log('✅ Default Scorecard Template created:', defaultScorecard.name)
 
   // 7. Policy Documents
   const policies = [
-    { title: 'FRAD Code of Conduct', category: 'CODE_OF_CONDUCT', effectiveDate: new Date('2026-01-01'), summary: 'Standards of personal and professional conduct required of all FRAD personnel.' },
-    { title: 'Safeguarding Policy', category: 'SAFEGUARDING', effectiveDate: new Date('2026-01-01'), summary: 'Framework for protecting vulnerable individuals from harm or abuse.' },
-    { title: 'PSEA Policy (Prevention of Sexual Exploitation and Abuse)', category: 'PSEA', effectiveDate: new Date('2026-01-01'), summary: 'Zero-tolerance policy against sexual exploitation, abuse, and harassment.' },
-    { title: 'Confidentiality & Non-Disclosure Agreement', category: 'CONFIDENTIALITY', effectiveDate: new Date('2026-01-01'), summary: 'Protection of sensitive organizational data, beneficiary records, and proprietary info.' },
+    {
+      title: 'FRAD Code of Conduct',
+      category: 'CODE_OF_CONDUCT',
+      effectiveDate: new Date('2026-01-01'),
+      summary: 'Standards of personal and professional conduct required of all FRAD personnel.',
+    },
+    {
+      title: 'Safeguarding Policy',
+      category: 'SAFEGUARDING',
+      effectiveDate: new Date('2026-01-01'),
+      summary: 'Framework for protecting vulnerable individuals from harm or abuse.',
+    },
+    {
+      title: 'PSEA Policy (Prevention of Sexual Exploitation and Abuse)',
+      category: 'PSEA',
+      effectiveDate: new Date('2026-01-01'),
+      summary: 'Zero-tolerance policy against sexual exploitation, abuse, and harassment.',
+    },
+    {
+      title: 'Confidentiality & Non-Disclosure Agreement',
+      category: 'CONFIDENTIALITY',
+      effectiveDate: new Date('2026-01-01'),
+      summary: 'Protection of sensitive organizational data, beneficiary records, and proprietary info.',
+    },
   ]
 
   for (const pol of policies) {
@@ -315,9 +474,27 @@ async function main() {
 
   // 8. Courses
   const courses = [
-    { title: 'Introduction to FRAD', category: 'CORE', estimatedDurationMinutes: 30, passMark: 80, learningObjectives: 'Overview of FRAD mandate, structure, values, and operating procedures.' },
-    { title: 'Safeguarding & PSEA Awareness', category: 'CORE', estimatedDurationMinutes: 45, passMark: 85, learningObjectives: 'Understanding reporting obligations, boundary violations, and protection protocols.' },
-    { title: 'Security Awareness & Field Protocols', category: 'CORE', estimatedDurationMinutes: 40, passMark: 80, learningObjectives: 'Basic security management, movement protocols, and emergency procedures.' },
+    {
+      title: 'Introduction to FRAD',
+      category: 'CORE',
+      estimatedDurationMinutes: 30,
+      passMark: 80,
+      learningObjectives: 'Overview of FRAD mandate, structure, values, and operating procedures.',
+    },
+    {
+      title: 'Safeguarding & PSEA Awareness',
+      category: 'CORE',
+      estimatedDurationMinutes: 45,
+      passMark: 85,
+      learningObjectives: 'Understanding reporting obligations, boundary violations, and protection protocols.',
+    },
+    {
+      title: 'Security Awareness & Field Protocols',
+      category: 'CORE',
+      estimatedDurationMinutes: 40,
+      passMark: 80,
+      learningObjectives: 'Basic security management, movement protocols, and emergency procedures.',
+    },
   ]
 
   for (const c of courses) {
@@ -330,7 +507,11 @@ async function main() {
           courseId: created.id,
           questionType: 'MCQ',
           question: 'What is FRAD policy regarding recruitment fees?',
-          optionsJson: JSON.stringify(['FRAD charges a nominal fee', 'FRAD never charges any recruitment fee at any stage', 'Fees depend on duty station']),
+          optionsJson: JSON.stringify([
+            'FRAD charges a nominal fee',
+            'FRAD never charges any recruitment fee at any stage',
+            'Fees depend on duty station',
+          ]),
           correctAnswerJson: JSON.stringify(['FRAD never charges any recruitment fee at any stage']),
           score: 1.0,
           displayOrder: 1,
@@ -341,15 +522,43 @@ async function main() {
 
   // 9. Preboarding Form Templates
   const forms = [
-    { title: 'Personal & Residential Details Form', description: 'Full legal names, nationality, residential address', schemaJson: JSON.stringify({ fields: [{ name: 'legalName', type: 'text', required: true }] }) },
-    { title: 'Emergency Contact & Next-of-Kin Form', description: 'Primary emergency contact and Next of Kin records', sensitivityClass: 'RESTRICTED', schemaJson: JSON.stringify({ fields: [{ name: 'kinName', type: 'text', required: true }, { name: 'kinPhone', type: 'text', required: true }] }) },
-    { title: 'Bank Account & Tax Information Form', description: 'Payroll bank details (Restricted Access)', sensitivityClass: 'RESTRICTED', schemaJson: JSON.stringify({ fields: [{ name: 'bankName', type: 'text', required: true }, { name: 'accountNumber', type: 'text', required: true }] }) },
+    {
+      title: 'Personal & Residential Details Form',
+      description: 'Full legal names, nationality, residential address',
+      schemaJson: JSON.stringify({ fields: [{ name: 'legalName', type: 'text', required: true }] }),
+    },
+    {
+      title: 'Emergency Contact & Next-of-Kin Form',
+      description: 'Primary emergency contact and Next of Kin records',
+      sensitivityClass: 'RESTRICTED',
+      schemaJson: JSON.stringify({
+        fields: [
+          { name: 'kinName', type: 'text', required: true },
+          { name: 'kinPhone', type: 'text', required: true },
+        ],
+      }),
+    },
+    {
+      title: 'Bank Account & Tax Information Form',
+      description: 'Payroll bank details (Restricted Access)',
+      sensitivityClass: 'RESTRICTED',
+      schemaJson: JSON.stringify({
+        fields: [
+          { name: 'bankName', type: 'text', required: true },
+          { name: 'accountNumber', type: 'text', required: true },
+        ],
+      }),
+    },
   ]
 
   for (const f of forms) {
     const existing = await prisma.preboardingFormTemplate.findFirst({ where: { title: f.title } })
     if (!existing) await prisma.preboardingFormTemplate.create({ data: f })
-    else await prisma.preboardingFormTemplate.update({ where: { id: existing.id }, data: { sensitivityClass: f.sensitivityClass || 'STANDARD' } })
+    else
+      await prisma.preboardingFormTemplate.update({
+        where: { id: existing.id },
+        data: { sensitivityClass: f.sensitivityClass || 'STANDARD' },
+      })
   }
 
   // 10. Sample Published Vacancy
@@ -371,9 +580,12 @@ async function main() {
         contractType: 'FIXED_TERM',
         contractDuration: '12 Months (Renewable)',
         reportingLine: 'Human Resources Manager',
-        summary: 'We are looking for a qualified Senior HR Officer to oversee recruitment, onboarding, and employee relations at FRAD HQ.',
-        responsibilities: '- Coordinate end-to-end recruitment process\n- Supervise preboarding & candidate readiness checks\n- Ensure compliance with labor laws and organizational policies',
-        essentialQualifications: 'Bachelor Degree in Human Resource Management, Business Administration, or related social sciences.',
+        summary:
+          'We are looking for a qualified Senior HR Officer to oversee recruitment, onboarding, and employee relations at FRAD HQ.',
+        responsibilities:
+          '- Coordinate end-to-end recruitment process\n- Supervise preboarding & candidate readiness checks\n- Ensure compliance with labor laws and organizational policies',
+        essentialQualifications:
+          'Bachelor Degree in Human Resource Management, Business Administration, or related social sciences.',
         desirableQualifications: 'CIPM or SHRM certification is an added advantage.',
         minimumExperienceYears: 5,
         desiredExperience: 'At least 5 years experience in NGO or humanitarian sector HR management.',
@@ -408,7 +620,10 @@ async function main() {
     { code: 'preboarding.clearance', description: 'Issue final preboarding clearance' },
     { code: 'resumption.confirm', description: 'Confirm actual resumption' },
     { code: 'course.manage', description: 'Manage course content and enrolment' },
-    { code: 'preboarding.restricted.read', description: 'Read restricted bank, pension, medical, accessibility and next-of-kin forms' },
+    {
+      code: 'preboarding.restricted.read',
+      description: 'Read restricted bank, pension, medical, accessibility and next-of-kin forms',
+    },
     { code: 'erp.transfer', description: 'Record ERP transfer' },
     { code: 'admin.manage', description: 'Administer configuration' },
     { code: 'audit.read', description: 'Read audit logs' },
@@ -423,16 +638,49 @@ async function main() {
   const grants: Record<string, string[]> = {
     SYSTEM_ADMIN: ['*'],
     HR_MANAGER: [
-      'vacancy.create.all', 'vacancy.read.all', 'vacancy.update.all', 'application.read.all',
-      'application.stage.change', 'scorecard.submit', 'scorecard.reopen', 'assessment.manage', 'interview.manage',
-      'reference.manage', 'offer.manage', 'preboarding.manage', 'preboarding.clearance', 'resumption.confirm', 'preboarding.restricted.read', 'erp.transfer', 'audit.read', 'report.export', 'complaint.manage', 'governance.manage',
+      'vacancy.create.all',
+      'vacancy.read.all',
+      'vacancy.update.all',
+      'application.read.all',
+      'application.stage.change',
+      'scorecard.submit',
+      'scorecard.reopen',
+      'assessment.manage',
+      'interview.manage',
+      'reference.manage',
+      'offer.manage',
+      'preboarding.manage',
+      'preboarding.clearance',
+      'resumption.confirm',
+      'preboarding.restricted.read',
+      'erp.transfer',
+      'audit.read',
+      'report.export',
+      'complaint.manage',
+      'governance.manage',
     ],
     RECRUITMENT_OFFICER: [
-      'vacancy.create.all', 'vacancy.read.all', 'vacancy.update.all', 'application.read.all',
-      'application.stage.change', 'scorecard.submit', 'assessment.manage', 'interview.manage', 'interview.score.assigned',
-      'reference.manage', 'offer.manage', 'preboarding.manage', 'complaint.manage',
+      'vacancy.create.all',
+      'vacancy.read.all',
+      'vacancy.update.all',
+      'application.read.all',
+      'application.stage.change',
+      'scorecard.submit',
+      'assessment.manage',
+      'interview.manage',
+      'interview.score.assigned',
+      'reference.manage',
+      'offer.manage',
+      'preboarding.manage',
+      'complaint.manage',
     ],
-    HIRING_MANAGER: ['vacancy.read.assigned', 'application.read.assigned', 'scorecard.submit', 'interview.manage', 'interview.score.assigned'],
+    HIRING_MANAGER: [
+      'vacancy.read.assigned',
+      'application.read.assigned',
+      'scorecard.submit',
+      'interview.manage',
+      'interview.score.assigned',
+    ],
     PANEL_MEMBER: ['application.read.assigned', 'interview.score.assigned'],
     COURSE_ADMIN: ['course.manage'],
     APPROVER: [],
@@ -441,12 +689,21 @@ async function main() {
   for (const [roleName, codes] of Object.entries(grants)) {
     const role = await prisma.role.findUnique({ where: { name: roleName } })
     if (!role) continue
-    const managedPermissions = await prisma.permission.findMany({ where: { code: { in: permissions.map((item) => item.code) } }, select: { id: true, code: true } })
-    const allowedIds = managedPermissions.filter((permission) => codes.includes(permission.code)).map((permission) => permission.id)
+    const managedPermissions = await prisma.permission.findMany({
+      where: { code: { in: permissions.map((item) => item.code) } },
+      select: { id: true, code: true },
+    })
+    const allowedIds = managedPermissions
+      .filter((permission) => codes.includes(permission.code))
+      .map((permission) => permission.id)
     await prisma.rolePermission.deleteMany({
       where: {
         roleId: role.id,
-        permissionId: { in: managedPermissions.filter((permission) => !allowedIds.includes(permission.id)).map((permission) => permission.id) },
+        permissionId: {
+          in: managedPermissions
+            .filter((permission) => !allowedIds.includes(permission.id))
+            .map((permission) => permission.id),
+        },
       },
     })
     for (const code of codes) {
@@ -463,11 +720,52 @@ async function main() {
 
   // 12. Governed workflow and service-level defaults
   const slaPolicies = [
-    { code: 'APPLICATION_REVIEW_NORMAL', name: 'Application review', workType: 'APPLICATION_REVIEW', targetMinutes: 1440, warningMinutes: 1080, escalationRole: 'HR_MANAGER', escalationAfterMinutes: 1440 },
-    { code: 'APPROVAL_DECISION_NORMAL', name: 'Approval decision', workType: 'APPROVAL_DECISION', targetMinutes: 480, warningMinutes: 360, escalationRole: 'HR_MANAGER', escalationAfterMinutes: 480 },
-    { code: 'PREBOARDING_REVIEW_NORMAL', name: 'Preboarding review', workType: 'PREBOARDING_REVIEW', targetMinutes: 1440, warningMinutes: 1080, escalationRole: 'HR_MANAGER', escalationAfterMinutes: 1440 },
-    { code: 'OFFER_APPROVAL_NORMAL', name: 'Offer approval', workType: 'OFFER_APPROVAL', targetMinutes: 480, warningMinutes: 360, escalationRole: 'HR_MANAGER', escalationAfterMinutes: 480 },
-    { code: 'REFERENCE_REVIEW_NORMAL', name: 'Reference concern review', workType: 'REFERENCE_REVIEW', priority: 'HIGH', targetMinutes: 480, warningMinutes: 240, escalationRole: 'HR_MANAGER', escalationAfterMinutes: 480 },
+    {
+      code: 'APPLICATION_REVIEW_NORMAL',
+      name: 'Application review',
+      workType: 'APPLICATION_REVIEW',
+      targetMinutes: 1440,
+      warningMinutes: 1080,
+      escalationRole: 'HR_MANAGER',
+      escalationAfterMinutes: 1440,
+    },
+    {
+      code: 'APPROVAL_DECISION_NORMAL',
+      name: 'Approval decision',
+      workType: 'APPROVAL_DECISION',
+      targetMinutes: 480,
+      warningMinutes: 360,
+      escalationRole: 'HR_MANAGER',
+      escalationAfterMinutes: 480,
+    },
+    {
+      code: 'PREBOARDING_REVIEW_NORMAL',
+      name: 'Preboarding review',
+      workType: 'PREBOARDING_REVIEW',
+      targetMinutes: 1440,
+      warningMinutes: 1080,
+      escalationRole: 'HR_MANAGER',
+      escalationAfterMinutes: 1440,
+    },
+    {
+      code: 'OFFER_APPROVAL_NORMAL',
+      name: 'Offer approval',
+      workType: 'OFFER_APPROVAL',
+      targetMinutes: 480,
+      warningMinutes: 360,
+      escalationRole: 'HR_MANAGER',
+      escalationAfterMinutes: 480,
+    },
+    {
+      code: 'REFERENCE_REVIEW_NORMAL',
+      name: 'Reference concern review',
+      workType: 'REFERENCE_REVIEW',
+      priority: 'HIGH',
+      targetMinutes: 480,
+      warningMinutes: 240,
+      escalationRole: 'HR_MANAGER',
+      escalationAfterMinutes: 480,
+    },
   ]
   for (const policy of slaPolicies) {
     await prisma.slaPolicy.upsert({ where: { code: policy.code }, update: policy, create: policy })
@@ -476,12 +774,23 @@ async function main() {
   const applicationWorkflow = await prisma.workflowDefinition.upsert({
     where: { code: 'APPLICATION_LIFECYCLE' },
     update: { name: 'Application lifecycle', resourceType: 'APPLICATION', active: true },
-    create: { code: 'APPLICATION_LIFECYCLE', name: 'Application lifecycle', resourceType: 'APPLICATION', description: 'Governed candidate journey from submission through ERP handover.' },
+    create: {
+      code: 'APPLICATION_LIFECYCLE',
+      name: 'Application lifecycle',
+      resourceType: 'APPLICATION',
+      description: 'Governed candidate journey from submission through ERP handover.',
+    },
   })
   const activeWorkflow = await prisma.workflowVersion.upsert({
     where: { workflowDefinitionId_version: { workflowDefinitionId: applicationWorkflow.id, version: 1 } },
     update: { status: 'ACTIVE' },
-    create: { workflowDefinitionId: applicationWorkflow.id, version: 1, status: 'ACTIVE', publishedBy: adminUser.id, publishedAt: new Date() },
+    create: {
+      workflowDefinitionId: applicationWorkflow.id,
+      version: 1,
+      status: 'ACTIVE',
+      publishedBy: adminUser.id,
+      publishedAt: new Date(),
+    },
   })
   const transitions = [
     ['SUBMITTED', 'UNDER_REVIEW', 'application.stage.change', false],
@@ -505,23 +814,61 @@ async function main() {
     })
   }
   const integrations = [
-    { provider: 'FRAD_NATIVE_ICS', connectionType: 'CALENDAR', displayName: 'Interview calendar files', status: 'ACTIVE', lastHealthStatus: 'HEALTHY' },
-    { provider: 'FRAD_TYPED_SIGNATURE', connectionType: 'ESIGNATURE', displayName: 'Typed-name electronic signatures', status: 'ACTIVE', lastHealthStatus: 'HEALTHY' },
-    { provider: 'FRAD_REFERENCE_PORTAL', connectionType: 'REFERENCE', displayName: 'Secure reference request portal', status: 'ACTIVE', lastHealthStatus: 'HEALTHY' },
-    { provider: 'EXTERNAL_JOB_BOARD', connectionType: 'JOB_BOARD', displayName: 'External job-board adapter', status: 'DISCONNECTED', lastHealthStatus: null },
-    { provider: 'EXTERNAL_SMS', connectionType: 'SMS', displayName: 'SMS delivery adapter', status: 'DISCONNECTED', lastHealthStatus: null },
+    {
+      provider: 'FRAD_NATIVE_ICS',
+      connectionType: 'CALENDAR',
+      displayName: 'Interview calendar files',
+      status: 'ACTIVE',
+      lastHealthStatus: 'HEALTHY',
+    },
+    {
+      provider: 'FRAD_TYPED_SIGNATURE',
+      connectionType: 'ESIGNATURE',
+      displayName: 'Typed-name electronic signatures',
+      status: 'ACTIVE',
+      lastHealthStatus: 'HEALTHY',
+    },
+    {
+      provider: 'FRAD_REFERENCE_PORTAL',
+      connectionType: 'REFERENCE',
+      displayName: 'Secure reference request portal',
+      status: 'ACTIVE',
+      lastHealthStatus: 'HEALTHY',
+    },
+    {
+      provider: 'EXTERNAL_JOB_BOARD',
+      connectionType: 'JOB_BOARD',
+      displayName: 'External job-board adapter',
+      status: 'DISCONNECTED',
+      lastHealthStatus: null,
+    },
+    {
+      provider: 'EXTERNAL_SMS',
+      connectionType: 'SMS',
+      displayName: 'SMS delivery adapter',
+      status: 'DISCONNECTED',
+      lastHealthStatus: null,
+    },
   ]
   for (const integration of integrations) {
     await prisma.integrationConnection.upsert({
-      where: { provider_connectionType: { provider: integration.provider, connectionType: integration.connectionType } },
-      update: { displayName: integration.displayName, status: integration.status, lastHealthStatus: integration.lastHealthStatus },
+      where: {
+        provider_connectionType: { provider: integration.provider, connectionType: integration.connectionType },
+      },
+      update: {
+        displayName: integration.displayName,
+        status: integration.status,
+        lastHealthStatus: integration.lastHealthStatus,
+      },
       create: integration,
     })
   }
   console.log('✅ Workflow and SLA defaults created')
 
   // 13. Default preboarding package (§57.4)
-  let existingPkg = await prisma.preboardingPackage.findFirst({ where: { name: 'Default General Preboarding Package' } })
+  let existingPkg = await prisma.preboardingPackage.findFirst({
+    where: { name: 'Default General Preboarding Package' },
+  })
   if (!existingPkg) {
     existingPkg = await prisma.preboardingPackage.create({
       data: {
@@ -543,37 +890,60 @@ async function main() {
   for (const definition of documentDefinitions) {
     let requirement = await prisma.documentRequirement.findFirst({ where: { name: definition.name } })
     if (!requirement) requirement = await prisma.documentRequirement.create({ data: definition })
-    const linked = await prisma.packageDocumentRequirement.findFirst({ where: { preboardingPackageId: existingPkg.id, documentRequirementId: requirement.id } })
-    if (!linked) await prisma.packageDocumentRequirement.create({ data: { preboardingPackageId: existingPkg.id, documentRequirementId: requirement.id } })
+    const linked = await prisma.packageDocumentRequirement.findFirst({
+      where: { preboardingPackageId: existingPkg.id, documentRequirementId: requirement.id },
+    })
+    if (!linked)
+      await prisma.packageDocumentRequirement.create({
+        data: { preboardingPackageId: existingPkg.id, documentRequirementId: requirement.id },
+      })
   }
 
   const taskDefinitions = [
     { title: 'Confirm start date', description: 'Confirm the agreed start date with HR.' },
-    { title: 'Confirm reporting instructions', description: 'Acknowledge the reporting location and first-day instructions.' },
+    {
+      title: 'Confirm reporting instructions',
+      description: 'Acknowledge the reporting location and first-day instructions.',
+    },
   ]
   for (const definition of taskDefinitions) {
     let task = await prisma.preboardingTaskTemplate.findFirst({ where: { title: definition.title } })
     if (!task) task = await prisma.preboardingTaskTemplate.create({ data: definition })
-    const linked = await prisma.packageTask.findFirst({ where: { preboardingPackageId: existingPkg.id, taskTemplateId: task.id } })
-    if (!linked) await prisma.packageTask.create({ data: { preboardingPackageId: existingPkg.id, taskTemplateId: task.id } })
+    const linked = await prisma.packageTask.findFirst({
+      where: { preboardingPackageId: existingPkg.id, taskTemplateId: task.id },
+    })
+    if (!linked)
+      await prisma.packageTask.create({ data: { preboardingPackageId: existingPkg.id, taskTemplateId: task.id } })
   }
 
   const packageForms = await prisma.preboardingFormTemplate.findMany({ where: { active: true } })
   for (const form of packageForms) {
-    const linked = await prisma.packageForm.findFirst({ where: { preboardingPackageId: existingPkg.id, formTemplateId: form.id } })
-    if (!linked) await prisma.packageForm.create({ data: { preboardingPackageId: existingPkg.id, formTemplateId: form.id } })
+    const linked = await prisma.packageForm.findFirst({
+      where: { preboardingPackageId: existingPkg.id, formTemplateId: form.id },
+    })
+    if (!linked)
+      await prisma.packageForm.create({ data: { preboardingPackageId: existingPkg.id, formTemplateId: form.id } })
   }
   const packagePolicies = await prisma.policyDocument.findMany({ where: { active: true } })
   for (const policy of packagePolicies) {
-    const linked = await prisma.packagePolicy.findFirst({ where: { preboardingPackageId: existingPkg.id, policyDocumentId: policy.id } })
-    if (!linked) await prisma.packagePolicy.create({ data: { preboardingPackageId: existingPkg.id, policyDocumentId: policy.id } })
+    const linked = await prisma.packagePolicy.findFirst({
+      where: { preboardingPackageId: existingPkg.id, policyDocumentId: policy.id },
+    })
+    if (!linked)
+      await prisma.packagePolicy.create({ data: { preboardingPackageId: existingPkg.id, policyDocumentId: policy.id } })
   }
   const packageCourses = await prisma.course.findMany({ where: { active: true, category: 'CORE' } })
   for (const course of packageCourses) {
-    const linked = await prisma.packageCourse.findFirst({ where: { preboardingPackageId: existingPkg.id, courseId: course.id } })
-    if (!linked) await prisma.packageCourse.create({ data: { preboardingPackageId: existingPkg.id, courseId: course.id } })
+    const linked = await prisma.packageCourse.findFirst({
+      where: { preboardingPackageId: existingPkg.id, courseId: course.id },
+    })
+    if (!linked)
+      await prisma.packageCourse.create({ data: { preboardingPackageId: existingPkg.id, courseId: course.id } })
   }
-  await prisma.vacancy.updateMany({ where: { preboardingPackageId: null }, data: { preboardingPackageId: existingPkg.id } })
+  await prisma.vacancy.updateMany({
+    where: { preboardingPackageId: null },
+    data: { preboardingPackageId: existingPkg.id },
+  })
 
   console.log('🎉 Database seed completed successfully!')
 }

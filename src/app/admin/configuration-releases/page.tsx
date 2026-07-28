@@ -10,7 +10,9 @@ export default async function ConfigurationReleasesPage() {
       <div className="page-intro">
         <p className="editorial-kicker">Controlled configuration</p>
         <h1 className="page-title">Configuration releases</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">Compare drafts, obtain independent approval, publish on an effective date, and roll back safely.</p>
+        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+          Compare drafts, obtain independent approval, publish on an effective date, and roll back safely.
+        </p>
       </div>
       <ConfigurationReleaseManager userId={user.userId} />
     </div>

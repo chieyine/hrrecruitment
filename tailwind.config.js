@@ -9,42 +9,43 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-inter)'],
-        display: ['var(--font-playfair)'],
+        sans: ['var(--font-sans)'],
+        display: ['var(--font-display)'],
       },
       borderRadius: {
-        '2xl': '0.75rem',
-        '3xl': '0.875rem',
+        '2xl': '0.875rem',
+        '3xl': '1rem',
       },
       colors: {
         brand: {
-          50: '#f6f7f6',
-          100: '#e8ebea',
-          200: '#d1d8d5',
-          300: '#b0beba',
-          400: '#8ca19b',
-          500: '#6f8680',
-          600: '#586b66',
-          700: '#485753', // Deep forest green / slate green
-          800: '#3c4845',
-          900: '#343e3c',
-          950: '#1e2523',
+          50: '#f2f7f4',
+          100: '#dfece4',
+          200: '#bdd9c8',
+          300: '#91bea4',
+          400: '#619979',
+          500: '#427a5d',
+          600: '#306249',
+          700: '#27513d',
+          800: '#214132',
+          900: '#1b352a',
+          950: '#0f211a',
         },
         navy: {
-          800: '#1c1917', // warm charcoal (stone-900)
-          900: '#0c0a09', // stone-950
-          950: '#000000',
+          800: '#1f2924',
+          900: '#131b17',
+          950: '#0a100d',
         },
         surface: {
-          50: '#fafaf8', // warm off-white linen
-          100: '#f4f3ed',
-          200: '#e5e3d8',
+          50: '#fbfaf7',
+          100: '#f4f2ec',
+          200: '#e5e1d8',
+          300: '#d3cdc1',
         }
       },
       boxShadow: {
-        'soft': '0 10px 40px -10px rgba(0, 0, 0, 0.04)',
-        'soft-hover': '0 20px 40px -10px rgba(0, 0, 0, 0.08)',
-        'inner-glow': 'inset 0 1px 0 0 rgba(255, 255, 255, 0.5)',
+        'soft': '0 1px 2px rgba(16, 24, 20, .04), 0 12px 32px rgba(16, 24, 20, .05)',
+        'soft-hover': '0 2px 4px rgba(16, 24, 20, .05), 0 20px 44px rgba(16, 24, 20, .09)',
+        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, .7)',
       },
       animation: {
         'fade-in-up': 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',

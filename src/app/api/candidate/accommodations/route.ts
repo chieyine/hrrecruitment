@@ -14,7 +14,13 @@ export async function GET() {
   try {
     const user = await requireUser()
     const requests = await prisma.accommodationRequest.findMany({
-      where: { applicationId: { in: await prisma.application.findMany({ where: { candidate: { userId: user.userId } }, select: { id: true } }).then((items) => items.map((item) => item.id)) } },
+      where: {
+        applicationId: {
+          in: await prisma.application
+            .findMany({ where: { candidate: { userId: user.userId } }, select: { id: true } })
+            .then((items) => items.map((item) => item.id)),
+        },
+      },
       orderBy: { requestedAt: 'desc' },
     })
     return Response.json({ requests })
@@ -36,7 +42,11 @@ export async function POST(request: Request) {
       throw new AuthzError('An accommodation cannot be requested for this closed application', 409)
     }
     const existing = await prisma.accommodationRequest.findFirst({
-      where: { applicationId: application.id, requestType: input.requestType, status: { in: ['REQUESTED', 'UNDER_REVIEW', 'APPROVED', 'PARTIALLY_APPROVED'] } },
+      where: {
+        applicationId: application.id,
+        requestType: input.requestType,
+        status: { in: ['REQUESTED', 'UNDER_REVIEW', 'APPROVED', 'PARTIALLY_APPROVED'] },
+      },
     })
     if (existing) throw new AuthzError('An active request of this type already exists', 409)
     const created = await prisma.accommodationRequest.create({

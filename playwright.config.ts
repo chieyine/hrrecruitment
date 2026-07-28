@@ -7,8 +7,14 @@ import { defineConfig, devices } from '@playwright/test'
 const e2eBaseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:3107'
 const localRun = !process.env.E2E_BASE_URL
 const testPassword = process.env.E2E_TEST_PASSWORD || 'FRAD-E2E-Only-2026!'
+const testDatabaseUrl =
+  process.env.TEST_DATABASE_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/frad_e2e'
 const localEnvironment = {
-  DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/frad_e2e',
+  // Prisma schema commands prefer DIRECT_URL when it is configured. Override
+  // both values so a local .env cannot redirect destructive E2E setup to a
+  // developer or production-like database.
+  DATABASE_URL: testDatabaseUrl,
+  DIRECT_URL: testDatabaseUrl,
   APP_URL: e2eBaseUrl,
   JWT_SECRET: 'e2e-jwt-secret-that-is-at-least-32-characters',
   SESSION_SECRET: 'e2e-session-secret-that-is-at-least-32-characters',
@@ -36,16 +42,27 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [['html',{open:'never'}],['list']] : 'list',
-  use: { baseURL: e2eBaseUrl, trace: 'retain-on-failure', screenshot: 'only-on-failure', video: 'retain-on-failure' },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }, { name: 'mobile-chromium', use: { ...devices['Pixel 7'] } }],
-  webServer: localRun ? {
-    command: 'node scripts/start-e2e.mjs',
-    url: e2eBaseUrl,
-    reuseExistingServer: false,
-    // A clean Next.js production build can take a little over three minutes
-    // on developer laptops; leave enough room for schema creation and seeding.
-    timeout: 360_000,
-    env: localEnvironment,
-  } : undefined,
+  reporter: process.env.CI ? [['html', { open: 'never' }], ['list']] : 'list',
+  use: {
+    baseURL: e2eBaseUrl,
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'mobile-chromium', use: { ...devices['Pixel 7'] } },
+  ],
+  webServer: localRun
+    ? {
+        command: 'node scripts/start-e2e.mjs',
+        url: e2eBaseUrl,
+        reuseExistingServer: false,
+        // A clean production build, schema setup, and seed can take more than
+        // ten minutes on a modest laptop. The old six-minute cap killed a
+        // healthy bootstrap before Playwright could start.
+        timeout: 1_200_000,
+        env: localEnvironment,
+      }
+    : undefined,
 })

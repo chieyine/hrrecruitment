@@ -92,7 +92,11 @@ test.describe('candidate offer, policy, and course completion', () => {
     const download = await page.request.get(`/api/assets/download/${officialOfferFileId}`)
     expect(download.status()).toBe(200)
     expect(download.headers()['content-type']).toContain('application/pdf')
-    expect(Buffer.from(await download.body()).subarray(0, 5).toString()).toBe('%PDF-')
+    expect(
+      Buffer.from(await download.body())
+        .subarray(0, 5)
+        .toString()
+    ).toBe('%PDF-')
 
     const proposedStartDate = new Date(Date.now() + 45 * 86_400_000)
     const clarification = await page.request.post(`/api/candidate/offers/${offer.id}/respond`, {
@@ -105,7 +109,9 @@ test.describe('candidate offer, policy, and course completion', () => {
     expect(clarification.status(), await clarification.text()).toBe(200)
     const clarifiedOffer = await prisma.offer.findUniqueOrThrow({ where: { id: offer.id } })
     expect(clarifiedOffer.candidateProposedStartDate?.toISOString()).toBe(proposedStartDate.toISOString())
-    expect(await prisma.messageThread.count({ where: { applicationId: application.id, category: 'OFFER_CLARIFICATION' } })).toBe(1)
+    expect(
+      await prisma.messageThread.count({ where: { applicationId: application.id, category: 'OFFER_CLARIFICATION' } })
+    ).toBe(1)
 
     const signedOfferFileId = await uploadPdf(page, `signed-offer-${runId}.pdf`)
     const acceptance = await page.request.post(`/api/candidate/offers/${offer.id}/respond`, {
@@ -137,18 +143,21 @@ test.describe('candidate offer, policy, and course completion', () => {
       const policy = await prisma.policyDocument.create({
         data: {
           title: `${input.method} acceptance policy ${runId}`,
-          category: index === 0 ? 'CODE_OF_CONDUCT' : index === 1 ? 'SAFEGUARDING' : index === 2 ? 'PSEA' : 'CONFIDENTIALITY',
+          category:
+            index === 0 ? 'CODE_OF_CONDUCT' : index === 1 ? 'SAFEGUARDING' : index === 2 ? 'PSEA' : 'CONFIDENTIALITY',
           effectiveDate: new Date(),
           acknowledgementMethod: input.method,
         },
       })
-      acknowledgements.push(await prisma.candidatePolicyAcknowledgement.create({
-        data: {
-          candidatePreboardingId: preboardingId,
-          policyDocumentId: policy.id,
-          policySnapshotJson: JSON.stringify({ title: policy.title, acknowledgementMethod: input.method }),
-        },
-      }))
+      acknowledgements.push(
+        await prisma.candidatePolicyAcknowledgement.create({
+          data: {
+            candidatePreboardingId: preboardingId,
+            policyDocumentId: policy.id,
+            policySnapshotJson: JSON.stringify({ title: policy.title, acknowledgementMethod: input.method }),
+          },
+        })
+      )
     }
 
     for (const [index, acknowledgement] of acknowledgements.entries()) {
@@ -173,16 +182,48 @@ test.describe('candidate offer, policy, and course completion', () => {
     })
     const questions = await Promise.all([
       prisma.courseQuizQuestion.create({
-        data: { courseId: course.id, questionType: 'MCQ', question: 'Choose A', optionsJson: '["A","B"]', correctAnswerJson: '"A"', score: 1, displayOrder: 0 },
+        data: {
+          courseId: course.id,
+          questionType: 'MCQ',
+          question: 'Choose A',
+          optionsJson: '["A","B"]',
+          correctAnswerJson: '"A"',
+          score: 1,
+          displayOrder: 0,
+        },
       }),
       prisma.courseQuizQuestion.create({
-        data: { courseId: course.id, questionType: 'MULTISELECT', question: 'Choose A and B', optionsJson: '["A","B","C"]', correctAnswerJson: '["A","B"]', score: 1, displayOrder: 1 },
+        data: {
+          courseId: course.id,
+          questionType: 'MULTISELECT',
+          question: 'Choose A and B',
+          optionsJson: '["A","B","C"]',
+          correctAnswerJson: '["A","B"]',
+          score: 1,
+          displayOrder: 1,
+        },
       }),
       prisma.courseQuizQuestion.create({
-        data: { courseId: course.id, questionType: 'TRUEFALSE', question: 'The policy applies', optionsJson: '["True","False"]', correctAnswerJson: 'true', score: 1, displayOrder: 2 },
+        data: {
+          courseId: course.id,
+          questionType: 'TRUEFALSE',
+          question: 'The policy applies',
+          optionsJson: '["True","False"]',
+          correctAnswerJson: 'true',
+          score: 1,
+          displayOrder: 2,
+        },
       }),
       prisma.courseQuizQuestion.create({
-        data: { courseId: course.id, questionType: 'SHORTTEXT', question: 'Type safe', optionsJson: '[]', correctAnswerJson: '"safe"', score: 1, displayOrder: 3 },
+        data: {
+          courseId: course.id,
+          questionType: 'SHORTTEXT',
+          question: 'Type safe',
+          optionsJson: '[]',
+          correctAnswerJson: '"safe"',
+          score: 1,
+          displayOrder: 3,
+        },
       }),
     ])
     const candidateCourse = await prisma.candidateCourse.create({
@@ -221,7 +262,11 @@ test.describe('candidate offer, policy, and course completion', () => {
     const certificate = await page.request.get(`/api/candidate/preboarding/courses/${candidateCourse.id}/certificate`)
     expect(certificate.status()).toBe(200)
     expect(certificate.headers()['content-type']).toContain('application/pdf')
-    expect(Buffer.from(await certificate.body()).subarray(0, 5).toString()).toBe('%PDF-')
+    expect(
+      Buffer.from(await certificate.body())
+        .subarray(0, 5)
+        .toString()
+    ).toBe('%PDF-')
     await logout(page)
 
     await login(page, 'course.admin@frad.org')

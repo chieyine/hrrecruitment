@@ -4,12 +4,29 @@ import { candidateFacingStatus, candidateStatusGuidance, candidateStatusLabel } 
 describe('candidate status guidance', () => {
   it('explains every application workflow state without using the generic fallback', () => {
     const statuses = [
-      'DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'LONGLISTED', 'SHORTLISTED',
-      'ASSESSMENT_INVITED', 'ASSESSMENT_COMPLETED', 'INTERVIEW_INVITED',
-      'INTERVIEW_COMPLETED', 'REFERENCE_CHECK', 'RECOMMENDED', 'RESERVE',
-      'OFFER_DRAFT', 'OFFER_SENT', 'OFFER_ACCEPTED', 'PREBOARDING',
-      'READY_TO_RESUME', 'RESUMED', 'TRANSFERRED_TO_ERP', 'NOT_SELECTED',
-      'INELIGIBLE', 'WITHDRAWN', 'CANCELLED',
+      'DRAFT',
+      'SUBMITTED',
+      'UNDER_REVIEW',
+      'LONGLISTED',
+      'SHORTLISTED',
+      'ASSESSMENT_INVITED',
+      'ASSESSMENT_COMPLETED',
+      'INTERVIEW_INVITED',
+      'INTERVIEW_COMPLETED',
+      'REFERENCE_CHECK',
+      'RECOMMENDED',
+      'RESERVE',
+      'OFFER_DRAFT',
+      'OFFER_SENT',
+      'OFFER_ACCEPTED',
+      'PREBOARDING',
+      'READY_TO_RESUME',
+      'RESUMED',
+      'TRANSFERRED_TO_ERP',
+      'NOT_SELECTED',
+      'INELIGIBLE',
+      'WITHDRAWN',
+      'CANCELLED',
     ]
     for (const status of statuses) {
       expect(candidateStatusGuidance(status).meaning).not.toContain('progressing through')

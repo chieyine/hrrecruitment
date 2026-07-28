@@ -46,8 +46,8 @@ export default function DeletionRequestsPage() {
       <div>
         <h1 className="text-2xl font-bold">Privacy deletion requests</h1>
         <p className="text-sm text-slate-600">
-          Review consent withdrawals and closure requests. Completion anonymizes personal data
-          while preserving required audit evidence.
+          Review consent withdrawals and closure requests. Completion anonymizes personal data while preserving required
+          audit evidence.
         </p>
       </div>
 
@@ -63,7 +63,8 @@ export default function DeletionRequestsPage() {
             <div key={item.id} className="rounded-xl border bg-white p-4">
               <p className="font-bold">{item.candidate.user.email}</p>
               <p className="text-xs text-slate-600">
-                {item.reason || 'No candidate reason'} — {item.status} — {item.candidate.applications.length} application(s)
+                {item.reason || 'No candidate reason'} — {item.status} — {item.candidate.applications.length}{' '}
+                application(s)
               </p>
               {item.status === 'PENDING' && (
                 <div className="mt-3 flex gap-2">

@@ -14,7 +14,13 @@ export default function AdminNotificationTemplatesPage() {
       fields={[
         { name: 'code', label: 'Unique Code', required: true, placeholder: 'APPLICATION_RECEIVED' },
         { name: 'subject', label: 'Email Subject', required: true },
-        { name: 'bodyTemplate', label: 'Body Template', type: 'textarea', required: true, placeholder: 'Dear {{candidate_name}}, ...' },
+        {
+          name: 'bodyTemplate',
+          label: 'Body Template',
+          type: 'textarea',
+          required: true,
+          placeholder: 'Dear {{candidate_name}}, ...',
+        },
         { name: 'active', label: 'Active', type: 'checkbox' },
       ]}
     />

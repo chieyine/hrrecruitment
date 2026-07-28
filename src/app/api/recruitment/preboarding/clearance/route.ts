@@ -26,7 +26,8 @@ export async function POST(request: Request) {
     if (Array.isArray(waivers)) {
       if (waivers.length) await requireRole('HR_MANAGER', 'SYSTEM_ADMIN')
       for (const w of waivers) {
-        if (!w?.checkType || !String(w?.reason || '').trim()) return NextResponse.json({ error: 'Every waiver requires a check type and written reason' }, { status: 400 })
+        if (!w?.checkType || !String(w?.reason || '').trim())
+          return NextResponse.json({ error: 'Every waiver requires a check type and written reason' }, { status: 400 })
         await prisma.readinessCheck.updateMany({
           where: { candidatePreboardingId: preboardingId, checkType: w.checkType },
           data: { status: 'WAIVED', waivedBy: user.userId, waiverReason: w.reason, waivedAt: new Date() },
@@ -68,7 +69,12 @@ export async function POST(request: Request) {
 
     await prisma.candidatePreboarding.update({
       where: { id: preboardingId },
-      data: { status: 'READY_TO_RESUME', readinessStatus: 'READY_TO_RESUME', readyAt: new Date(), overallCompletionPercentage: 100 },
+      data: {
+        status: 'READY_TO_RESUME',
+        readinessStatus: 'READY_TO_RESUME',
+        readyAt: new Date(),
+        overallCompletionPercentage: 100,
+      },
     })
 
     await prisma.application.update({

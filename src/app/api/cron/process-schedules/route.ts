@@ -28,15 +28,17 @@ export async function GET(request: Request) {
     try {
       summary = await processBackgroundSchedules()
     } catch (error) {
-      await prisma.operationalEvent.create({
-        data: {
-          eventType: 'SCHEDULED_JOB_FAILED',
-          severity: 'CRITICAL',
-          resourceType: 'Job',
-          resourceId: 'PROCESS_SCHEDULES',
-          detailsJson: JSON.stringify({ message: error instanceof Error ? error.message : 'Unknown error' }),
-        },
-      }).catch(() => undefined)
+      await prisma.operationalEvent
+        .create({
+          data: {
+            eventType: 'SCHEDULED_JOB_FAILED',
+            severity: 'CRITICAL',
+            resourceType: 'Job',
+            resourceId: 'PROCESS_SCHEDULES',
+            detailsJson: JSON.stringify({ message: error instanceof Error ? error.message : 'Unknown error' }),
+          },
+        })
+        .catch(() => undefined)
       throw error
     }
 

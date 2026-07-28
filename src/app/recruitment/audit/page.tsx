@@ -24,7 +24,7 @@ export default async function AuditLogPage() {
   if (!user || !hasStaffRole(user.roles)) {
     redirect('/auth/login')
   }
-  if (!await hasPermission(user.userId, 'audit.read')) redirect('/recruitment/dashboard')
+  if (!(await hasPermission(user.userId, 'audit.read'))) redirect('/recruitment/dashboard')
 
   const logs = await prisma.auditLog.findMany({
     take: 50,
@@ -42,7 +42,7 @@ export default async function AuditLogPage() {
         <div className="page-shell space-y-6">
           <Link
             href="/recruitment/dashboard"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" /> Back to recruitment
           </Link>
@@ -62,30 +62,31 @@ export default async function AuditLogPage() {
               <span className="status-chip bg-slate-100 text-slate-700">{logs.length} entries</span>
             </div>
             {logs.length === 0 ? (
-              <EmptyState title="No activity recorded" description="Sensitive actions will appear here when they occur." />
+              <EmptyState
+                title="No activity recorded"
+                description="Sensitive actions will appear here when they occur."
+              />
             ) : (
-            <div className="overflow-x-auto">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th className="py-3 px-4">Date and time</th>
-                    <th className="py-3 px-4">Actor</th>
-                    <th className="py-3 px-4">Action</th>
-                    <th className="py-3 px-4">Record</th>
-                    <th className="py-3 px-4">Reason / Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th className="py-3 px-4">Date and time</th>
+                      <th className="py-3 px-4">Actor</th>
+                      <th className="py-3 px-4">Action</th>
+                      <th className="py-3 px-4">Record</th>
+                      <th className="py-3 px-4">Reason / Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                     {logs.map((log) => (
                       <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="whitespace-nowrap py-3.5 px-4 text-slate-600">{formatDateTime(log.createdAt)}</td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-900">
-                          {log.actor?.email || 'System'}
+                        <td className="whitespace-nowrap py-3.5 px-4 text-slate-600">
+                          {formatDateTime(log.createdAt)}
                         </td>
+                        <td className="py-3.5 px-4 font-semibold text-slate-900">{log.actor?.email || 'System'}</td>
                         <td className="py-3.5 px-4">
-                          <span className="status-chip bg-blue-50 text-blue-800">
-                            {readable(log.action)}
-                          </span>
+                          <span className="status-chip bg-brand-50 text-brand-800">{readable(log.action)}</span>
                         </td>
                         <td className="py-3.5 px-4 text-slate-600">
                           <span className="block font-medium text-slate-800">{readable(log.resourceType)}</span>
@@ -94,9 +95,9 @@ export default async function AuditLogPage() {
                         <td className="max-w-sm py-3.5 px-4 text-slate-600">{log.reason || 'No reason recorded'}</td>
                       </tr>
                     ))}
-                </tbody>
-              </table>
-            </div>
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>

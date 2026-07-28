@@ -5,7 +5,7 @@ import { hasPermission } from '@/lib/rbac'
 import { applicationAccess } from '@/lib/recruitment-access'
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requireUser()
     const access = await applicationAccess(user.userId, params.id)
@@ -33,18 +33,49 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         stageHistory: { orderBy: { createdAt: 'desc' } },
         notes: { orderBy: { createdAt: 'desc' } },
         answers: { include: { vacancyQuestion: true } },
-        files: { include: { fileAsset: { select: { id: true, originalName: true, virusScanStatus: true } }, vacancyQuestion: true } },
-        candidateAssessments: { include: { assessment: { select: { title: true, type: true } } }, orderBy: { invitedAt: 'desc' } },
+        files: {
+          include: {
+            fileAsset: { select: { id: true, originalName: true, virusScanStatus: true } },
+            vacancyQuestion: true,
+          },
+        },
+        candidateAssessments: {
+          include: { assessment: { select: { title: true, type: true } } },
+          orderBy: { invitedAt: 'desc' },
+        },
         interviews: { include: { panelMembers: true, panelSubmissions: true }, orderBy: { scheduledStart: 'desc' } },
-        referees: { include: { requests: { include: { response: { select: { outcome: true, verifiedAt: true } } }, orderBy: { sentAt: 'desc' } } } },
+        referees: {
+          include: {
+            requests: {
+              include: { response: { select: { outcome: true, verifiedAt: true } } },
+              orderBy: { sentAt: 'desc' },
+            },
+          },
+        },
         offers: { orderBy: { version: 'desc' } },
         selectionDecisions: true,
-        preboardings: { include: { forms: true, documents: true, policyAcknowledgements: true, courses: true, tasks: true, readinessChecks: true } },
+        preboardings: {
+          include: {
+            forms: true,
+            documents: true,
+            policyAcknowledgements: true,
+            courses: true,
+            tasks: true,
+            readinessChecks: true,
+          },
+        },
         messageThreads: {
           where: readAll ? {} : { restricted: false },
           include: {
             messages: {
-              select: { id: true, body: true, sentAt: true, readAt: true, senderUserId: true, sender: { select: { email: true } } },
+              select: {
+                id: true,
+                body: true,
+                sentAt: true,
+                readAt: true,
+                senderUserId: true,
+                sender: { select: { email: true } },
+              },
               orderBy: { sentAt: 'asc' },
             },
           },
@@ -56,7 +87,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (!application) {
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     }
-    if (!readAll) application.notes = application.notes.filter((note) => !note.restricted && note.authorUserId === user.userId)
+    if (!readAll)
+      application.notes = application.notes.filter((note) => !note.restricted && note.authorUserId === user.userId)
     const relatedResourceIds = [
       application.id,
       ...application.selectionDecisions.map((item) => item.id),
@@ -80,26 +112,38 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       }),
       prisma.outboxMessage.findMany({
         where: { applicationId: application.id },
-        select: { id: true, subject: true, status: true, attempts: true, deliveredAt: true, lastError: true, createdAt: true },
+        select: {
+          id: true,
+          subject: true,
+          status: true,
+          attempts: true,
+          deliveredAt: true,
+          lastError: true,
+          createdAt: true,
+        },
         orderBy: { createdAt: 'desc' },
         take: 100,
       }),
     ])
-    const normalizedPhone = application.candidate.primaryPhone?.replace(/\D/g, '') || application.candidate.user.phone?.replace(/\D/g, '') || ''
+    const normalizedPhone =
+      application.candidate.primaryPhone?.replace(/\D/g, '') ||
+      application.candidate.user.phone?.replace(/\D/g, '') ||
+      ''
     const phoneMatches = [
       ...(application.candidate.primaryPhone ? [{ primaryPhone: application.candidate.primaryPhone }] : []),
       ...(application.candidate.user.phone ? [{ user: { phone: application.candidate.user.phone } }] : []),
     ]
-    const possibleDuplicates = normalizedPhone.length >= 7 && phoneMatches.length
-      ? await prisma.candidateProfile.findMany({
-          where: {
-            id: { not: application.candidateId },
-            OR: phoneMatches,
-          },
-          select: { id: true, legalFirstName: true, lastName: true },
-          take: 10,
-        })
-      : []
+    const possibleDuplicates =
+      normalizedPhone.length >= 7 && phoneMatches.length
+        ? await prisma.candidateProfile.findMany({
+            where: {
+              id: { not: application.candidateId },
+              OR: phoneMatches,
+            },
+            select: { id: true, legalFirstName: true, lastName: true },
+            take: 10,
+          })
+        : []
     // Return a role-appropriate projection. Panel members only need the
     // application and their interview context; hiring managers must never
     // receive references or preboarding/payroll material. Audit access is also
@@ -120,14 +164,19 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       safeApplication.messageThreads = []
       safeApplication.notes = []
       safeApplication.candidateAssessments = []
-      safeApplication.scorecards = safeApplication.scorecards.filter((scorecard: { reviewerUserId: string }) => scorecard.reviewerUserId === user.userId)
+      safeApplication.scorecards = safeApplication.scorecards.filter(
+        (scorecard: { reviewerUserId: string }) => scorecard.reviewerUserId === user.userId
+      )
       safeApplication.candidate = {
         id: application.candidate.id,
         legalFirstName: application.candidate.legalFirstName,
         preferredName: application.candidate.preferredName,
         lastName: application.candidate.lastName,
         education: application.candidate.education,
-        employment: application.candidate.employment.map((employment) => ({ ...employment, supervisorPhone: undefined })),
+        employment: application.candidate.employment.map((employment) => ({
+          ...employment,
+          supervisorPhone: undefined,
+        })),
         licences: application.candidate.licences,
       }
     }

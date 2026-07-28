@@ -17,7 +17,7 @@ function contentDisposition(originalName: string): string {
 }
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const { searchParams } = new URL(request.url)
     const expires = Number(searchParams.get('expires') || 0)
@@ -48,11 +48,17 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
               select: { id: true },
             }),
             prisma.candidatePolicyAcknowledgement.findFirst({
-              where: { policyDocument: { fileAssetId: asset.id }, candidatePreboarding: { application: { candidate: { userId: user.userId } } } },
+              where: {
+                policyDocument: { fileAssetId: asset.id },
+                candidatePreboarding: { application: { candidate: { userId: user.userId } } },
+              },
               select: { id: true },
             }),
             prisma.candidateCourse.findFirst({
-              where: { course: { contents: { some: { fileAssetId: asset.id } } }, candidatePreboarding: { application: { candidate: { userId: user.userId } } } },
+              where: {
+                course: { contents: { some: { fileAssetId: asset.id } } },
+                candidatePreboarding: { application: { candidate: { userId: user.userId } } },
+              },
               select: { id: true },
             }),
           ])
@@ -62,26 +68,45 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
           const readAll = await hasPermission(user.userId, 'application.read.all')
           const readAssigned = await hasPermission(user.userId, 'application.read.assigned')
           if (readAll || readAssigned) {
-            const related = await prisma.application.findFirst({ where: { AND: [
-              { OR: [
-                  { files: { some: { fileAssetId: asset.id } } },
-                  { candidate: { documents: { some: { fileAssetId: asset.id } } } },
-                  { preboardings: { some: { documents: { some: { fileAssetId: asset.id } } } } },
-                  { offers: { some: { OR: [{ offerFileId: asset.id }, { signedFileId: asset.id }] } } },
-                  { messageThreads: { some: { messages: { some: { fileAssetId: asset.id } } } } },
-              ] },
-              ...(readAll ? [] : [{ OR: [{ assignedReviewerId: user.userId }, { vacancy: { ownerUserId: user.userId } }, { interviews: { some: { panelMembers: { some: { userId: user.userId } } } } }] }]),
-            ] }, select: { id: true } })
+            const related = await prisma.application.findFirst({
+              where: {
+                AND: [
+                  {
+                    OR: [
+                      { files: { some: { fileAssetId: asset.id } } },
+                      { candidate: { documents: { some: { fileAssetId: asset.id } } } },
+                      { preboardings: { some: { documents: { some: { fileAssetId: asset.id } } } } },
+                      { offers: { some: { OR: [{ offerFileId: asset.id }, { signedFileId: asset.id }] } } },
+                      { messageThreads: { some: { messages: { some: { fileAssetId: asset.id } } } } },
+                    ],
+                  },
+                  ...(readAll
+                    ? []
+                    : [
+                        {
+                          OR: [
+                            { assignedReviewerId: user.userId },
+                            { vacancy: { ownerUserId: user.userId } },
+                            { interviews: { some: { panelMembers: { some: { userId: user.userId } } } } },
+                          ],
+                        },
+                      ]),
+                ],
+              },
+              select: { id: true },
+            })
             authorized = Boolean(related)
           }
-          const complaintRelated = Boolean(await prisma.complaintAttachment.findFirst({ where: { fileAssetId: asset.id }, select: { id: true } }))
-          const canManageComplaints = complaintRelated && await hasPermission(user.userId, 'complaint.manage')
+          const complaintRelated = Boolean(
+            await prisma.complaintAttachment.findFirst({ where: { fileAssetId: asset.id }, select: { id: true } })
+          )
+          const canManageComplaints = complaintRelated && (await hasPermission(user.userId, 'complaint.manage'))
           if (!authorized && canManageComplaints) authorized = true
           if (authorized && asset.sensitivityClass === 'RESTRICTED') {
             // complaint.manage is an override only for an actual complaint
             // attachment; it must never unlock unrelated restricted identity,
             // medical, banking, or preboarding documents.
-            authorized = await hasPermission(user.userId, 'preboarding.restricted.read') || canManageComplaints
+            authorized = (await hasPermission(user.userId, 'preboarding.restricted.read')) || canManageComplaints
           }
         }
       }
@@ -121,7 +146,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       },
     })
   } catch (error) {
-    logger.error('Asset download failed', { assetId: params.id, error: error instanceof Error ? error.message : String(error) })
+    logger.error('Asset download failed', {
+      assetId: params.id,
+      error: error instanceof Error ? error.message : String(error),
+    })
     return NextResponse.json({ error: 'Failed to download file' }, { status: 500 })
   }
 }

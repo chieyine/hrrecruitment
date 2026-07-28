@@ -8,13 +8,7 @@ import { logAudit } from '@/lib/audit'
 import { rateLimitDistributed } from '@/lib/rate-limit'
 import { sealSecret, openSecret } from '@/lib/secret-box'
 import { encodeQrSvg } from '@/lib/qr'
-import {
-  generateTotpSecret,
-  verifyTotp,
-  totpAuthUri,
-  formatSecretForDisplay,
-  generateRecoveryCodes,
-} from '@/lib/totp'
+import { generateTotpSecret, verifyTotp, totpAuthUri, formatSecretForDisplay, generateRecoveryCodes } from '@/lib/totp'
 
 /**
  * Multi-factor authentication management for the signed-in user.
@@ -94,7 +88,9 @@ export async function POST(request: Request) {
     if (!record) throw new AuthzError('Start enrolment before submitting a code', 409)
     const secret = openSecret(record.secretCipher)
 
-    const result = verifyTotp(secret, input.code, { afterStep: record.lastUsedStep ? Number(record.lastUsedStep) : null })
+    const result = verifyTotp(secret, input.code, {
+      afterStep: record.lastUsedStep ? Number(record.lastUsedStep) : null,
+    })
     if (!result.valid) {
       await logAudit({
         actorUserId: user.userId,

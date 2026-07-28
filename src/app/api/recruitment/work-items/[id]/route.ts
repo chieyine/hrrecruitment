@@ -12,7 +12,7 @@ const schema = z.object({
 })
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requireUser()
     const input = await parseBody(request, schema)
@@ -28,7 +28,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (input.action === 'BLOCK' && (!input.reason || input.reason.length < 5)) {
       throw new AuthzError('Explain what is blocking this work item', 422)
     }
-    if (input.action === 'COMPLETE' && ['APPLICATION_REVIEW', 'APPROVAL_DECISION', 'PREBOARDING_REVIEW', 'OFFER_APPROVAL', 'REFERENCE_REVIEW'].includes(item.workType)) {
+    if (
+      input.action === 'COMPLETE' &&
+      ['APPLICATION_REVIEW', 'APPROVAL_DECISION', 'PREBOARDING_REVIEW', 'OFFER_APPROVAL', 'REFERENCE_REVIEW'].includes(
+        item.workType
+      )
+    ) {
       throw new AuthzError('Complete the underlying recruitment action; this queue item will close automatically', 409)
     }
     const nextStatus = {

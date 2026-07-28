@@ -27,7 +27,8 @@ export async function GET(request: Request) {
     // Cap the search term: an unbounded string becomes an unbounded LIKE scan.
     const search = searchParams.get('search')?.trim().slice(0, MAX_SEARCH_LENGTH) || ''
     const requestedSize = Number(searchParams.get('pageSize'))
-    const pageSize = Number.isInteger(requestedSize) && requestedSize > 0 ? Math.min(requestedSize, MAX_PAGE_SIZE) : MAX_PAGE_SIZE
+    const pageSize =
+      Number.isInteger(requestedSize) && requestedSize > 0 ? Math.min(requestedSize, MAX_PAGE_SIZE) : MAX_PAGE_SIZE
     const requestedPage = Number(searchParams.get('page'))
     const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
 

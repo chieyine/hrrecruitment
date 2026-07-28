@@ -69,7 +69,9 @@ export async function createMfaChallengeToken(userId: string, sessionVersion: nu
     .sign(getJwtSecret())
 }
 
-export async function verifyMfaChallengeToken(token: string): Promise<{ userId: string; sessionVersion: number } | null> {
+export async function verifyMfaChallengeToken(
+  token: string
+): Promise<{ userId: string; sessionVersion: number } | null> {
   try {
     const { payload } = await jwtVerify(token, getJwtSecret())
     const record = payload as unknown as { purpose?: string; userId?: string; sessionVersion?: number }
@@ -84,7 +86,13 @@ export async function verifySessionToken(token: string): Promise<UserSession | n
   try {
     const verified = await jwtVerify(token, getJwtSecret())
     const payload = verified.payload as unknown as UserSession & { purpose?: string }
-    if (payload.purpose !== 'session' || !payload.userId || !Array.isArray(payload.roles) || !Number.isInteger(payload.sessionVersion)) return null
+    if (
+      payload.purpose !== 'session' ||
+      !payload.userId ||
+      !Array.isArray(payload.roles) ||
+      !Number.isInteger(payload.sessionVersion)
+    )
+      return null
     return payload
   } catch {
     return null
@@ -134,11 +142,34 @@ export async function verifyEmailVerifyToken(token: string): Promise<string | nu
 }
 
 export async function createEmailChangeToken(userId: string, email: string, sessionVersion: number): Promise<string> {
-  return new SignJWT({ userId, email, sessionVersion, purpose: 'email_change' }).setProtectedHeader({ alg: 'HS256' }).setIssuedAt().setExpirationTime('1h').sign(getJwtSecret())
+  return new SignJWT({ userId, email, sessionVersion, purpose: 'email_change' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(getJwtSecret())
 }
 
-export async function verifyEmailChangeToken(token: string): Promise<{ userId: string; email: string; sessionVersion: number } | null> {
-  try { const { payload } = await jwtVerify(token, getJwtSecret()); const sessionVersion=(payload as any).sessionVersion; if ((payload as any).purpose !== 'email_change' || !(payload as any).userId || !(payload as any).email || !Number.isInteger(sessionVersion)) return null; return { userId: String((payload as any).userId), email: String((payload as any).email), sessionVersion: Number(sessionVersion) } } catch { return null }
+export async function verifyEmailChangeToken(
+  token: string
+): Promise<{ userId: string; email: string; sessionVersion: number } | null> {
+  try {
+    const { payload } = await jwtVerify(token, getJwtSecret())
+    const sessionVersion = (payload as any).sessionVersion
+    if (
+      (payload as any).purpose !== 'email_change' ||
+      !(payload as any).userId ||
+      !(payload as any).email ||
+      !Number.isInteger(sessionVersion)
+    )
+      return null
+    return {
+      userId: String((payload as any).userId),
+      email: String((payload as any).email),
+      sessionVersion: Number(sessionVersion),
+    }
+  } catch {
+    return null
+  }
 }
 
 export async function getCurrentUser(): Promise<UserSession | null> {

@@ -157,10 +157,7 @@ export async function POST(request: Request) {
       resourceId: user.id,
     })
 
-    return attachSession(
-      NextResponse.json({ success: true, user: { id: user.id, email: user.email, roles } }),
-      token
-    )
+    return attachSession(NextResponse.json({ success: true, user: { id: user.id, email: user.email, roles } }), token)
   } catch (err) {
     return authzResponse(err)
   }

@@ -58,5 +58,14 @@ const sections = [
 
 export default async function PrivacyPage() {
   const user = await getVerifiedUser()
-  return <LegalDocument user={user} eyebrow="Candidate information" title="Privacy notice" summary="This notice explains what FRAD collects during recruitment, why we need it, who can see it and the choices available to you." version="Version 2026-07 · Effective 22 July 2026" sections={sections} />
+  return (
+    <LegalDocument
+      user={user}
+      eyebrow="Candidate information"
+      title="Privacy notice"
+      summary="This notice explains what FRAD collects during recruitment, why we need it, who can see it and the choices available to you."
+      version="Version 2026-07 · Effective 22 July 2026"
+      sections={sections}
+    />
+  )
 }

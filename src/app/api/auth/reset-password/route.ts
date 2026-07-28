@@ -44,10 +44,12 @@ export async function POST(request: Request) {
       action: 'PASSWORD_RESET',
       resourceType: 'User',
       resourceId: user.id,
-    }).catch((error) => logger.error('Password reset audit write failed after password commit', {
-      userId: user.id,
-      error: error instanceof Error ? error.message : String(error),
-    }))
+    }).catch((error) =>
+      logger.error('Password reset audit write failed after password commit', {
+        userId: user.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    )
 
     return NextResponse.json({ success: true, message: 'Password updated successfully' })
   } catch (err) {

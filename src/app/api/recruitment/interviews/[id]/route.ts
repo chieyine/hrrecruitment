@@ -18,67 +18,129 @@ const updateSchema = z.object({
   status: z.enum(['SCHEDULED', 'CONFIRMED', 'RESCHEDULED', 'ATTENDED', 'DID_NOT_ATTEND', 'CANCELLED']).optional(),
   lockVersion: z.coerce.number().int().positive().optional(),
   panelUserIds: z.array(z.string().min(1)).min(1).optional(),
-  questions: z.array(z.object({
-    question: z.string().trim().min(1), competency: z.string().max(200).optional(),
-    guidance: z.string().max(2000).optional(), expectedEvidence: z.string().max(2000).optional(),
-    redFlags: z.string().max(2000).optional(), maximumScore: z.coerce.number().positive(),
-    commentRequired: z.boolean().default(true),
-  })).min(1).optional(),
+  questions: z
+    .array(
+      z.object({
+        question: z.string().trim().min(1),
+        competency: z.string().max(200).optional(),
+        guidance: z.string().max(2000).optional(),
+        expectedEvidence: z.string().max(2000).optional(),
+        redFlags: z.string().max(2000).optional(),
+        maximumScore: z.coerce.number().positive(),
+        commentRequired: z.boolean().default(true),
+      })
+    )
+    .min(1)
+    .optional(),
 })
 
 export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requireUser()
     const canManage = await hasPermission(user.userId, 'interview.manage')
     const interview = await prisma.interview.findUnique({
       where: { id: params.id },
       include: {
-        application: { include: { candidate: { include: { user: { select: { email: true, phone: true } } } }, vacancy: true } },
+        application: {
+          include: { candidate: { include: { user: { select: { email: true, phone: true } } } }, vacancy: true },
+        },
         panelMembers: { include: { user: { select: { id: true, email: true } }, submission: true } },
-        questions: { orderBy: { displayOrder: 'asc' } }, panelSubmissions: true,
+        questions: { orderBy: { displayOrder: 'asc' } },
+        panelSubmissions: true,
       },
     })
     if (!interview) throw new AuthzError('Interview not found', 404)
     const access = await applicationAccess(user.userId, interview.applicationId)
-    if (!interview.panelMembers.some((member) => member.userId === user.userId) && (!canManage || (!access.readAll && !access.vacancyOwner && !access.assignedReviewer))) throw new AuthzError('Forbidden', 403)
-    if (!canManage) interview.panelSubmissions = interview.panelSubmissions.filter((submission) => interview.panelMembers.some((member) => member.id === submission.panelMemberId && member.userId === user.userId))
+    if (
+      !interview.panelMembers.some((member) => member.userId === user.userId) &&
+      (!canManage || (!access.readAll && !access.vacancyOwner && !access.assignedReviewer))
+    )
+      throw new AuthzError('Forbidden', 403)
+    if (!canManage)
+      interview.panelSubmissions = interview.panelSubmissions.filter((submission) =>
+        interview.panelMembers.some((member) => member.id === submission.panelMemberId && member.userId === user.userId)
+      )
     return Response.json({ interview })
-  } catch (error) { return authzResponse(error) }
+  } catch (error) {
+    return authzResponse(error)
+  }
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requirePermission('interview.manage')
     const input = await parseBody(request, updateSchema)
-    const existing = await prisma.interview.findUnique({ where: { id: params.id }, include: { panelSubmissions: { select: { id: true } } } })
+    const existing = await prisma.interview.findUnique({
+      where: { id: params.id },
+      include: { panelSubmissions: { select: { id: true } } },
+    })
     if (!existing) throw new AuthzError('Interview not found', 404)
     const access = await applicationAccess(user.userId, existing.applicationId)
-    if (!access.readAll && !access.vacancyOwner && !access.assignedReviewer) throw new AuthzError('Interview not found or outside your assigned scope', 404)
-    if ((input.panelUserIds || input.questions) && existing.panelSubmissions.length > 0) throw new AuthzError('Panel and questions cannot be replaced after scoring has begun', 409)
+    if (!access.readAll && !access.vacancyOwner && !access.assignedReviewer)
+      throw new AuthzError('Interview not found or outside your assigned scope', 404)
+    if ((input.panelUserIds || input.questions) && existing.panelSubmissions.length > 0)
+      throw new AuthzError('Panel and questions cannot be replaced after scoring has begun', 409)
     const start = input.scheduledStart ?? existing.scheduledStart
     const end = input.scheduledEnd ?? existing.scheduledEnd
     if (end <= start) throw new AuthzError('Interview end must follow start', 422)
     const version = expectedVersion(request, input) ?? existing.lockVersion
     const interview = await prisma.$transaction(async (tx) => {
-      const claimed = await tx.interview.updateMany({ where: { id: params.id, lockVersion: version }, data: { lockVersion: { increment: 1 } } })
+      const claimed = await tx.interview.updateMany({
+        where: { id: params.id, lockVersion: version },
+        data: { lockVersion: { increment: 1 } },
+      })
       if (!claimed.count) staleRecord()
       if (input.panelUserIds) {
         await tx.interviewPanelMember.deleteMany({ where: { interviewId: params.id } })
-        await tx.interviewPanelMember.createMany({ data: input.panelUserIds.map((userId, index) => ({ interviewId: params.id, userId, panelRole: index === 0 ? 'CHAIR' : 'MEMBER' })) })
+        await tx.interviewPanelMember.createMany({
+          data: input.panelUserIds.map((userId, index) => ({
+            interviewId: params.id,
+            userId,
+            panelRole: index === 0 ? 'CHAIR' : 'MEMBER',
+          })),
+        })
       }
       if (input.questions) {
         await tx.interviewQuestion.deleteMany({ where: { interviewId: params.id } })
-        await tx.interviewQuestion.createMany({ data: input.questions.map((question, index) => ({ interviewId: params.id, ...question, competency: question.competency || null, guidance: question.guidance || null, expectedEvidence: question.expectedEvidence || null, redFlags: question.redFlags || null, displayOrder: index })) })
+        await tx.interviewQuestion.createMany({
+          data: input.questions.map((question, index) => ({
+            interviewId: params.id,
+            ...question,
+            competency: question.competency || null,
+            guidance: question.guidance || null,
+            expectedEvidence: question.expectedEvidence || null,
+            redFlags: question.redFlags || null,
+            displayOrder: index,
+          })),
+        })
       }
-      return tx.interview.update({ where: { id: params.id }, data: {
-        title: input.title, scheduledStart: input.scheduledStart, scheduledEnd: input.scheduledEnd,
-        timezone: input.timezone, format: input.format, venue: input.venue,
-        meetingLink: input.meetingLink, status: input.status,
-      }, include: { panelMembers: true, questions: { orderBy: { displayOrder: 'asc' } } } })
+      return tx.interview.update({
+        where: { id: params.id },
+        data: {
+          title: input.title,
+          scheduledStart: input.scheduledStart,
+          scheduledEnd: input.scheduledEnd,
+          timezone: input.timezone,
+          format: input.format,
+          venue: input.venue,
+          meetingLink: input.meetingLink,
+          status: input.status,
+        },
+        include: { panelMembers: true, questions: { orderBy: { displayOrder: 'asc' } } },
+      })
     })
-    await logAudit({ actorUserId: user.userId, action: 'INTERVIEW_UPDATED', resourceType: 'Interview', resourceId: params.id, previousValue: existing, newValue: input })
+    await logAudit({
+      actorUserId: user.userId,
+      action: 'INTERVIEW_UPDATED',
+      resourceType: 'Interview',
+      resourceId: params.id,
+      previousValue: existing,
+      newValue: input,
+    })
     return Response.json({ success: true, interview })
-  } catch (error) { return authzResponse(error) }
+  } catch (error) {
+    return authzResponse(error)
+  }
 }

@@ -32,8 +32,14 @@ export default function NotFound() {
 
       <main id="main-content" className="relative flex-1 overflow-hidden">
         <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px bg-[#d9d4ca]" />
-        <div aria-hidden="true" className="absolute -right-28 top-16 h-72 w-72 rounded-full border border-[#d8d0c3] sm:h-96 sm:w-96" />
-        <div aria-hidden="true" className="absolute -right-12 top-32 h-44 w-44 rounded-full border border-[#d8d0c3] sm:h-64 sm:w-64" />
+        <div
+          aria-hidden="true"
+          className="absolute -right-28 top-16 h-72 w-72 rounded-full border border-[#d8d0c3] sm:h-96 sm:w-96"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute -right-12 top-32 h-44 w-44 rounded-full border border-[#d8d0c3] sm:h-64 sm:w-64"
+        />
 
         <section className="relative mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1fr)_390px] lg:px-8 lg:py-28">
           <div className="max-w-3xl">
@@ -54,7 +60,10 @@ export default function NotFound() {
               </Link>
             </div>
 
-            <Link href="/careers" className="mt-8 inline-flex items-center gap-2 text-sm font-bold text-brand-800 underline-offset-4 hover:underline">
+            <Link
+              href="/careers"
+              className="mt-8 inline-flex items-center gap-2 text-sm font-bold text-brand-800 underline-offset-4 hover:underline"
+            >
               <ArrowLeft className="h-4 w-4" /> Return to the vacancy list
             </Link>
           </div>

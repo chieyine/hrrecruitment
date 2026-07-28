@@ -6,12 +6,53 @@ import { logAudit } from '@/lib/audit'
 import { z } from 'zod'
 import { parseBody, vacancySchema } from '@/lib/validation'
 
-const createSchema = vacancySchema.and(z.object({
-  referenceNumber: z.string().trim().min(1).max(80),
-  projectId: z.string().optional().nullable(), screeningScorecardTemplateId: z.string().optional().nullable(), interviewScorecardTemplateId: z.string().optional().nullable(), preboardingPackageId: z.string().optional().nullable(),
-  questions: z.array(z.object({ fieldType: z.enum(['TEXT','LONGTEXT','NUMBER','DATE','YESNO','SELECT','MULTISELECT','FILE','DECLARATION']), label: z.string().trim().min(1).max(500), helpText: z.string().max(1000).optional(), required: z.boolean().optional(), configurationJson: z.any().optional(), conditionJson: z.any().optional() })).max(100).optional(),
-  requiredDocuments: z.array(z.object({ documentType: z.string().trim().min(1).max(80), required: z.boolean().optional(), allowedFileTypes: z.string().regex(/^[a-z0-9,]+$/i).optional(), maximumFileSize: z.coerce.number().int().min(1).max(10_485_760).optional(), expiryRequired: z.boolean().optional() })).max(50).optional(),
-}))
+const createSchema = vacancySchema.and(
+  z.object({
+    referenceNumber: z.string().trim().min(1).max(80),
+    projectId: z.string().optional().nullable(),
+    screeningScorecardTemplateId: z.string().optional().nullable(),
+    interviewScorecardTemplateId: z.string().optional().nullable(),
+    preboardingPackageId: z.string().optional().nullable(),
+    questions: z
+      .array(
+        z.object({
+          fieldType: z.enum([
+            'TEXT',
+            'LONGTEXT',
+            'NUMBER',
+            'DATE',
+            'YESNO',
+            'SELECT',
+            'MULTISELECT',
+            'FILE',
+            'DECLARATION',
+          ]),
+          label: z.string().trim().min(1).max(500),
+          helpText: z.string().max(1000).optional(),
+          required: z.boolean().optional(),
+          configurationJson: z.any().optional(),
+          conditionJson: z.any().optional(),
+        })
+      )
+      .max(100)
+      .optional(),
+    requiredDocuments: z
+      .array(
+        z.object({
+          documentType: z.string().trim().min(1).max(80),
+          required: z.boolean().optional(),
+          allowedFileTypes: z
+            .string()
+            .regex(/^[a-z0-9,]+$/i)
+            .optional(),
+          maximumFileSize: z.coerce.number().int().min(1).max(10_485_760).optional(),
+          expiryRequired: z.boolean().optional(),
+        })
+      )
+      .max(50)
+      .optional(),
+  })
+)
 
 export async function GET() {
   try {
@@ -20,8 +61,23 @@ export async function GET() {
     const readAssigned = await hasPermission(user.userId, 'vacancy.read.assigned')
     if (!readAll && !readAssigned) throw new AuthzError('Forbidden', 403)
     const vacancyWhere = readAll ? {} : { ownerUserId: user.userId }
-    const [vacancies, departments, dutyStations, projects, categories, scorecards, packages, contractTypes, documentTypes] = await Promise.all([
-      prisma.vacancy.findMany({ where: vacancyWhere, include: { department: true, dutyStation: true, category: true, _count: { select: { applications: true } } }, orderBy: { createdAt: 'desc' }, take: 500 }),
+    const [
+      vacancies,
+      departments,
+      dutyStations,
+      projects,
+      categories,
+      scorecards,
+      packages,
+      contractTypes,
+      documentTypes,
+    ] = await Promise.all([
+      prisma.vacancy.findMany({
+        where: vacancyWhere,
+        include: { department: true, dutyStation: true, category: true, _count: { select: { applications: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+      }),
       prisma.department.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
       prisma.dutyStation.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
       prisma.project.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
@@ -30,11 +86,31 @@ export async function GET() {
       prisma.preboardingPackage.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
       // Contract and document types are configured in the admin screens; the
       // vacancy form used to hardcode them, so configuring a new one had no effect.
-      prisma.contractType.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { id: true, code: true, name: true } }),
-      prisma.documentType.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { id: true, code: true, name: true } }),
+      prisma.contractType.findMany({
+        where: { active: true },
+        orderBy: { name: 'asc' },
+        select: { id: true, code: true, name: true },
+      }),
+      prisma.documentType.findMany({
+        where: { active: true },
+        orderBy: { name: 'asc' },
+        select: { id: true, code: true, name: true },
+      }),
     ])
-    return NextResponse.json({ vacancies, departments, dutyStations, projects, categories, scorecards, packages, contractTypes, documentTypes })
-  } catch (err) { return authzResponse(err) }
+    return NextResponse.json({
+      vacancies,
+      departments,
+      dutyStations,
+      projects,
+      categories,
+      scorecards,
+      packages,
+      contractTypes,
+      documentTypes,
+    })
+  } catch (err) {
+    return authzResponse(err)
+  }
 }
 
 export async function POST(request: Request) {
@@ -119,8 +195,30 @@ export async function POST(request: Request) {
         screeningScorecardTemplateId: screeningScorecardTemplateId || defaultScorecard?.id || null,
         interviewScorecardTemplateId: interviewScorecardTemplateId || null,
         preboardingPackageId: preboardingPackageId || null,
-        questions: Array.isArray(questions) ? { create: questions.map((q: any, index: number) => ({ fieldType: q.fieldType || 'LONGTEXT', label: String(q.label || '').trim(), helpText: q.helpText || null, required: q.required !== false, configurationJson: q.configurationJson ? JSON.stringify(q.configurationJson) : null, conditionJson: q.conditionJson ? JSON.stringify(q.conditionJson) : null, displayOrder: index })) } : undefined,
-        requiredDocuments: Array.isArray(requiredDocuments) ? { create: requiredDocuments.map((d: any) => ({ documentType: String(d.documentType || '').trim(), required: d.required !== false, allowedFileTypes: d.allowedFileTypes || 'pdf,jpg,png', maximumFileSize: Number(d.maximumFileSize) || 5_242_880, expiryRequired: !!d.expiryRequired })) } : undefined,
+        questions: Array.isArray(questions)
+          ? {
+              create: questions.map((q: any, index: number) => ({
+                fieldType: q.fieldType || 'LONGTEXT',
+                label: String(q.label || '').trim(),
+                helpText: q.helpText || null,
+                required: q.required !== false,
+                configurationJson: q.configurationJson ? JSON.stringify(q.configurationJson) : null,
+                conditionJson: q.conditionJson ? JSON.stringify(q.conditionJson) : null,
+                displayOrder: index,
+              })),
+            }
+          : undefined,
+        requiredDocuments: Array.isArray(requiredDocuments)
+          ? {
+              create: requiredDocuments.map((d: any) => ({
+                documentType: String(d.documentType || '').trim(),
+                required: d.required !== false,
+                allowedFileTypes: d.allowedFileTypes || 'pdf,jpg,png',
+                maximumFileSize: Number(d.maximumFileSize) || 5_242_880,
+                expiryRequired: !!d.expiryRequired,
+              })),
+            }
+          : undefined,
       },
     })
 

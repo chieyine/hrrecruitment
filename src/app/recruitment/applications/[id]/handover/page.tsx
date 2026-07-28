@@ -54,7 +54,9 @@ export default function HandoverSummaryPage(props: { params: Promise<{ id: strin
   const [reportingLocation, setReportingLocation] = useState('')
   const [resumptionConfirmed, setResumptionConfirmed] = useState(false)
   const [supervisorConfirmed, setSupervisorConfirmed] = useState(false)
-  const [resumptionOutcome, setResumptionOutcome] = useState<'RESUMED'|'DID_NOT_RESUME'|'POSTPONED'|'WITHDRAWN'>('RESUMED')
+  const [resumptionOutcome, setResumptionOutcome] = useState<'RESUMED' | 'DID_NOT_RESUME' | 'POSTPONED' | 'WITHDRAWN'>(
+    'RESUMED'
+  )
   const [resumptionComment, setResumptionComment] = useState('')
   const [erpIdempotencyKey] = useState(() => crypto.randomUUID())
 
@@ -62,14 +64,26 @@ export default function HandoverSummaryPage(props: { params: Promise<{ id: strin
     setSubmitting(true)
     try {
       const res = await fetch(`/api/recruitment/applications/${params.id}/resumption`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome: resumptionOutcome, actualStartDate: actualStartDate || undefined, reportingLocation: reportingLocation || candidate.dutyStation, supervisorConfirmation: resumptionOutcome === 'RESUMED' ? supervisorConfirmed : false, comment: resumptionComment || undefined }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          outcome: resumptionOutcome,
+          actualStartDate: actualStartDate || undefined,
+          reportingLocation: reportingLocation || candidate.dutyStation,
+          supervisorConfirmation: resumptionOutcome === 'RESUMED' ? supervisorConfirmed : false,
+          comment: resumptionComment || undefined,
+        }),
       })
       const data = await res.json()
-      if (!res.ok) { setLoadError(data.error || 'Failed to confirm resumption'); return }
+      if (!res.ok) {
+        setLoadError(data.error || 'Failed to confirm resumption')
+        return
+      }
       if (resumptionOutcome === 'RESUMED') setResumptionConfirmed(true)
       else setLoadError('Resumption outcome recorded. ERP transfer remains unavailable.')
-    } finally { setSubmitting(false) }
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleRecordERP = async (e: React.FormEvent) => {
@@ -125,7 +139,10 @@ export default function HandoverSummaryPage(props: { params: Promise<{ id: strin
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-sm font-semibold text-rose-700">{loadError || 'Handover summary not found.'}</p>
-            <Link href="/recruitment/dashboard" className="mt-3 inline-block text-xs font-semibold text-blue-600 hover:underline">
+            <Link
+              href="/recruitment/dashboard"
+              className="mt-3 inline-block text-xs font-semibold text-brand-600 hover:underline"
+            >
               Back to dashboard
             </Link>
           </div>
@@ -144,7 +161,7 @@ export default function HandoverSummaryPage(props: { params: Promise<{ id: strin
           <div className="flex items-center justify-between">
             <Link
               href="/recruitment/dashboard"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600 transition-colors"
             >
               <ArrowLeft className="h-4 w-4" /> Back to Dashboard
             </Link>
@@ -158,16 +175,83 @@ export default function HandoverSummaryPage(props: { params: Promise<{ id: strin
           </div>
 
           {/* Structured Handover Summary Document */}
-          <div className="rounded-3xl bg-white p-8 border border-slate-200 shadow-xl space-y-6">
+          <div className="rounded-2xl bg-white p-8 border border-slate-200 shadow-xl space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                <span className="text-xs font-bold uppercase tracking-wider text-brand-700 bg-brand-50 px-3 py-1 rounded-full border border-brand-200">
                   FRAD ERP Manual Handover Summary
                 </span>
                 <h1 className="text-2xl font-extrabold text-slate-900 mt-2">{candidate.legalName}</h1>
-                <p className="text-xs text-slate-500">{candidate.position} • {candidate.department}</p>
+                <p className="text-xs text-slate-500">
+                  {candidate.position} • {candidate.department}
+                </p>
               </div>
-              {summary.preboarding && <div className="space-y-2"><h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-b pb-1">3. Preboarding and clearance record</h3><div className="grid gap-3 rounded-2xl border bg-slate-50 p-4 text-xs sm:grid-cols-3"><div>Forms complete: <strong>{summary.preboarding.forms.filter((status: string) => ['APPROVED','WAIVED'].includes(status)).length}/{summary.preboarding.forms.length}</strong></div><div>Documents cleared: <strong>{summary.preboarding.documents.filter((status: string) => ['APPROVED','WAIVED'].includes(status)).length}/{summary.preboarding.documents.length}</strong></div><div>Policies signed: <strong>{summary.preboarding.policies.filter((status: string) => ['SIGNED','APPROVED','WAIVED'].includes(status)).length}/{summary.preboarding.policies.length}</strong></div><div>Courses complete: <strong>{summary.preboarding.courses.filter((status: string) => ['COMPLETED','WAIVED'].includes(status)).length}/{summary.preboarding.courses.length}</strong></div><div>Tasks complete: <strong>{summary.preboarding.tasks.filter((status: string) => ['COMPLETED','APPROVED','WAIVED'].includes(status)).length}/{summary.preboarding.tasks.length}</strong></div><div>Verified profile documents: <strong>{summary.verifiedDocuments.length}</strong></div></div></div>}
+              {summary.preboarding && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-b pb-1">
+                    3. Preboarding and clearance record
+                  </h3>
+                  <div className="grid gap-3 rounded-2xl border bg-slate-50 p-4 text-xs sm:grid-cols-3">
+                    <div>
+                      Forms complete:{' '}
+                      <strong>
+                        {
+                          summary.preboarding.forms.filter((status: string) => ['APPROVED', 'WAIVED'].includes(status))
+                            .length
+                        }
+                        /{summary.preboarding.forms.length}
+                      </strong>
+                    </div>
+                    <div>
+                      Documents cleared:{' '}
+                      <strong>
+                        {
+                          summary.preboarding.documents.filter((status: string) =>
+                            ['APPROVED', 'WAIVED'].includes(status)
+                          ).length
+                        }
+                        /{summary.preboarding.documents.length}
+                      </strong>
+                    </div>
+                    <div>
+                      Policies signed:{' '}
+                      <strong>
+                        {
+                          summary.preboarding.policies.filter((status: string) =>
+                            ['SIGNED', 'APPROVED', 'WAIVED'].includes(status)
+                          ).length
+                        }
+                        /{summary.preboarding.policies.length}
+                      </strong>
+                    </div>
+                    <div>
+                      Courses complete:{' '}
+                      <strong>
+                        {
+                          summary.preboarding.courses.filter((status: string) =>
+                            ['COMPLETED', 'WAIVED'].includes(status)
+                          ).length
+                        }
+                        /{summary.preboarding.courses.length}
+                      </strong>
+                    </div>
+                    <div>
+                      Tasks complete:{' '}
+                      <strong>
+                        {
+                          summary.preboarding.tasks.filter((status: string) =>
+                            ['COMPLETED', 'APPROVED', 'WAIVED'].includes(status)
+                          ).length
+                        }
+                        /{summary.preboarding.tasks.length}
+                      </strong>
+                    </div>
+                    <div>
+                      Verified profile documents: <strong>{summary.verifiedDocuments.length}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="rounded-2xl bg-emerald-50 p-4 border border-emerald-200 text-xs space-y-1 text-right">
                 <span className="text-emerald-800 font-bold">Clearance Status:</span>
@@ -189,7 +273,9 @@ export default function HandoverSummaryPage(props: { params: Promise<{ id: strin
                   </div>
                   <div>
                     <span className="block text-slate-400">Email & Phone</span>
-                    <span className="font-bold text-slate-900">{candidate.email} / {candidate.phone}</span>
+                    <span className="font-bold text-slate-900">
+                      {candidate.email} / {candidate.phone}
+                    </span>
                   </div>
                   <div>
                     <span className="block text-slate-400">Duty Station</span>
@@ -213,43 +299,98 @@ export default function HandoverSummaryPage(props: { params: Promise<{ id: strin
               {/* Section 2: Restricted Preboarding Information */}
               <div className="space-y-2">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 flex items-center gap-1.5">
-                  <Lock className="h-3.5 w-3.5 text-blue-600" /> 2. Restricted Payroll & Banking Data for ERP Entry
+                  <Lock className="h-3.5 w-3.5 text-brand-600" /> 2. Restricted Payroll & Banking Data for ERP Entry
                 </h3>
                 <div className="text-xs bg-amber-50/50 p-4 rounded-2xl border border-amber-200 text-slate-600">
-                  Payroll and banking details (bank name, account number, NIN) are held in the
-                  candidate&apos;s restricted pre-employment forms and are released to authorised
-                  payroll staff only. Open the candidate&apos;s secure forms to view them for ERP entry.
+                  Payroll and banking details (bank name, account number, NIN) are held in the candidate&apos;s
+                  restricted pre-employment forms and are released to authorised payroll staff only. Open the
+                  candidate&apos;s secure forms to view them for ERP entry.
                 </div>
               </div>
             </div>
 
             {/* Section 3: Manual ERP Personnel Number Entry */}
             {summary.resumptionOutcome !== 'RESUMED' && !resumptionConfirmed && (
-              <div className="rounded-3xl border border-blue-200 bg-blue-50 p-6 space-y-4">
+              <div className="rounded-2xl border border-brand-200 bg-brand-50 p-6 space-y-4">
                 <h2 className="text-base font-bold text-slate-900">Record resumption outcome</h2>
-                <p className="text-xs text-slate-600">Record what happened on the planned start date. ERP transfer is available only after confirmed resumption.</p>
+                <p className="text-xs text-slate-600">
+                  Record what happened on the planned start date. ERP transfer is available only after confirmed
+                  resumption.
+                </p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="text-xs font-bold text-slate-700">Outcome<select value={resumptionOutcome} onChange={(event) => setResumptionOutcome(event.target.value as typeof resumptionOutcome)} className="mt-1 block w-full rounded-lg border border-slate-300 p-2"><option value="RESUMED">Resumed</option><option value="POSTPONED">Start postponed</option><option value="DID_NOT_RESUME">Did not resume</option><option value="WITHDRAWN">Candidate withdrew</option></select></label>
-                  <label className="text-xs font-bold text-slate-700">Actual start date<input type="date" value={actualStartDate} onChange={(e) => setActualStartDate(e.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 p-2" /></label>
-                  <label className="text-xs font-bold text-slate-700">Reporting location<input value={reportingLocation} onChange={(e) => setReportingLocation(e.target.value)} placeholder={candidate.dutyStation} className="mt-1 block w-full rounded-lg border border-slate-300 p-2" /></label>
-                  <label className="text-xs font-bold text-slate-700 sm:col-span-2">Notes<textarea value={resumptionComment} onChange={(event) => setResumptionComment(event.target.value)} rows={2} className="mt-1 block w-full rounded-lg border border-slate-300 p-2" /></label>
+                  <label className="text-xs font-bold text-slate-700">
+                    Outcome
+                    <select
+                      value={resumptionOutcome}
+                      onChange={(event) => setResumptionOutcome(event.target.value as typeof resumptionOutcome)}
+                      className="mt-1 block w-full rounded-lg border border-slate-300 p-2"
+                    >
+                      <option value="RESUMED">Resumed</option>
+                      <option value="POSTPONED">Start postponed</option>
+                      <option value="DID_NOT_RESUME">Did not resume</option>
+                      <option value="WITHDRAWN">Candidate withdrew</option>
+                    </select>
+                  </label>
+                  <label className="text-xs font-bold text-slate-700">
+                    Actual start date
+                    <input
+                      type="date"
+                      value={actualStartDate}
+                      onChange={(e) => setActualStartDate(e.target.value)}
+                      className="mt-1 block w-full rounded-lg border border-slate-300 p-2"
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-700">
+                    Reporting location
+                    <input
+                      value={reportingLocation}
+                      onChange={(e) => setReportingLocation(e.target.value)}
+                      placeholder={candidate.dutyStation}
+                      className="mt-1 block w-full rounded-lg border border-slate-300 p-2"
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-700 sm:col-span-2">
+                    Notes
+                    <textarea
+                      value={resumptionComment}
+                      onChange={(event) => setResumptionComment(event.target.value)}
+                      rows={2}
+                      className="mt-1 block w-full rounded-lg border border-slate-300 p-2"
+                    />
+                  </label>
                 </div>
-                {resumptionOutcome === 'RESUMED' && <label className="flex items-start gap-2 text-xs font-semibold text-slate-700">
-                  <input type="checkbox" checked={supervisorConfirmed} onChange={(event) => setSupervisorConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4" />
-                  The receiving supervisor has independently confirmed that the candidate actually resumed.
-                </label>}
-                <button type="button" onClick={handleResumption} disabled={submitting || (resumptionOutcome === 'RESUMED' && !supervisorConfirmed)} className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50">Record outcome</button>
+                {resumptionOutcome === 'RESUMED' && (
+                  <label className="flex items-start gap-2 text-xs font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={supervisorConfirmed}
+                      onChange={(event) => setSupervisorConfirmed(event.target.checked)}
+                      className="mt-0.5 h-4 w-4"
+                    />
+                    The receiving supervisor has independently confirmed that the candidate actually resumed.
+                  </label>
+                )}
+                <button
+                  type="button"
+                  onClick={handleResumption}
+                  disabled={submitting || (resumptionOutcome === 'RESUMED' && !supervisorConfirmed)}
+                  className="rounded-xl bg-brand-600 px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50"
+                >
+                  Record outcome
+                </button>
               </div>
             )}
 
-            <div className="rounded-3xl bg-slate-900 p-8 text-white space-y-4">
+            <div className="rounded-2xl bg-slate-900 p-8 text-white space-y-4">
               <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
                 <ShieldAlert className="h-4 w-4" /> MANUAL ERP ENTRY PROTOCOL
               </div>
 
               <h2 className="text-xl font-bold">Record ERP Personnel Number</h2>
               <p className="text-xs text-slate-300 leading-relaxed">
-                After manually creating the official employee record in the FRAD ERP, input the generated ERP Personnel Number below. This action updates the recruitment record to <code className="text-emerald-400 font-bold">TRANSFERRED_TO_ERP</code> and locks the recruitment file.
+                After manually creating the official employee record in the FRAD ERP, input the generated ERP Personnel
+                Number below. This action updates the recruitment record to{' '}
+                <code className="text-emerald-400 font-bold">TRANSFERRED_TO_ERP</code> and locks the recruitment file.
               </p>
 
               {completed ? (
@@ -257,12 +398,25 @@ export default function HandoverSummaryPage(props: { params: Promise<{ id: strin
                   <span className="flex items-center gap-1 text-sm">
                     <CheckCircle2 className="h-5 w-5" /> ERP Transfer Successfully Recorded!
                   </span>
-                  <p>ERP Personnel Number: <span className="font-mono text-white text-base">{recordedErp}</span></p>
-                  <p className="text-[11px] font-normal text-slate-300">Recruitment & preboarding file has been marked read-only and closed.</p>
+                  <p>
+                    ERP Personnel Number: <span className="font-mono text-white text-base">{recordedErp}</span>
+                  </p>
+                  <p className="text-[11px] font-normal text-slate-300">
+                    Recruitment & preboarding file has been marked read-only and closed.
+                  </p>
                 </div>
               ) : (
                 <form onSubmit={handleRecordERP} className="space-y-4 text-xs">
-                  <label className="block font-bold">Date created in ERP<input required type="date" value={createdInErpAt} onChange={(event) => setCreatedInErpAt(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-600 bg-slate-800 p-2 text-white" /></label>
+                  <label className="block font-bold">
+                    Date created in ERP
+                    <input
+                      required
+                      type="date"
+                      value={createdInErpAt}
+                      onChange={(event) => setCreatedInErpAt(event.target.value)}
+                      className="mt-1 block w-full rounded-lg border border-slate-600 bg-slate-800 p-2 text-white"
+                    />
+                  </label>
                   {validationMsg && (
                     <p role="alert" className="rounded-lg bg-rose-500/15 border border-rose-400/40 p-2.5 text-rose-200">
                       {validationMsg}

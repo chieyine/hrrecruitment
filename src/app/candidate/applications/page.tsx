@@ -19,15 +19,17 @@ export default async function CandidateApplicationsPage() {
 
   // Never pass an undefined candidate id to Prisma: omitted filters would turn
   // this candidate page into an all-applications query.
-  const applications = profile ? await prisma.application.findMany({
-    where: { candidateId: profile.id },
-    include: {
-      vacancy: {
-        include: { department: true, dutyStation: true },
-      },
-    },
-    orderBy: { updatedAt: 'desc' },
-  }) : []
+  const applications = profile
+    ? await prisma.application.findMany({
+        where: { candidateId: profile.id },
+        include: {
+          vacancy: {
+            include: { department: true, dutyStation: true },
+          },
+        },
+        orderBy: { updatedAt: 'desc' },
+      })
+    : []
 
   return (
     <div className="flex min-h-screen flex-col bg-[#f4f1ea]">
@@ -37,7 +39,7 @@ export default async function CandidateApplicationsPage() {
         <div className="mx-auto max-w-6xl space-y-8 px-4 sm:px-6 lg:px-8">
           <Link
             href="/candidate/dashboard"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" /> Back to dashboard
           </Link>
@@ -70,24 +72,46 @@ export default async function CandidateApplicationsPage() {
                   const isDraft = status === 'APPLICATION_DRAFT'
 
                   return (
-                    <article key={app.id} data-testid="candidate-application-card" className="grid gap-5 bg-white/55 px-5 py-7 sm:px-6 md:grid-cols-[1fr_auto] md:items-center">
+                    <article
+                      key={app.id}
+                      data-testid="candidate-application-card"
+                      className="grid gap-5 bg-white/55 px-5 py-7 sm:px-6 md:grid-cols-[1fr_auto] md:items-center"
+                    >
                       <div>
                         <span className="font-mono text-[11px] font-bold text-[#647169]">
                           {app.vacancy.referenceNumber}
                         </span>
                         <h2 className="mt-1 font-display text-2xl text-[#17211c]">{app.vacancy.title}</h2>
-                        <p className="mt-1 text-xs text-[#617067]">{app.vacancy.department.name} · {app.vacancy.dutyStation.name}</p>
-                        <p className="mt-4 text-xs text-[#617067]">{isDraft ? `Last saved ${formatDate(app.updatedAt)}` : `Received ${formatDate(app.submittedAt || app.updatedAt)}`}</p>
+                        <p className="mt-1 text-xs text-[#617067]">
+                          {app.vacancy.department.name} · {app.vacancy.dutyStation.name}
+                        </p>
+                        <p className="mt-4 text-xs text-[#617067]">
+                          {isDraft
+                            ? `Last saved ${formatDate(app.updatedAt)}`
+                            : `Received ${formatDate(app.submittedAt || app.updatedAt)}`}
+                        </p>
                       </div>
 
                       <div className="md:text-right">
-                        <p className={`text-xs font-bold ${isDraft ? 'text-amber-800' : 'text-brand-800'}`}>{candidateStatusLabel(status)}</p>
+                        <p className={`text-xs font-bold ${isDraft ? 'text-amber-800' : 'text-brand-800'}`}>
+                          {candidateStatusLabel(status)}
+                        </p>
                         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs md:justify-end">
-                          <Link href={isDraft ? `/candidate/applications/apply?vacancyId=${app.vacancy.id}` : `/candidate/applications/${app.id}`} className="font-bold text-blue-700 hover:underline">
+                          <Link
+                            href={
+                              isDraft
+                                ? `/candidate/applications/apply?vacancyId=${app.vacancy.id}`
+                                : `/candidate/applications/${app.id}`
+                            }
+                            className="font-bold text-brand-700 hover:underline"
+                          >
                             {isDraft ? 'Continue application' : 'View application'}
                           </Link>
                           {isDraft && <DeleteDraftButton applicationId={app.id} vacancyId={app.vacancy.id} />}
-                          <Link href={`/careers/${encodeURIComponent(app.vacancy.referenceNumber)}`} className="font-bold text-[#526158] hover:underline">
+                          <Link
+                            href={`/careers/${encodeURIComponent(app.vacancy.referenceNumber)}`}
+                            className="font-bold text-[#526158] hover:underline"
+                          >
                             Vacancy details
                           </Link>
                         </div>

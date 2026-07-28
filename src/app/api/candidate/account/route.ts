@@ -11,7 +11,11 @@ const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('UPDATE_PHONE'), phone: z.string().trim().min(7).max(30) }),
   z.object({ action: z.literal('CHANGE_EMAIL'), email: z.string().trim().toLowerCase().email() }),
   z.object({ action: z.literal('REQUEST_CLOSURE'), reason: z.string().max(2000).optional() }),
-  z.object({ action: z.literal('WITHDRAW_CONSENT'), consentType: z.enum(['PRIVACY_NOTICE', 'TERMS_OF_USE']), reason: z.string().max(2000).optional() }),
+  z.object({
+    action: z.literal('WITHDRAW_CONSENT'),
+    consentType: z.enum(['PRIVACY_NOTICE', 'TERMS_OF_USE']),
+    reason: z.string().max(2000).optional(),
+  }),
   z.object({ action: z.literal('SET_TALENT_POOL_CONSENT'), decision: z.boolean() }),
 ])
 
@@ -53,9 +57,10 @@ export async function POST(request: Request) {
         const active = await prisma.consentRecord.findFirst({
           where: { candidateId: profile.id, consentType: 'TALENT_POOL', decision: true, withdrawnAt: null },
         })
-        if (!active) await prisma.consentRecord.create({
-          data: { candidateId: profile.id, consentType: 'TALENT_POOL', noticeVersion: '2026-07', decision: true },
-        })
+        if (!active)
+          await prisma.consentRecord.create({
+            data: { candidateId: profile.id, consentType: 'TALENT_POOL', noticeVersion: '2026-07', decision: true },
+          })
       }
     } else if (input.action === 'WITHDRAW_CONSENT') {
       const latest = await prisma.consentRecord.findFirst({
@@ -92,12 +97,20 @@ export async function POST(request: Request) {
             },
           })
         }
-        const pending = await tx.dataDeletionRequest.findFirst({ where: { candidateId: profile.id, status: 'PENDING' } })
-        if (!pending) await tx.dataDeletionRequest.create({ data: { candidateId: profile.id, reason: input.reason || `Consent withdrawn: ${input.consentType}` } })
+        const pending = await tx.dataDeletionRequest.findFirst({
+          where: { candidateId: profile.id, status: 'PENDING' },
+        })
+        if (!pending)
+          await tx.dataDeletionRequest.create({
+            data: { candidateId: profile.id, reason: input.reason || `Consent withdrawn: ${input.consentType}` },
+          })
       })
     } else {
-      const pending = await prisma.dataDeletionRequest.findFirst({ where: { candidateId: profile.id, status: 'PENDING' } })
-      if (!pending) await prisma.dataDeletionRequest.create({ data: { candidateId: profile.id, reason: input.reason || null } })
+      const pending = await prisma.dataDeletionRequest.findFirst({
+        where: { candidateId: profile.id, status: 'PENDING' },
+      })
+      if (!pending)
+        await prisma.dataDeletionRequest.create({ data: { candidateId: profile.id, reason: input.reason || null } })
     }
 
     await logAudit({
@@ -109,9 +122,10 @@ export async function POST(request: Request) {
     })
     return NextResponse.json({
       success: true,
-      message: input.action === 'WITHDRAW_CONSENT'
-        ? 'Consent withdrawn. Active recruitment processing has stopped and your data request is awaiting review.'
-        : undefined,
+      message:
+        input.action === 'WITHDRAW_CONSENT'
+          ? 'Consent withdrawn. Active recruitment processing has stopped and your data request is awaiting review.'
+          : undefined,
     })
   } catch (error) {
     return authzResponse(error)

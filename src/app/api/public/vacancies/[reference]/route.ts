@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
 export async function GET(_request: Request, context: { params: Promise<{ reference: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const now = new Date()
     const vacancy = await prisma.vacancy.findFirst({

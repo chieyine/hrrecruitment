@@ -5,7 +5,7 @@ import { logAudit } from '@/lib/audit'
 import { hasPermission } from '@/lib/rbac'
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requirePermission('preboarding.manage')
     const preboarding = await prisma.candidatePreboarding.findUnique({
@@ -30,9 +30,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (!preboarding) return NextResponse.json({ error: 'Preboarding record not found' }, { status: 404 })
     const canReadRestricted = await hasPermission(user.userId, 'preboarding.restricted.read')
     if (!canReadRestricted) {
-      preboarding.forms = preboarding.forms.map((form) => form.formTemplate.sensitivityClass === 'RESTRICTED' ? { ...form, responseJson: null } : form)
+      preboarding.forms = preboarding.forms.map((form) =>
+        form.formTemplate.sensitivityClass === 'RESTRICTED' ? { ...form, responseJson: null } : form
+      )
     }
-    const [packages, requirements] = await Promise.all([prisma.preboardingPackage.findMany({ where: { active: true }, orderBy: { name: 'asc' } }), prisma.documentRequirement.findMany({ where: { active: true }, orderBy: { name: 'asc' } })])
+    const [packages, requirements] = await Promise.all([
+      prisma.preboardingPackage.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+      prisma.documentRequirement.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+    ])
     return NextResponse.json({ preboarding, packages, requirements })
   } catch (err) {
     return authzResponse(err)
@@ -40,7 +45,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requirePermission('preboarding.manage')
     const body = await request.json()
@@ -67,7 +72,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         waivedAt: status === 'WAIVED' ? new Date() : null,
       },
     })
-    await logAudit({ actorUserId: user.userId, action: status === 'WAIVED' ? 'READINESS_CHECK_WAIVED' : 'READINESS_CHECK_REVIEWED', resourceType: 'ReadinessCheck', resourceId: check.id, previousValue: check, newValue: updated, reason: reason || undefined })
+    await logAudit({
+      actorUserId: user.userId,
+      action: status === 'WAIVED' ? 'READINESS_CHECK_WAIVED' : 'READINESS_CHECK_REVIEWED',
+      resourceType: 'ReadinessCheck',
+      resourceId: check.id,
+      previousValue: check,
+      newValue: updated,
+      reason: reason || undefined,
+    })
     return NextResponse.json({ success: true, check: updated })
   } catch (err) {
     return authzResponse(err)

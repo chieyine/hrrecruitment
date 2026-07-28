@@ -14,7 +14,10 @@ test.describe('Assessments and Interviews', () => {
     test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once.')
 
     const [candidate, department, dutyStation, owner] = await Promise.all([
-      prisma.candidateProfile.findFirstOrThrow({ where: { user: { email: 'candidate@example.com' } }, select: { id: true } }),
+      prisma.candidateProfile.findFirstOrThrow({
+        where: { user: { email: 'candidate@example.com' } },
+        select: { id: true },
+      }),
       prisma.department.findFirstOrThrow({ where: { active: true }, select: { id: true } }),
       prisma.dutyStation.findFirstOrThrow({ where: { active: true }, select: { id: true } }),
       prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@frad.org' }, select: { id: true } }),
@@ -69,30 +72,33 @@ test.describe('Assessments and Interviews', () => {
 
     await login(page, 'candidate@example.com')
     await page.goto('/candidate/assessments')
-    
+
     const startButton = page.getByRole('link', { name: /start assessment/i }).first()
     await expect(startButton).toBeVisible()
     await startButton.click()
     await page.getByRole('button', { name: /^start assessment$/i }).click()
     await expect(page.getByText(/time remaining/i)).toBeVisible()
-    
+
     await page.getByRole('radio').first().check()
     await expect(page.getByRole('status')).toContainText(/saved/i)
-    
+
     await page.getByRole('button', { name: /review and submit/i }).click()
-    await page.getByRole('dialog').getByRole('button', { name: /^submit assessment$/i }).click()
-    
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: /^submit assessment$/i })
+      .click()
+
     await expect(page.getByRole('heading', { name: /completed|submitted/i })).toBeVisible()
-    
+
     await logout(page)
   })
 
   test('HR interview workspace exposes scheduling and panel records', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once.')
-    
+
     await login(page, 'hrmanager@frad.org')
     await page.goto('/recruitment/interviews')
-    
+
     await expect(page.getByRole('heading', { name: /^interviews$/i })).toBeVisible()
     await expect(page.getByRole('button', { name: /schedule and invite/i })).toBeVisible()
 

@@ -7,7 +7,9 @@ const walk = (directory) =>
     return entry.isDirectory() ? walk(file) : [file]
   })
 
-const routeFiles = walk('src/app/api').filter((file) => file.endsWith('/route.ts')).sort()
+const routeFiles = walk('src/app/api')
+  .filter((file) => file.endsWith('/route.ts'))
+  .sort()
 const frontendFiles = walk('src')
   .filter((file) => /\.(ts|tsx)$/.test(file))
   .filter((file) => !file.includes('/api/') && file !== 'src/proxy.ts')
@@ -58,12 +60,18 @@ for (const routeFile of routeFiles) {
 }
 
 for (const row of rows) {
-  process.stdout.write(`${row.status.padEnd(14)} ${row.methods.padEnd(22)} ${row.endpoint}${row.consumers ? ` -> ${row.consumers}` : ''}\n`)
+  process.stdout.write(
+    `${row.status.padEnd(14)} ${row.methods.padEnd(22)} ${row.endpoint}${row.consumers ? ` -> ${row.consumers}` : ''}\n`
+  )
 }
 
 if (missing.length) {
-  process.stderr.write(`\n${missing.length} operational API route(s) have no frontend consumer or approved infrastructure classification.\n`)
+  process.stderr.write(
+    `\n${missing.length} operational API route(s) have no frontend consumer or approved infrastructure classification.\n`
+  )
   process.exitCode = 1
 } else {
-  process.stdout.write(`\nCoverage passed: ${rows.length} API routes classified; ${infrastructureExceptions.size} infrastructure-only.\n`)
+  process.stdout.write(
+    `\nCoverage passed: ${rows.length} API routes classified; ${infrastructureExceptions.size} infrastructure-only.\n`
+  )
 }

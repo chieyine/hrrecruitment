@@ -69,13 +69,20 @@ export default function ResetPasswordPage() {
             <p className="text-slate-600 text-sm mt-1">Enter your new password below.</p>
           </div>
 
-          {error && <div role="alert" className="mb-4 p-3 bg-rose-50 text-rose-700 rounded-lg text-sm">{error}</div>}
+          {error && (
+            <div role="alert" className="mb-4 p-3 bg-rose-50 text-rose-700 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
           {message ? (
             <div className="p-4 bg-emerald-50 text-emerald-800 rounded-lg text-sm text-center">
               <CheckCircle className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
               {message}
               <div className="mt-4">
-                <Link href="/auth/login" className="bg-emerald-600 text-white font-medium px-4 py-2 rounded-lg inline-block text-sm">
+                <Link
+                  href="/auth/login"
+                  className="bg-emerald-600 text-white font-medium px-4 py-2 rounded-lg inline-block text-sm"
+                >
                   Go to Sign In
                 </Link>
               </div>
@@ -89,7 +96,9 @@ export default function ResetPasswordPage() {
               )}
 
               <div>
-                <label htmlFor="new-password" className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
+                <label htmlFor="new-password" className="block text-sm font-medium text-slate-700 mb-1">
+                  New Password
+                </label>
                 <input
                   id="new-password"
                   type="password"
@@ -103,7 +112,9 @@ export default function ResetPasswordPage() {
               </div>
 
               <div>
-                <label htmlFor="confirm-password" className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
+                <label htmlFor="confirm-password" className="block text-sm font-medium text-slate-700 mb-1">
+                  Confirm New Password
+                </label>
                 <input
                   id="confirm-password"
                   type="password"
@@ -121,13 +132,16 @@ export default function ResetPasswordPage() {
                 disabled={loading}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-lg transition"
               >
-                {loading ? 'Updating Password...' : 'Reset Password'}
+                {loading ? 'Updating password…' : 'Reset password'}
               </button>
             </form>
           )}
 
           <div className="mt-6 text-center">
-            <Link href="/auth/login" className="inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900">
+            <Link
+              href="/auth/login"
+              className="inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900"
+            >
               <ArrowLeft className="w-4 h-4 mr-1" /> Back to Sign In
             </Link>
           </div>

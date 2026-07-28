@@ -40,10 +40,7 @@ export async function GET() {
   }
 }
 
-const schema = z.union([
-  z.object({ tokenId: z.string().uuid() }),
-  z.object({ allOthers: z.literal(true) }),
-])
+const schema = z.union([z.object({ tokenId: z.string().uuid() }), z.object({ allOthers: z.literal(true) })])
 
 export async function DELETE(request: Request) {
   try {

@@ -42,7 +42,9 @@ export default async function GuidancePage() {
         <header className="border-b border-[#d9d4ca]">
           <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
             <span className="editorial-kicker">How we hire</span>
-            <h1 className="editorial-title mt-5 max-w-3xl text-5xl text-[#17211c] sm:text-6xl">A clear process, from application to start date.</h1>
+            <h1 className="editorial-title mt-5 max-w-3xl text-5xl text-[#17211c] sm:text-6xl">
+              A clear process, from application to start date.
+            </h1>
             <p className="mt-6 max-w-2xl text-base leading-7 text-[#526158]">
               The exact steps vary by role. FRAD will tell you what is required and when you need to respond.
             </p>
@@ -74,14 +76,22 @@ export default async function GuidancePage() {
               <p className="mt-2 text-xs leading-5 text-[#617067]">
                 Tell the recruitment team if you need an adjustment to take part in an assessment or interview.
               </p>
-              <Link href={user ? '/candidate/accommodations' : '/auth/login'} className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-brand-800">
+              <Link
+                href={user ? '/candidate/accommodations' : '/auth/login'}
+                className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-brand-800"
+              >
                 Request an adjustment <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
             <div className="bg-brand-900 p-6 text-white">
               <p className="text-sm font-bold">There are no recruitment fees.</p>
-              <p className="mt-2 text-xs leading-5 text-brand-100">If anyone asks you to pay for a FRAD role, do not pay them.</p>
-              <Link href="/report-fraud" className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-white underline underline-offset-4">
+              <p className="mt-2 text-xs leading-5 text-brand-100">
+                If anyone asks you to pay for a FRAD role, do not pay them.
+              </p>
+              <Link
+                href="/report-fraud"
+                className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-white underline underline-offset-4"
+              >
                 Report recruitment fraud
               </Link>
             </div>

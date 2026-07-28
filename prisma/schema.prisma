@@ -27,15 +27,15 @@ model User {
   // Automatic lockout. `lockedUntil` expires on its own so a locked-out user
   // recovers without an administrator, while `accountStatus = LOCKED` remains
   // the manual, indefinite lock an administrator applies.
-  failedLoginCount Int       @default(0)
+  failedLoginCount  Int       @default(0)
   lastFailedLoginAt DateTime?
-  lockedUntil      DateTime?
+  lockedUntil       DateTime?
 
   // Multi-factor authentication (TOTP, RFC 6238).
-  mfaEnabledAt    DateTime?
+  mfaEnabledAt DateTime?
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   userRoles             UserRole[]
   candidateProfile      CandidateProfile?
@@ -1504,7 +1504,7 @@ model FraudReport {
   triagedAt       DateTime?
   triageNote      String?
   createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
 
   @@index([status, createdAt])
 }

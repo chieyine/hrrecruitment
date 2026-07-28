@@ -43,14 +43,18 @@ test('public complaint and fraud-report submissions complete', async ({ page }, 
   await page.goto('/complaints')
   await page.getByLabel('Short summary').fill(`E2E recruitment support ${testInfo.project.name}`)
   await page.getByLabel(/Contact email/i).fill('anonymous@example.com')
-  await page.getByLabel('What happened?').fill('This is a deterministic browser test of the confidential complaint submission workflow.')
+  await page
+    .getByLabel('What happened?')
+    .fill('This is a deterministic browser test of the confidential complaint submission workflow.')
   await page.getByRole('button', { name: /submit concern/i }).click()
-    await expect(page.getByRole('status')).toContainText(/received|reference/i)
+  await expect(page.getByRole('status')).toContainText(/received|reference/i)
 
-    await page.goto('/report-fraud')
-    await page.getByLabel(/how did the person contact you/i).fill('e2e-fraud@example.org')
-    await page.getByLabel('What happened?').fill('A deterministic test report describing an impersonation and prohibited recruitment-fee request.')
-    await page.getByRole('button', { name: /submit fraud report/i }).click()
+  await page.goto('/report-fraud')
+  await page.getByLabel(/how did the person contact you/i).fill('e2e-fraud@example.org')
+  await page
+    .getByLabel('What happened?')
+    .fill('A deterministic test report describing an impersonation and prohibited recruitment-fee request.')
+  await page.getByRole('button', { name: /submit fraud report/i }).click()
   await expect(page.getByRole('status')).toContainText(/received|reference/i)
 })
 

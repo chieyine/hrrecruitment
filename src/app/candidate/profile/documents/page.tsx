@@ -135,7 +135,10 @@ export default function CandidateDocumentLibraryPage() {
       <main id="main-content" className="max-w-4xl mx-auto px-4 py-8 flex-1 w-full">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Link href="/candidate/profile" className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">
+            <Link
+              href="/candidate/profile"
+              className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+            >
               <ArrowLeft className="w-4 h-4 text-slate-600" />
             </Link>
             <div>
@@ -152,11 +155,16 @@ export default function CandidateDocumentLibraryPage() {
         </div>
 
         {showUpload && (
-          <form onSubmit={handleUpload} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-6 space-y-4">
+          <form
+            onSubmit={handleUpload}
+            className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-6 space-y-4"
+          >
             <h2 className="font-bold text-slate-900 text-lg">Upload Document</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="document-category" className="block text-sm font-medium text-slate-700 mb-1">Document Category *</label>
+                <label htmlFor="document-category" className="block text-sm font-medium text-slate-700 mb-1">
+                  Document Category *
+                </label>
                 <select
                   id="document-category"
                   value={documentType}
@@ -164,12 +172,22 @@ export default function CandidateDocumentLibraryPage() {
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
                 >
                   {documentTypes.length === 0
-                    ? DEFAULT_DOCUMENT_TYPES.map((type) => <option key={type.code} value={type.code}>{type.name}</option>)
-                    : documentTypes.map((type) => <option key={type.code} value={type.code}>{type.name}</option>)}
+                    ? DEFAULT_DOCUMENT_TYPES.map((type) => (
+                        <option key={type.code} value={type.code}>
+                          {type.name}
+                        </option>
+                      ))
+                    : documentTypes.map((type) => (
+                        <option key={type.code} value={type.code}>
+                          {type.name}
+                        </option>
+                      ))}
                 </select>
               </div>
               <div>
-                <label htmlFor="document-file" className="block text-sm font-medium text-slate-700 mb-1">File *</label>
+                <label htmlFor="document-file" className="block text-sm font-medium text-slate-700 mb-1">
+                  File *
+                </label>
                 <input
                   id="document-file"
                   type="file"
@@ -181,8 +199,16 @@ export default function CandidateDocumentLibraryPage() {
                 <p className="text-xs text-slate-400 mt-1">PDF, JPG, PNG or Word. Max 10MB.</p>
               </div>
               <div>
-                <label htmlFor="document-expiry" className="block text-sm font-medium text-slate-700 mb-1">Expiry date (if applicable)</label>
-                <input id="document-expiry" type="date" value={expiryDate} onChange={(event) => setExpiryDate(event.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg" />
+                <label htmlFor="document-expiry" className="block text-sm font-medium text-slate-700 mb-1">
+                  Expiry date (if applicable)
+                </label>
+                <input
+                  id="document-expiry"
+                  type="date"
+                  value={expiryDate}
+                  onChange={(event) => setExpiryDate(event.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg"
+                />
               </div>
             </div>
 
@@ -208,24 +234,46 @@ export default function CandidateDocumentLibraryPage() {
         )}
 
         {editingDoc && (
-          <form onSubmit={editDoc} className="mb-6 space-y-4 rounded-xl border border-blue-200 bg-white p-6 shadow-sm">
+          <form onSubmit={editDoc} className="mb-6 space-y-4 rounded-xl border border-brand-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-bold">Edit document</h2>
             <p className="text-sm text-slate-600">{editingDoc.fileAsset?.originalName}</p>
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="text-sm font-medium">Document Category
-                <select aria-label="Edit Document Category" value={editDocumentType} onChange={(event) => setEditDocumentType(event.target.value)} className="mt-1 w-full rounded-lg border p-2.5">
+              <label className="text-sm font-medium">
+                Document Category
+                <select
+                  aria-label="Edit Document Category"
+                  value={editDocumentType}
+                  onChange={(event) => setEditDocumentType(event.target.value)}
+                  className="mt-1 w-full rounded-lg border p-2.5"
+                >
                   {(documentTypes.length === 0 ? DEFAULT_DOCUMENT_TYPES : documentTypes).map((type) => (
-                    <option key={type.code} value={type.code}>{type.name}</option>
+                    <option key={type.code} value={type.code}>
+                      {type.name}
+                    </option>
                   ))}
                 </select>
               </label>
-              <label className="text-sm font-medium">Document Expiry Date
-                <input aria-label="Edit Document Expiry Date" type="date" value={editExpiryDate} onChange={(event) => setEditExpiryDate(event.target.value)} className="mt-1 w-full rounded-lg border p-2.5" />
+              <label className="text-sm font-medium">
+                Document Expiry Date
+                <input
+                  aria-label="Edit Document Expiry Date"
+                  type="date"
+                  value={editExpiryDate}
+                  onChange={(event) => setEditExpiryDate(event.target.value)}
+                  className="mt-1 w-full rounded-lg border p-2.5"
+                />
               </label>
             </div>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setEditingDoc(null)} className="px-4 py-2 text-sm">Cancel</button>
-              <button disabled={uploading} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Save Changes</button>
+              <button type="button" onClick={() => setEditingDoc(null)} className="px-4 py-2 text-sm">
+                Cancel
+              </button>
+              <button
+                disabled={uploading}
+                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+              >
+                Save Changes
+              </button>
             </div>
           </form>
         )}
@@ -237,7 +285,10 @@ export default function CandidateDocumentLibraryPage() {
             </div>
           ) : (
             documents.map((doc) => (
-              <div key={doc.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div
+                key={doc.id}
+                className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between"
+              >
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
                     <FileText className="w-6 h-6" />
@@ -245,19 +296,35 @@ export default function CandidateDocumentLibraryPage() {
                   <div>
                     <h3 className="font-bold text-slate-900 text-base">{doc.documentType}</h3>
                     <p className="text-slate-600 text-sm">{doc.fileAsset?.originalName || 'Document.pdf'}</p>
-                    <p className="text-slate-400 text-xs mt-1">Uploaded {new Date(doc.createdAt).toLocaleDateString()}</p>
+                    <p className="text-slate-400 text-xs mt-1">
+                      Uploaded {new Date(doc.createdAt).toLocaleDateString()}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-full flex items-center gap-1">
                     <CheckCircle className="w-3 h-3" /> Ready
                   </span>
-                  <button type="button" aria-label={`Edit ${doc.fileAsset?.originalName || doc.documentType}`} onClick={() => {
-                    setEditingDoc(doc)
-                    setEditDocumentType(doc.documentType)
-                    setEditExpiryDate(doc.expiryDate ? new Date(doc.expiryDate).toISOString().slice(0, 10) : '')
-                  }} className="rounded-lg p-2 text-blue-700 hover:bg-blue-50"><Pencil className="h-4 w-4" /></button>
-                  <button type="button" aria-label={`Delete ${doc.fileAsset?.originalName || doc.documentType}`} onClick={() => setDeletingDoc(doc)} className="rounded-lg p-2 text-rose-700 hover:bg-rose-50"><Trash2 className="h-4 w-4" /></button>
+                  <button
+                    type="button"
+                    aria-label={`Edit ${doc.fileAsset?.originalName || doc.documentType}`}
+                    onClick={() => {
+                      setEditingDoc(doc)
+                      setEditDocumentType(doc.documentType)
+                      setEditExpiryDate(doc.expiryDate ? new Date(doc.expiryDate).toISOString().slice(0, 10) : '')
+                    }}
+                    className="rounded-lg p-2 text-brand-700 hover:bg-brand-50"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${doc.fileAsset?.originalName || doc.documentType}`}
+                    onClick={() => setDeletingDoc(doc)}
+                    className="rounded-lg p-2 text-rose-700 hover:bg-rose-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             ))
@@ -267,7 +334,9 @@ export default function CandidateDocumentLibraryPage() {
       <ReasonDialog
         open={deletingDoc !== null}
         onClose={() => setDeletingDoc(null)}
-        onConfirm={() => { if (deletingDoc) return deleteDoc(deletingDoc) }}
+        onConfirm={() => {
+          if (deletingDoc) return deleteDoc(deletingDoc)
+        }}
         title="Delete document"
         description="Remove this document from your profile? Copies already included in submitted applications will not be removed."
         confirmLabel="Delete"

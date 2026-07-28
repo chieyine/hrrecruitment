@@ -17,7 +17,12 @@ describe('tokens', () => {
   it('does not accept a purpose-specific token as a browser session', async () => {
     const reset = await createResetToken('user-1', 1)
     expect(await verifySessionToken(reset)).toBeNull()
-    const session = await createSessionToken({ userId: 'user-1', email: 'candidate@example.org', roles: ['CANDIDATE'], sessionVersion: 1 })
+    const session = await createSessionToken({
+      userId: 'user-1',
+      email: 'candidate@example.org',
+      roles: ['CANDIDATE'],
+      sessionVersion: 1,
+    })
     expect(await verifySessionToken(session)).toMatchObject({ userId: 'user-1', roles: ['CANDIDATE'] })
   })
 })

@@ -40,7 +40,14 @@ export async function POST(request: Request) {
     const profile = await prisma.candidateProfile.findUnique({ where: { userId: user.userId } })
     if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
-    const { documentType, fileAssetId, expiryDate } = await parseBody(request, z.object({ documentType: z.string().trim().min(1).max(80), fileAssetId: z.string().min(1), expiryDate: z.coerce.date().optional() }))
+    const { documentType, fileAssetId, expiryDate } = await parseBody(
+      request,
+      z.object({
+        documentType: z.string().trim().min(1).max(80),
+        fileAssetId: z.string().min(1),
+        expiryDate: z.coerce.date().optional(),
+      })
+    )
 
     // The asset must exist and belong to this user.
     const asset = await prisma.fileAsset.findUnique({ where: { id: fileAssetId } })

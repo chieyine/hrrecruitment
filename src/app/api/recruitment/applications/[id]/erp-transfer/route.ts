@@ -7,18 +7,20 @@ import { logAudit } from '@/lib/audit'
 import { claimIdempotency, completeIdempotency, abandonIdempotency, type IdempotencyClaim } from '@/lib/idempotency'
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   let claim: IdempotencyClaim | null = null
   try {
     const user = await requirePermission('erp.transfer')
-    const { erpPersonnelNumber, comment, createdInErpAt } = await parseBody(
-      request,
-      erpTransferSchema
-    )
+    const { erpPersonnelNumber, comment, createdInErpAt } = await parseBody(request, erpTransferSchema)
     if (!request.headers.get('idempotency-key')?.trim()) {
       return NextResponse.json({ error: 'Idempotency-Key header is required' }, { status: 400 })
     }
-    claim = await claimIdempotency({ request, scope: `ERP_TRANSFER:${params.id}`, actorUserId: user.userId, payload: { erpPersonnelNumber, comment, createdInErpAt } })
+    claim = await claimIdempotency({
+      request,
+      scope: `ERP_TRANSFER:${params.id}`,
+      actorUserId: user.userId,
+      payload: { erpPersonnelNumber, comment, createdInErpAt },
+    })
     if (claim?.replay) return NextResponse.json(claim.body, { status: claim.statusCode })
 
     const application = await prisma.application.findUnique({
@@ -37,7 +39,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         { status: 422 }
       )
     }
-    if (!application.resumptionRecord || application.resumptionRecord.outcome !== 'RESUMED' || !application.resumptionRecord.actualStartDate) {
+    if (
+      !application.resumptionRecord ||
+      application.resumptionRecord.outcome !== 'RESUMED' ||
+      !application.resumptionRecord.actualStartDate
+    ) {
       return NextResponse.json({ error: 'Confirmed resumption must be recorded before ERP transfer' }, { status: 422 })
     }
 

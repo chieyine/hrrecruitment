@@ -6,48 +6,122 @@ import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 
 export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requireUser()
-    const application = await prisma.application.findUnique({ where: { id: params.id }, select: { id: true, candidate: { select: { userId: true } }, candidateVisibleStatus: true, submittedAt: true, createdAt: true, updatedAt: true, vacancy: { select: { id: true, referenceNumber: true, title: true, department: { select: { name: true } }, dutyStation: { select: { name: true } } } }, answers: { select: { id: true, vacancyQuestionId: true, answerJson: true, vacancyQuestion: { select: { label: true, fieldType: true } } } }, internalStatus: true } })
+    const application = await prisma.application.findUnique({
+      where: { id: params.id },
+      select: {
+        id: true,
+        candidate: { select: { userId: true } },
+        candidateVisibleStatus: true,
+        submittedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        vacancy: {
+          select: {
+            id: true,
+            referenceNumber: true,
+            title: true,
+            department: { select: { name: true } },
+            dutyStation: { select: { name: true } },
+          },
+        },
+        answers: {
+          select: {
+            id: true,
+            vacancyQuestionId: true,
+            answerJson: true,
+            vacancyQuestion: { select: { label: true, fieldType: true } },
+          },
+        },
+        internalStatus: true,
+      },
+    })
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     if (application.candidate.userId !== user.userId) throw new AuthzError('Forbidden', 403)
     const isDraft = application.internalStatus === 'DRAFT'
-    const terminal = ['WITHDRAWN','CANCELLED','OFFER_ACCEPTED','PREBOARDING','READY_TO_RESUME','RESUMED','TRANSFERRED_TO_ERP'].includes(application.internalStatus)
+    const terminal = [
+      'WITHDRAWN',
+      'CANCELLED',
+      'OFFER_ACCEPTED',
+      'PREBOARDING',
+      'READY_TO_RESUME',
+      'RESUMED',
+      'TRANSFERRED_TO_ERP',
+    ].includes(application.internalStatus)
     // internalStatus is deliberately stripped: candidates only ever see the
     // derived candidate-facing status, never the internal pipeline stage.
     const { internalStatus: _internalStatus, ...candidateApplication } = application
     return NextResponse.json({ application: { ...candidateApplication, isDraft, canWithdraw: !isDraft && !terminal } })
-  } catch (error) { return authzResponse(error) }
+  } catch (error) {
+    return authzResponse(error)
+  }
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requireUser()
-    const { reason } = await parseBody(request, z.object({ action: z.literal('WITHDRAW'), reason: z.string().trim().min(1).max(2000) }))
+    const { reason } = await parseBody(
+      request,
+      z.object({ action: z.literal('WITHDRAW'), reason: z.string().trim().min(1).max(2000) })
+    )
     const application = await prisma.application.findUnique({ where: { id: params.id }, include: { candidate: true } })
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     if (application.candidate.userId !== user.userId) throw new AuthzError('Forbidden', 403)
-    if (['OFFER_ACCEPTED', 'PREBOARDING', 'READY_TO_RESUME', 'RESUMED', 'TRANSFERRED_TO_ERP', 'WITHDRAWN', 'CANCELLED'].includes(application.internalStatus)) return NextResponse.json({ error: `Application cannot be withdrawn from ${application.internalStatus}` }, { status: 409 })
+    if (
+      [
+        'OFFER_ACCEPTED',
+        'PREBOARDING',
+        'READY_TO_RESUME',
+        'RESUMED',
+        'TRANSFERRED_TO_ERP',
+        'WITHDRAWN',
+        'CANCELLED',
+      ].includes(application.internalStatus)
+    )
+      return NextResponse.json(
+        { error: `Application cannot be withdrawn from ${application.internalStatus}` },
+        { status: 409 }
+      )
     await prisma.$transaction(async (tx) => {
-      const changed = await tx.application.updateMany({ where: { id: application.id, internalStatus: application.internalStatus, lockVersion: application.lockVersion }, data: { internalStatus: 'WITHDRAWN', candidateVisibleStatus: 'WITHDRAWN', lockVersion: { increment: 1 } } })
+      const changed = await tx.application.updateMany({
+        where: { id: application.id, internalStatus: application.internalStatus, lockVersion: application.lockVersion },
+        data: { internalStatus: 'WITHDRAWN', candidateVisibleStatus: 'WITHDRAWN', lockVersion: { increment: 1 } },
+      })
       if (changed.count !== 1) throw new AuthzError('Application changed; refresh and try again', 409)
-      await tx.applicationStageHistory.create({ data: { applicationId: application.id, fromStatus: application.internalStatus, toStatus: 'WITHDRAWN', changedBy: user.userId, reason } })
+      await tx.applicationStageHistory.create({
+        data: {
+          applicationId: application.id,
+          fromStatus: application.internalStatus,
+          toStatus: 'WITHDRAWN',
+          changedBy: user.userId,
+          reason,
+        },
+      })
     })
-    await logAudit({ actorUserId: user.userId, action: 'APPLICATION_WITHDRAWN', resourceType: 'Application', resourceId: application.id, reason })
+    await logAudit({
+      actorUserId: user.userId,
+      action: 'APPLICATION_WITHDRAWN',
+      resourceType: 'Application',
+      resourceId: application.id,
+      reason,
+    })
     return NextResponse.json({ success: true })
-  } catch (error) { return authzResponse(error) }
+  } catch (error) {
+    return authzResponse(error)
+  }
 }
 
 export async function DELETE(_: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requireUser()
     const application = await prisma.application.findUnique({ where: { id: params.id }, include: { candidate: true } })
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     if (application.candidate.userId !== user.userId) throw new AuthzError('Forbidden', 403)
-    
+
     if (application.internalStatus !== 'DRAFT') {
       return NextResponse.json({ error: 'Only drafts can be deleted' }, { status: 409 })
     }
@@ -59,8 +133,14 @@ export async function DELETE(_: Request, context: { params: Promise<{ id: string
       await tx.application.delete({ where: { id: application.id } })
     })
 
-    await logAudit({ actorUserId: user.userId, action: 'APPLICATION_DRAFT_DELETED', resourceType: 'Application', resourceId: application.id })
+    await logAudit({
+      actorUserId: user.userId,
+      action: 'APPLICATION_DRAFT_DELETED',
+      resourceType: 'Application',
+      resourceId: application.id,
+    })
     return NextResponse.json({ success: true })
-  } catch (error) { return authzResponse(error) }
+  } catch (error) {
+    return authzResponse(error)
+  }
 }
-

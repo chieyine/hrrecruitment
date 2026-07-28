@@ -2,26 +2,42 @@ import { test, expect } from '@playwright/test'
 import { login, logout } from './helpers'
 
 test('candidate submits an application and HR can open its Candidate 360 record', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once; mobile coverage is supplied by the page and access suites.')
+  test.skip(
+    testInfo.project.name !== 'chromium',
+    'State-changing lifecycle is run once; mobile coverage is supplied by the page and access suites.'
+  )
 
   await login(page, 'candidate@example.com')
   const vacanciesResponse = await page.request.get('/api/public/vacancies')
   expect(vacanciesResponse.ok()).toBeTruthy()
   const vacanciesBody = await vacanciesResponse.json()
-  const vacancy = vacanciesBody.vacancies.find((item: { referenceNumber: string }) => item.referenceNumber === 'FRAD-HR-2026-001')
+  const vacancy = vacanciesBody.vacancies.find(
+    (item: { referenceNumber: string }) => item.referenceNumber === 'FRAD-HR-2026-001'
+  )
   expect(vacancy).toBeTruthy()
 
   await page.goto(`/candidate/applications/apply?vacancyId=${vacancy.id}`)
   await expect(page.getByRole('heading', { name: /apply for senior human resources officer/i })).toBeVisible()
   await page.getByLabel(/I agree to these declarations/i).check()
   await page.getByRole('button', { name: /review application/i }).click()
-  await page.getByRole('dialog', { name: /review your application/i }).getByRole('button', { name: /go back and edit/i }).click()
+  await page
+    .getByRole('dialog', { name: /review your application/i })
+    .getByRole('button', { name: /go back and edit/i })
+    .click()
   await expect(page.getByRole('dialog', { name: /review your application/i })).toHaveCount(0)
   await expect(page).toHaveURL(/#application-edit-form$/)
-  await expect(page.getByTestId('application-edit-form').locator('input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])').first()).toBeFocused()
+  await expect(
+    page
+      .getByTestId('application-edit-form')
+      .locator('input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])')
+      .first()
+  ).toBeFocused()
   await expect(page.getByLabel(/I agree to these declarations/i)).toBeChecked()
   await page.getByRole('button', { name: /review application/i }).click()
-  await page.getByRole('dialog', { name: /review your application/i }).getByRole('button', { name: /submit application/i }).click()
+  await page
+    .getByRole('dialog', { name: /review your application/i })
+    .getByRole('button', { name: /submit application/i })
+    .click()
   await expect(page).toHaveURL(/\/candidate\/applications\/.+\/receipt/)
   await expect(page.getByRole('heading', { name: /thank you for applying/i })).toBeVisible()
   const applicationId = page.url().split('/').at(-2)!
@@ -49,13 +65,20 @@ test('candidate submits an application and HR can open its Candidate 360 record'
   })
   expect(preview.status(), await preview.text()).toBe(200)
   expect((await preview.json()).eligible).toHaveLength(1)
-  const candidateLink = page.getByRole('row', { name: /Aminu/i }).first().getByRole('link', { name: /open record/i })
+  const candidateLink = page
+    .getByRole('row', { name: /Aminu/i })
+    .first()
+    .getByRole('link', { name: /open record/i })
   await candidateLink.click()
   await expect(page).toHaveURL(/\/recruitment\/applications\//)
   await expect(page.getByRole('heading').first()).toBeVisible()
   const caseFile = await page.request.get(`/api/recruitment/applications/${applicationId}/documentation`)
   expect(caseFile.status(), await caseFile.text()).toBe(200)
-  expect(Buffer.from(await caseFile.body()).subarray(0, 2).toString()).toBe('PK')
+  expect(
+    Buffer.from(await caseFile.body())
+      .subarray(0, 2)
+      .toString()
+  ).toBe('PK')
 })
 
 test('candidate updates personal information and talent-pool preference', async ({ page }, testInfo) => {
@@ -80,7 +103,7 @@ test('administrator creates and removes a configuration record', async ({ page }
   await login(page, 'admin@frad.org')
   await page.goto('/admin/departments')
 
-  await page.getByRole('button', { name: /^new$/i }).click()
+  await page.getByRole('button', { name: /^add department$/i }).click()
   const unique = Date.now().toString()
   await page.getByLabel('Name').fill(`E2E Department ${unique}`)
   await page.getByLabel('Code').fill(`E2E${unique.slice(-6)}`)
@@ -89,7 +112,10 @@ test('administrator creates and removes a configuration record', async ({ page }
 
   const row = page.getByRole('row').filter({ hasText: `E2E Department ${unique}` })
   await row.getByRole('button', { name: /delete/i }).click()
-  await page.getByRole('dialog').getByRole('button', { name: /^remove$/i }).click()
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: /^remove$/i })
+    .click()
   await expect(row).toHaveCount(0)
 })
 

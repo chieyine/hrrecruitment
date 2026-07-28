@@ -17,6 +17,11 @@ export interface EmailMessage {
 let cachedTransport: any = null
 let transportChecked = false
 
+function smtpTimeout(name: string, fallback: number): number {
+  const configured = Number(process.env[name])
+  return Number.isFinite(configured) && configured >= 1_000 && configured <= 120_000 ? configured : fallback
+}
+
 async function getTransport(): Promise<any | null> {
   if (transportChecked) return cachedTransport
   transportChecked = true
@@ -34,9 +39,11 @@ async function getTransport(): Promise<any | null> {
       secure: SMTP_PORT === '465',
       requireTLS: process.env.NODE_ENV === 'production' && SMTP_PORT !== '465',
       tls: { minVersion: 'TLSv1.2', rejectUnauthorized: true },
-      connectionTimeout: 30_000,
-      greetingTimeout: 30_000,
-      socketTimeout: 60_000,
+      // The scheduler has a one-minute execution budget. A dead SMTP endpoint
+      // must not hold one message open for that entire window.
+      connectionTimeout: smtpTimeout('SMTP_CONNECTION_TIMEOUT_MS', 10_000),
+      greetingTimeout: smtpTimeout('SMTP_GREETING_TIMEOUT_MS', 10_000),
+      socketTimeout: smtpTimeout('SMTP_SOCKET_TIMEOUT_MS', 15_000),
       auth: SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASS } : undefined,
     })
   } catch {
@@ -54,7 +61,10 @@ export async function sendEmail(message: EmailMessage) {
       if (process.env.NODE_ENV === 'production') {
         return { success: false, delivered: false, error: new Error('SMTP transport is not configured') }
       }
-      logger.info('Email logged instead of delivered (no SMTP configured)', { to: message.to, subject: message.subject })
+      logger.info('Email logged instead of delivered (no SMTP configured)', {
+        to: message.to,
+        subject: message.subject,
+      })
       return { success: true, delivered: false, messageId: `log_${Date.now()}` }
     }
     const info = await transport.sendMail({

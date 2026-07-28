@@ -7,11 +7,14 @@ function icsText(value: string) {
 }
 
 function icsDate(value: Date) {
-  return value.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+  return value
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z')
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requireUser()
     const interview = await prisma.interview.findUnique({

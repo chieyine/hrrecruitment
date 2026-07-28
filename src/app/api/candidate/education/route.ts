@@ -13,8 +13,31 @@ export async function POST(request: Request) {
     const profile = await prisma.candidateProfile.findUnique({ where: { userId: user.userId } })
     if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
-    const body = await parseBody(request, z.object({ institution: z.string().trim().min(1).max(200), qualification: z.string().trim().min(1).max(200), fieldOfStudy: z.string().trim().min(1).max(200), country: z.string().trim().min(1).max(100), startYear: z.coerce.number().int().min(1900).max(2100), completionYear: z.coerce.number().int().min(1900).max(2100), grade: z.string().max(100).optional(), certificateFileId: z.string().optional() }).refine((v) => v.completionYear >= v.startYear, { message: 'Completion year must not precede start year', path: ['completionYear'] }))
-    if (body.certificateFileId && !await prisma.fileAsset.findFirst({ where: { id: body.certificateFileId, ownerUserId: user.userId, virusScanStatus: 'CLEAN' } })) throw new AuthzError('Certificate file is unavailable or unsafe', 400)
+    const body = await parseBody(
+      request,
+      z
+        .object({
+          institution: z.string().trim().min(1).max(200),
+          qualification: z.string().trim().min(1).max(200),
+          fieldOfStudy: z.string().trim().min(1).max(200),
+          country: z.string().trim().min(1).max(100),
+          startYear: z.coerce.number().int().min(1900).max(2100),
+          completionYear: z.coerce.number().int().min(1900).max(2100),
+          grade: z.string().max(100).optional(),
+          certificateFileId: z.string().optional(),
+        })
+        .refine((v) => v.completionYear >= v.startYear, {
+          message: 'Completion year must not precede start year',
+          path: ['completionYear'],
+        })
+    )
+    if (
+      body.certificateFileId &&
+      !(await prisma.fileAsset.findFirst({
+        where: { id: body.certificateFileId, ownerUserId: user.userId, virusScanStatus: 'CLEAN' },
+      }))
+    )
+      throw new AuthzError('Certificate file is unavailable or unsafe', 400)
     const education = await prisma.candidateEducation.create({
       data: {
         candidateId: profile.id,
@@ -29,7 +52,12 @@ export async function POST(request: Request) {
       },
     })
     await refreshProfileCompletion(profile.id)
-    await logAudit({ actorUserId: user.userId, action: 'EDUCATION_CREATED', resourceType: 'CandidateEducation', resourceId: education.id })
+    await logAudit({
+      actorUserId: user.userId,
+      action: 'EDUCATION_CREATED',
+      resourceType: 'CandidateEducation',
+      resourceId: education.id,
+    })
 
     return NextResponse.json({ education })
   } catch (error) {

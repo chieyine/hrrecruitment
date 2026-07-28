@@ -7,15 +7,24 @@ import { logAudit } from '@/lib/audit'
 import { logger } from '@/lib/logger'
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requirePermission('reference.manage')
 
     const referee = await prisma.referee.findUnique({ where: { id: params.id } })
     if (!referee) return NextResponse.json({ error: 'Referee not found' }, { status: 404 })
-    if (!referee.permissionToContact) return NextResponse.json({ error: 'The candidate has not authorised contact with this referee' }, { status: 409 })
-    if (referee.contactStatus !== 'READY') return NextResponse.json({ error: `This referee is marked ${referee.contactStatus.toLowerCase().replace(/_/g, ' ')}` }, { status: 409 })
-    if (referee.preferredContactMethod === 'PHONE') return NextResponse.json({ error: 'This referee prefers telephone contact. Record the verified call outcome as a manual reference.' }, { status: 409 })
+    if (!referee.permissionToContact)
+      return NextResponse.json({ error: 'The candidate has not authorised contact with this referee' }, { status: 409 })
+    if (referee.contactStatus !== 'READY')
+      return NextResponse.json(
+        { error: `This referee is marked ${referee.contactStatus.toLowerCase().replace(/_/g, ' ')}` },
+        { status: 409 }
+      )
+    if (referee.preferredContactMethod === 'PHONE')
+      return NextResponse.json(
+        { error: 'This referee prefers telephone contact. Record the verified call outcome as a manual reference.' },
+        { status: 409 }
+      )
 
     const appUrl = process.env.APP_URL
     if (!appUrl) throw new Error('APP_URL is required to send reference-request links')
@@ -24,13 +33,17 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     const rawToken = generateToken()
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
     const link = new URL(`/public/reference/${encodeURIComponent(rawToken)}`, appUrl).toString()
-    const refereeName = referee.name.replace(/[<>&"']/g, (character) => ({
-      '<': '&lt;',
-      '>': '&gt;',
-      '&': '&amp;',
-      '"': '&quot;',
-      "'": '&#39;',
-    })[character]!)
+    const refereeName = referee.name.replace(
+      /[<>&"']/g,
+      (character) =>
+        ({
+          '<': '&lt;',
+          '>': '&gt;',
+          '&': '&amp;',
+          '"': '&quot;',
+          "'": '&#39;',
+        })[character]!
+    )
 
     const subject = 'Reference request for a FRAD candidate'
     const html = `<p>Dear ${refereeName},</p>

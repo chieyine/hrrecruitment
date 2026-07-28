@@ -57,10 +57,7 @@ export async function hasPermission(
     if (ur.role.name === 'SYSTEM_ADMIN' && !explicitOnly) return true
 
     for (const rp of ur.role.rolePermissions) {
-      if (
-        rp.permission.code === requiredPermissionCode ||
-        (rp.permission.code === '*' && !explicitOnly)
-      ) {
+      if (rp.permission.code === requiredPermissionCode || (rp.permission.code === '*' && !explicitOnly)) {
         return true
       }
     }

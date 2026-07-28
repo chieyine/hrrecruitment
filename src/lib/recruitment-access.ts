@@ -31,7 +31,8 @@ export async function applicationAccess(userId: string, applicationId: string): 
       },
     }),
   ])
-  if (!application) return { readAll, assigned: false, panelMember: false, vacancyOwner: false, assignedReviewer: false }
+  if (!application)
+    return { readAll, assigned: false, panelMember: false, vacancyOwner: false, assignedReviewer: false }
   const panelMember = application.interviews.length > 0
   const vacancyOwner = application.vacancy.ownerUserId === userId
   const assignedReviewer = application.assignedReviewerId === userId

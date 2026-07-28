@@ -2,9 +2,111 @@
 import { useEffect, useState } from 'react'
 
 export default function UserManager() {
-  const [users, setUsers] = useState<any[]>([]); const [roles, setRoles] = useState<any[]>([]); const [error, setError] = useState('')
-  const load = async () => { const [usersResponse, rolesResponse] = await Promise.all([fetch('/api/admin/generic?entity=users'), fetch('/api/admin/generic?entity=roles')]); const userData = await usersResponse.json(); const roleData = await rolesResponse.json(); setUsers(userData.items || []); setRoles(roleData.items || []) }
-  useEffect(() => { load().catch(() => setError('Unable to load user access records')) }, [])
-  const change = async (id: string, data: Record<string, unknown>) => { setError(''); const response = await fetch(`/api/admin/users/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); const result = await response.json(); if (!response.ok) setError(result.error || 'Change failed'); else await load() }
-  return <div className="space-y-6"><div><h1 className="text-2xl font-bold text-slate-900">Users and access</h1><p className="mt-1 text-sm text-slate-600">Suspend accounts and manage scoped role assignments. Every change is audited and suspensions revoke active sessions.</p></div>{error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}<div className="overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="min-w-full text-sm"><thead className="bg-slate-50"><tr><th className="p-3 text-left">Account</th><th className="p-3 text-left">Roles</th><th className="p-3 text-left">Status</th><th className="p-3 text-left">Add role</th></tr></thead><tbody>{users.map((user) => <tr key={user.id} className="border-t border-slate-100"><td className="p-3">{user.email}</td><td className="p-3"><div className="flex flex-wrap gap-1">{user.userRoles.map((assignment: any) => <button key={assignment.id} type="button" title="Remove role" onClick={() => change(user.id, { removeRoleId: assignment.roleId })} className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-800">{assignment.role.name} ×</button>)}</div></td><td className="p-3"><select aria-label={`Status for ${user.email}`} value={user.accountStatus} onChange={(event) => change(user.id, { accountStatus: event.target.value })} className="rounded border border-slate-300 p-2"><option>ACTIVE</option><option>LOCKED</option><option>SUSPENDED</option></select></td><td className="p-3"><select aria-label={`Add role to ${user.email}`} value="" onChange={(event) => event.target.value && change(user.id, { roleId: event.target.value, scopeType: 'GLOBAL', scopeId: 'GLOBAL' })} className="rounded border border-slate-300 p-2"><option value="">Select…</option>{roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></td></tr>)}</tbody></table></div></div>
+  const [users, setUsers] = useState<any[]>([])
+  const [roles, setRoles] = useState<any[]>([])
+  const [error, setError] = useState('')
+  const load = async () => {
+    const [usersResponse, rolesResponse] = await Promise.all([
+      fetch('/api/admin/generic?entity=users'),
+      fetch('/api/admin/generic?entity=roles'),
+    ])
+    const userData = await usersResponse.json()
+    const roleData = await rolesResponse.json()
+    setUsers(userData.items || [])
+    setRoles(roleData.items || [])
+  }
+  useEffect(() => {
+    load().catch(() => setError('Unable to load user access records'))
+  }, [])
+  const change = async (id: string, data: Record<string, unknown>) => {
+    setError('')
+    const response = await fetch(`/api/admin/users/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    const result = await response.json()
+    if (!response.ok) setError(result.error || 'Change failed')
+    else await load()
+  }
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Users and access</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Suspend accounts and manage scoped role assignments. Every change is audited and suspensions revoke active
+          sessions.
+        </p>
+      </div>
+      {error && (
+        <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">
+          {error}
+        </p>
+      )}
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="p-3 text-left">Account</th>
+              <th className="p-3 text-left">Roles</th>
+              <th className="p-3 text-left">Status</th>
+              <th className="p-3 text-left">Add role</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user.id} className="border-t border-slate-100">
+                <td className="p-3">{user.email}</td>
+                <td className="p-3">
+                  <div className="flex flex-wrap gap-1">
+                    {user.userRoles.map((assignment: any) => (
+                      <button
+                        key={assignment.id}
+                        type="button"
+                        title="Remove role"
+                        onClick={() => change(user.id, { removeRoleId: assignment.roleId })}
+                        className="rounded-full bg-brand-50 px-2 py-1 text-xs font-bold text-brand-800"
+                      >
+                        {assignment.role.name} ×
+                      </button>
+                    ))}
+                  </div>
+                </td>
+                <td className="p-3">
+                  <select
+                    aria-label={`Status for ${user.email}`}
+                    value={user.accountStatus}
+                    onChange={(event) => change(user.id, { accountStatus: event.target.value })}
+                    className="rounded border border-slate-300 p-2"
+                  >
+                    <option>ACTIVE</option>
+                    <option>LOCKED</option>
+                    <option>SUSPENDED</option>
+                  </select>
+                </td>
+                <td className="p-3">
+                  <select
+                    aria-label={`Add role to ${user.email}`}
+                    value=""
+                    onChange={(event) =>
+                      event.target.value &&
+                      change(user.id, { roleId: event.target.value, scopeType: 'GLOBAL', scopeId: 'GLOBAL' })
+                    }
+                    className="rounded border border-slate-300 p-2"
+                  >
+                    <option value="">Select…</option>
+                    {roles.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.name}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }

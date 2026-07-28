@@ -12,9 +12,7 @@ export default function GlobalError({
     <html lang="en">
       <body style={{ fontFamily: 'system-ui, sans-serif', padding: '4rem', textAlign: 'center' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Application error</h1>
-        <p style={{ color: '#475569', marginTop: '0.5rem' }}>
-          A critical error occurred. Please reload the page.
-        </p>
+        <p style={{ color: '#475569', marginTop: '0.5rem' }}>A critical error occurred. Please reload the page.</p>
         <button
           onClick={reset}
           style={{

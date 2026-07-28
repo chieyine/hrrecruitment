@@ -39,26 +39,38 @@ interface Enrolment {
 /** Turn a raw user-agent into something a person can recognise. */
 function describeDevice(userAgent: string | null): string {
   if (!userAgent) return 'Unknown device'
-  const browser =
-    /Edg\//.test(userAgent) ? 'Edge'
-    : /OPR\//.test(userAgent) ? 'Opera'
-    : /Chrome\//.test(userAgent) ? 'Chrome'
-    : /Safari\//.test(userAgent) ? 'Safari'
-    : /Firefox\//.test(userAgent) ? 'Firefox'
-    : 'Browser'
-  const platform =
-    /iPhone|iPad/.test(userAgent) ? 'iOS'
-    : /Android/.test(userAgent) ? 'Android'
-    : /Mac OS X/.test(userAgent) ? 'macOS'
-    : /Windows/.test(userAgent) ? 'Windows'
-    : /Linux/.test(userAgent) ? 'Linux'
-    : 'Unknown platform'
+  const browser = /Edg\//.test(userAgent)
+    ? 'Edge'
+    : /OPR\//.test(userAgent)
+      ? 'Opera'
+      : /Chrome\//.test(userAgent)
+        ? 'Chrome'
+        : /Safari\//.test(userAgent)
+          ? 'Safari'
+          : /Firefox\//.test(userAgent)
+            ? 'Firefox'
+            : 'Browser'
+  const platform = /iPhone|iPad/.test(userAgent)
+    ? 'iOS'
+    : /Android/.test(userAgent)
+      ? 'Android'
+      : /Mac OS X/.test(userAgent)
+        ? 'macOS'
+        : /Windows/.test(userAgent)
+          ? 'Windows'
+          : /Linux/.test(userAgent)
+            ? 'Linux'
+            : 'Unknown platform'
   return `${browser} on ${platform}`
 }
 
 function formatWhen(value: string): string {
   return new Date(value).toLocaleString('en-GB', {
-    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 
@@ -73,10 +85,7 @@ export default function SecuritySettings() {
   const [busy, setBusy] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    const [mfaResponse, sessionResponse] = await Promise.all([
-      fetch('/api/auth/mfa'),
-      fetch('/api/auth/sessions'),
-    ])
+    const [mfaResponse, sessionResponse] = await Promise.all([fetch('/api/auth/mfa'), fetch('/api/auth/sessions')])
     if (mfaResponse.ok) setStatus(await mfaResponse.json())
     if (sessionResponse.ok) setSessions((await sessionResponse.json()).sessions ?? [])
   }, [])
@@ -178,7 +187,11 @@ export default function SecuritySettings() {
         <div className="section-heading">
           <div>
             <h2 id="mfa-heading" className="flex items-center gap-2 text-lg font-bold text-slate-950">
-              {status?.enabled ? <ShieldCheck className="h-5 w-5 text-emerald-700" /> : <ShieldOff className="h-5 w-5 text-amber-700" />}
+              {status?.enabled ? (
+                <ShieldCheck className="h-5 w-5 text-emerald-700" />
+              ) : (
+                <ShieldOff className="h-5 w-5 text-amber-700" />
+              )}
               Two-factor authentication
             </h2>
             <p className="mt-1 text-sm text-slate-600">
@@ -186,7 +199,9 @@ export default function SecuritySettings() {
               with access to candidate records.
             </p>
           </div>
-          <span className={`status-chip ${status?.enabled ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+          <span
+            className={`status-chip ${status?.enabled ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}
+          >
             {status === null ? 'Checking…' : status.enabled ? 'Active' : 'Not set up'}
           </span>
         </div>
@@ -199,17 +214,26 @@ export default function SecuritySettings() {
               {status.recoveryCodesRemaining === 1 ? '' : 's'} remaining.
             </p>
             {status.recoveryCodesRemaining <= 2 && (
-              <p role="alert" className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs font-semibold text-amber-900">
+              <p
+                role="alert"
+                className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs font-semibold text-amber-900"
+              >
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                You are nearly out of recovery codes. Generate a new set so you can still sign in if you lose your phone.
+                You are nearly out of recovery codes. Generate a new set so you can still sign in if you lose your
+                phone.
               </p>
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-xl border border-slate-200 p-4">
                 <h3 className="text-sm font-bold text-slate-900">New recovery codes</h3>
-                <p className="mt-1 text-xs text-slate-600">Enter a current code from your app. This replaces all existing codes.</p>
-                <label htmlFor="mfa-regen-code" className="mt-3 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                <p className="mt-1 text-xs text-slate-600">
+                  Enter a current code from your app. This replaces all existing codes.
+                </p>
+                <label
+                  htmlFor="mfa-regen-code"
+                  className="mt-3 block text-xs font-bold uppercase tracking-wider text-slate-700"
+                >
                   Authenticator code
                 </label>
                 <input
@@ -227,14 +251,20 @@ export default function SecuritySettings() {
                   disabled={code.trim().length < 6 || busy !== null}
                   className="btn-secondary mt-3 inline-flex items-center gap-2 text-xs disabled:opacity-50"
                 >
-                  {spinner('regenerate')}<KeyRound className="h-4 w-4" aria-hidden /> Generate new codes
+                  {spinner('regenerate')}
+                  <KeyRound className="h-4 w-4" aria-hidden /> Generate new codes
                 </button>
               </div>
 
               <div className="rounded-xl border border-rose-200 bg-rose-50/40 p-4">
                 <h3 className="text-sm font-bold text-slate-900">Turn off two-factor</h3>
-                <p className="mt-1 text-xs text-slate-600">Confirm your password. This makes your account less secure.</p>
-                <label htmlFor="mfa-password" className="mt-3 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                <p className="mt-1 text-xs text-slate-600">
+                  Confirm your password. This makes your account less secure.
+                </p>
+                <label
+                  htmlFor="mfa-password"
+                  className="mt-3 block text-xs font-bold uppercase tracking-wider text-slate-700"
+                >
                   Current password
                 </label>
                 <input
@@ -265,7 +295,8 @@ export default function SecuritySettings() {
             disabled={busy !== null}
             className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50"
           >
-            {spinner('begin')}<ShieldCheck className="h-4 w-4" aria-hidden /> Set up two-factor authentication
+            {spinner('begin')}
+            <ShieldCheck className="h-4 w-4" aria-hidden /> Set up two-factor authentication
           </button>
         )}
 
@@ -296,7 +327,10 @@ export default function SecuritySettings() {
               </li>
             </ol>
             <div className="max-w-xs">
-              <label htmlFor="mfa-confirm-code" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+              <label
+                htmlFor="mfa-confirm-code"
+                className="block text-xs font-bold uppercase tracking-wider text-slate-700"
+              >
                 Authenticator code
               </label>
               <input
@@ -318,7 +352,14 @@ export default function SecuritySettings() {
               >
                 {spinner('confirm')}Confirm and activate
               </button>
-              <button type="button" onClick={() => { setEnrolment(null); setCode('') }} className="btn-secondary text-sm">
+              <button
+                type="button"
+                onClick={() => {
+                  setEnrolment(null)
+                  setCode('')
+                }}
+                className="btn-secondary text-sm"
+              >
                 Cancel
               </button>
             </div>
@@ -361,7 +402,7 @@ export default function SecuritySettings() {
         <div className="section-heading">
           <div>
             <h2 id="sessions-heading" className="flex items-center gap-2 text-lg font-bold text-slate-950">
-              <Monitor className="h-5 w-5 text-blue-700" /> Where you are signed in
+              <Monitor className="h-5 w-5 text-brand-700" /> Where you are signed in
             </h2>
             <p className="mt-1 text-sm text-slate-600">
               Sign out a device you no longer recognise. Signing out one device does not affect the others.
@@ -388,7 +429,9 @@ export default function SecuritySettings() {
                 <div className="text-sm">
                   <p className="font-semibold text-slate-900">
                     {describeDevice(session.userAgent)}
-                    {session.current && <span className="ml-2 status-chip bg-blue-50 text-blue-800">This device</span>}
+                    {session.current && (
+                      <span className="ml-2 status-chip bg-brand-50 text-brand-800">This device</span>
+                    )}
                   </p>
                   <p className="mt-0.5 text-xs text-slate-600">
                     Last active {formatWhen(session.lastSeenAt)}

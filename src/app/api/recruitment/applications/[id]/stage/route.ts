@@ -2,18 +2,20 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requirePermission, authzResponse } from '@/lib/authz'
 import { parseBody, stageChangeSchema } from '@/lib/validation'
-import { canTransitionApplication, allowedApplicationTransitions, candidateVisibleStatusForInternal, isGenericApplicationStage } from '@/lib/state-machine'
+import {
+  canTransitionApplication,
+  allowedApplicationTransitions,
+  candidateVisibleStatusForInternal,
+  isGenericApplicationStage,
+} from '@/lib/state-machine'
 import { logAudit } from '@/lib/audit'
 import { expectedVersion, staleRecord } from '@/lib/concurrency'
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requirePermission('application.stage.change')
-    const { internalStatus, reason, lockVersion } = await parseBody(
-      request,
-      stageChangeSchema
-    )
+    const { internalStatus, reason, lockVersion } = await parseBody(request, stageChangeSchema)
 
     const application = await prisma.application.findUnique({ where: { id: params.id } })
     if (!application) {
@@ -22,7 +24,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     // Enforce the §42.2 state machine — no arbitrary status jumps.
     if (!isGenericApplicationStage(internalStatus)) {
-      return NextResponse.json({ error: 'This outcome must be recorded through its dedicated workflow' }, { status: 409 })
+      return NextResponse.json(
+        { error: 'This outcome must be recorded through its dedicated workflow' },
+        { status: 409 }
+      )
     }
     if (!canTransitionApplication(application.internalStatus, internalStatus)) {
       return NextResponse.json(
@@ -39,10 +44,22 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const updated = await prisma.$transaction(async (tx) => {
       const changed = await tx.application.updateMany({
         where: { id: params.id, lockVersion: version, internalStatus: application.internalStatus },
-        data: { internalStatus, candidateVisibleStatus: candidateVisibleStatusForInternal(internalStatus), lockVersion: { increment: 1 } },
+        data: {
+          internalStatus,
+          candidateVisibleStatus: candidateVisibleStatusForInternal(internalStatus),
+          lockVersion: { increment: 1 },
+        },
       })
       if (!changed.count) staleRecord()
-      await tx.applicationStageHistory.create({ data: { applicationId: params.id, fromStatus: application.internalStatus, toStatus: internalStatus, changedBy: user.userId, reason: reason || null } })
+      await tx.applicationStageHistory.create({
+        data: {
+          applicationId: params.id,
+          fromStatus: application.internalStatus,
+          toStatus: internalStatus,
+          changedBy: user.userId,
+          reason: reason || null,
+        },
+      })
       return tx.application.findUniqueOrThrow({ where: { id: params.id } })
     })
 

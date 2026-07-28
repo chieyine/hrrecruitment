@@ -16,7 +16,12 @@ export async function GET() {
     const approvals = await prisma.approval.findMany({
       where: user.roles.includes('SYSTEM_ADMIN')
         ? { decision: { in: ['PENDING', 'CONDITIONS_PENDING'] } }
-        : { OR: [{ decision: 'PENDING', approverUserId: user.userId }, { decision: 'CONDITIONS_PENDING', requestedBy: user.userId }] },
+        : {
+            OR: [
+              { decision: 'PENDING', approverUserId: user.userId },
+              { decision: 'CONDITIONS_PENDING', requestedBy: user.userId },
+            ],
+          },
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: { conditions: { orderBy: { createdAt: 'asc' } } },
@@ -92,15 +97,19 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const user = await requireUser()
-    const { approvalId, decision, comment, lockVersion, conditionDueAt, conditionOwnerUserId, evidenceFileId } = await parseBody(request, z.object({
-      approvalId: z.string().min(1),
-      decision: z.enum(['APPROVED', 'APPROVED_WITH_CONDITIONS', 'SATISFY_CONDITIONS', 'RETURNED', 'REJECTED']),
-      comment: z.string().trim().max(2000).optional(),
-      lockVersion: z.number().int().positive(),
-      conditionDueAt: z.coerce.date().optional(),
-      conditionOwnerUserId: z.string().optional(),
-      evidenceFileId: z.string().optional(),
-    }))
+    const { approvalId, decision, comment, lockVersion, conditionDueAt, conditionOwnerUserId, evidenceFileId } =
+      await parseBody(
+        request,
+        z.object({
+          approvalId: z.string().min(1),
+          decision: z.enum(['APPROVED', 'APPROVED_WITH_CONDITIONS', 'SATISFY_CONDITIONS', 'RETURNED', 'REJECTED']),
+          comment: z.string().trim().max(2000).optional(),
+          lockVersion: z.number().int().positive(),
+          conditionDueAt: z.coerce.date().optional(),
+          conditionOwnerUserId: z.string().optional(),
+          evidenceFileId: z.string().optional(),
+        })
+      )
     if (decision !== 'APPROVED' && !comment) {
       throw new AuthzError('A comment is required for this decision', 400)
     }
@@ -109,17 +118,37 @@ export async function POST(request: Request) {
     const approval = await prisma.approval.findUnique({ where: { id: approvalId }, include: { conditions: true } })
     if (!approval) return NextResponse.json({ error: 'Approval not found' }, { status: 404 })
     if (decision === 'SATISFY_CONDITIONS') {
-      if (approval.decision !== 'CONDITIONS_PENDING' || approval.requestedBy !== user.userId) throw new AuthzError('Only the requester can submit evidence for these conditions', 403)
+      if (approval.decision !== 'CONDITIONS_PENDING' || approval.requestedBy !== user.userId)
+        throw new AuthzError('Only the requester can submit evidence for these conditions', 403)
       if (!comment || comment.length < 10) throw new AuthzError('Describe how the conditions were satisfied', 400)
-      if (evidenceFileId && !await prisma.fileAsset.findFirst({ where: { id: evidenceFileId, ownerUserId: user.userId, virusScanStatus: 'CLEAN' } })) throw new AuthzError('Condition evidence is unavailable or unsafe', 400)
+      if (
+        evidenceFileId &&
+        !(await prisma.fileAsset.findFirst({
+          where: { id: evidenceFileId, ownerUserId: user.userId, virusScanStatus: 'CLEAN' },
+        }))
+      )
+        throw new AuthzError('Condition evidence is unavailable or unsafe', 400)
       await prisma.$transaction([
-        prisma.approvalCondition.updateMany({ where: { approvalId: approval.id, status: 'OPEN' }, data: { status: 'EVIDENCE_SUBMITTED', evidenceNote: comment, evidenceFileId: evidenceFileId || null } }),
-        prisma.approval.update({ where: { id: approval.id }, data: { decision: 'PENDING', decidedAt: null, lockVersion: { increment: 1 } } }),
+        prisma.approvalCondition.updateMany({
+          where: { approvalId: approval.id, status: 'OPEN' },
+          data: { status: 'EVIDENCE_SUBMITTED', evidenceNote: comment, evidenceFileId: evidenceFileId || null },
+        }),
+        prisma.approval.update({
+          where: { id: approval.id },
+          data: { decision: 'PENDING', decidedAt: null, lockVersion: { increment: 1 } },
+        }),
       ])
-      await logAudit({ actorUserId: user.userId, action: 'APPROVAL_CONDITION_EVIDENCE_SUBMITTED', resourceType: approval.resourceType, resourceId: approval.resourceId, reason: comment })
+      await logAudit({
+        actorUserId: user.userId,
+        action: 'APPROVAL_CONDITION_EVIDENCE_SUBMITTED',
+        resourceType: approval.resourceType,
+        resourceId: approval.resourceId,
+        reason: comment,
+      })
       return NextResponse.json({ success: true, status: 'RETURNED_TO_APPROVER' })
     }
-    if (!user.roles.some((role) => APPROVER_ROLES.includes(role))) throw new AuthzError('Approver permission is required', 403)
+    if (!user.roles.some((role) => APPROVER_ROLES.includes(role)))
+      throw new AuthzError('Approver permission is required', 403)
     if (approval.decision !== 'PENDING') {
       return NextResponse.json({ error: 'This item has already been decided' }, { status: 409 })
     }
@@ -136,31 +165,63 @@ export async function POST(request: Request) {
       }
     }
 
-    const nextSelectionApprover = decision === 'APPROVED' && approval.resourceType === 'SELECTION' && approval.stage === 1
-      ? await findIndependentApprover(user.userId, ['APPROVER', 'HR_MANAGER', 'SYSTEM_ADMIN'], approval.requestedBy ? [approval.requestedBy] : [])
-      : null
+    const nextSelectionApprover =
+      decision === 'APPROVED' && approval.resourceType === 'SELECTION' && approval.stage === 1
+        ? await findIndependentApprover(
+            user.userId,
+            ['APPROVER', 'HR_MANAGER', 'SYSTEM_ADMIN'],
+            approval.requestedBy ? [approval.requestedBy] : []
+          )
+        : null
     await prisma.$transaction(async (tx) => {
       const claimed = await tx.approval.updateMany({
         where: { id: approvalId, decision: 'PENDING', lockVersion },
-        data: { decision: decision === 'APPROVED_WITH_CONDITIONS' ? 'CONDITIONS_PENDING' : decision, comment: comment || null, decidedAt: new Date(), lockVersion: { increment: 1 } },
+        data: {
+          decision: decision === 'APPROVED_WITH_CONDITIONS' ? 'CONDITIONS_PENDING' : decision,
+          comment: comment || null,
+          decidedAt: new Date(),
+          lockVersion: { increment: 1 },
+        },
       })
       if (claimed.count !== 1) throw new AuthzError('This approval changed; refresh and try again', 409)
       if (decision === 'APPROVED_WITH_CONDITIONS') {
-        await tx.approvalCondition.create({ data: { approvalId, description: comment!, ownerUserId: conditionOwnerUserId || approval.requestedBy, dueAt: conditionDueAt || new Date(Date.now() + 7 * 86400000) } })
+        await tx.approvalCondition.create({
+          data: {
+            approvalId,
+            description: comment!,
+            ownerUserId: conditionOwnerUserId || approval.requestedBy,
+            dueAt: conditionDueAt || new Date(Date.now() + 7 * 86400000),
+          },
+        })
         return
       }
       if (decision === 'APPROVED' && approval.conditions.length) {
-        await tx.approvalCondition.updateMany({ where: { approvalId, status: { in: ['OPEN', 'EVIDENCE_SUBMITTED'] } }, data: { status: 'SATISFIED', decidedBy: user.userId, decidedAt: new Date() } })
+        await tx.approvalCondition.updateMany({
+          where: { approvalId, status: { in: ['OPEN', 'EVIDENCE_SUBMITTED'] } },
+          data: { status: 'SATISFIED', decidedBy: user.userId, decidedAt: new Date() },
+        })
       }
       if (nextSelectionApprover) {
-        await tx.approval.create({ data: { resourceType: 'SELECTION', resourceId: approval.resourceId, stage: 2, approverUserId: nextSelectionApprover, requestedBy: approval.requestedBy, decision: 'PENDING' } })
+        await tx.approval.create({
+          data: {
+            resourceType: 'SELECTION',
+            resourceId: approval.resourceId,
+            stage: 2,
+            approverUserId: nextSelectionApprover,
+            requestedBy: approval.requestedBy,
+            decision: 'PENDING',
+          },
+        })
         return
       }
       if (approval.resourceType === 'SELECTION') {
         const selection = await tx.selectionDecision.findUnique({ where: { id: approval.resourceId } })
         if (!selection) throw new AuthzError('Selection decision not found', 404)
         if (approved) {
-          const application = await tx.application.findUnique({ where: { id: selection.applicationId }, select: { internalStatus: true } })
+          const application = await tx.application.findUnique({
+            where: { id: selection.applicationId },
+            select: { internalStatus: true },
+          })
           if (!application || !['INTERVIEW_COMPLETED', 'REFERENCE_CHECK'].includes(application.internalStatus)) {
             throw new AuthzError('The application is no longer at an approvable stage', 409)
           }
@@ -171,8 +232,18 @@ export async function POST(request: Request) {
           await tx.application.update({
             where: { id: selection.applicationId },
             data: {
-              internalStatus: selection.outcome === 'SELECTED' ? 'RECOMMENDED' : selection.outcome.includes('RESERVE') ? 'RESERVE' : 'NOT_SELECTED',
-              candidateVisibleStatus: selection.outcome === 'SELECTED' ? 'DECISION_IN_PROGRESS' : selection.outcome.includes('RESERVE') ? 'UNDER_CONSIDERATION' : 'NOT_SELECTED',
+              internalStatus:
+                selection.outcome === 'SELECTED'
+                  ? 'RECOMMENDED'
+                  : selection.outcome.includes('RESERVE')
+                    ? 'RESERVE'
+                    : 'NOT_SELECTED',
+              candidateVisibleStatus:
+                selection.outcome === 'SELECTED'
+                  ? 'DECISION_IN_PROGRESS'
+                  : selection.outcome.includes('RESERVE')
+                    ? 'UNDER_CONSIDERATION'
+                    : 'NOT_SELECTED',
             },
           })
         }
@@ -203,7 +274,10 @@ export async function POST(request: Request) {
             data: { status: 'APPROVED', version: { increment: 1 } },
           })
         } else {
-          await tx.offer.update({ where: { id: offer.id }, data: { status: decision === 'RETURNED' ? 'DRAFT' : 'WITHDRAWN' } })
+          await tx.offer.update({
+            where: { id: offer.id },
+            data: { status: decision === 'RETURNED' ? 'DRAFT' : 'WITHDRAWN' },
+          })
           await tx.application.update({
             where: { id: offer.applicationId },
             data: {
@@ -221,13 +295,14 @@ export async function POST(request: Request) {
 
     await logAudit({
       actorUserId: user.userId,
-      action: decision === 'APPROVED'
-        ? 'APPROVAL_GRANTED'
-        : decision === 'APPROVED_WITH_CONDITIONS'
-          ? 'APPROVAL_GRANTED_WITH_CONDITIONS'
-          : decision === 'RETURNED'
-            ? 'APPROVAL_RETURNED'
-            : 'APPROVAL_REJECTED',
+      action:
+        decision === 'APPROVED'
+          ? 'APPROVAL_GRANTED'
+          : decision === 'APPROVED_WITH_CONDITIONS'
+            ? 'APPROVAL_GRANTED_WITH_CONDITIONS'
+            : decision === 'RETURNED'
+              ? 'APPROVAL_RETURNED'
+              : 'APPROVAL_REJECTED',
       resourceType: approval.resourceType,
       resourceId: approval.resourceId,
       reason: comment,

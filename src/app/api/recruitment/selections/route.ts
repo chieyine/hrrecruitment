@@ -78,7 +78,8 @@ export async function POST(request: Request) {
     const user = await requirePermission('application.stage.change')
     const input = await parseBody(request, decisionSchema)
     const access = await applicationAccess(user.userId, input.applicationId)
-    if (!access.readAll && !access.vacancyOwner && !access.assignedReviewer) throw new AuthzError('Application not found or outside your assigned scope', 404)
+    if (!access.readAll && !access.vacancyOwner && !access.assignedReviewer)
+      throw new AuthzError('Application not found or outside your assigned scope', 404)
     await refreshApplicationFinalScore(input.applicationId)
     const application = await prisma.application.findUnique({
       where: { id: input.applicationId },
@@ -88,7 +89,10 @@ export async function POST(request: Request) {
     if (!['INTERVIEW_COMPLETED', 'REFERENCE_CHECK'].includes(application.internalStatus)) {
       throw new AuthzError(`A selection decision cannot be created from ${application.internalStatus}`, 422)
     }
-    if (application.internalStatus === 'REFERENCE_CHECK' && !['SATISFACTORY', 'SATISFACTORY_WITH_CONCERNS', 'WAIVED'].includes(application.referenceStatus)) {
+    if (
+      application.internalStatus === 'REFERENCE_CHECK' &&
+      !['SATISFACTORY', 'SATISFACTORY_WITH_CONCERNS', 'WAIVED'].includes(application.referenceStatus)
+    ) {
       throw new AuthzError('Complete and review all required references before selection', 422)
     }
     const priorDecisions = await prisma.selectionDecision.findMany({
@@ -118,7 +122,10 @@ export async function POST(request: Request) {
     const computedRank = ranked.findIndex((item) => item.id === application.id) + 1
     const rankOverride = input.outcome === 'SELECTED' && computedRank > application.vacancy.numberOfPositions
     if (rankOverride && (!input.justification || input.justification.length < 20)) {
-      throw new AuthzError('Selecting outside the funded positions requires a justification of at least 20 characters', 422)
+      throw new AuthzError(
+        'Selecting outside the funded positions requires a justification of at least 20 characters',
+        422
+      )
     }
     const approverUserId = await findIndependentApprover(user.userId, ['HIRING_MANAGER', 'HR_MANAGER', 'APPROVER'])
     const selection = await prisma.$transaction(async (tx) => {

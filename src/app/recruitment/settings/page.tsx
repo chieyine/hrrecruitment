@@ -26,7 +26,7 @@ export default async function StaffSecuritySettingsPage() {
         <div className="page-shell max-w-4xl space-y-6">
           <Link
             href="/recruitment/work"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-blue-700"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-brand-700"
           >
             <ArrowLeft className="h-4 w-4" /> Back to your work
           </Link>

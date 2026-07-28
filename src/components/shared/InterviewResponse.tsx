@@ -43,13 +43,28 @@ export default function InterviewResponse({ id, current }: { id: string; current
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={busy} onClick={() => void respond('CONFIRMED')} className="rounded bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void respond('CONFIRMED')}
+          className="rounded bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+        >
           Confirm
         </button>
-        <button type="button" disabled={busy} onClick={() => setRescheduling(true)} className="rounded border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold text-amber-800 disabled:opacity-50">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setRescheduling(true)}
+          className="rounded border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold text-amber-800 disabled:opacity-50"
+        >
           Request another time
         </button>
-        <button type="button" disabled={busy} onClick={() => void respond('DECLINED')} className="rounded border border-rose-400 bg-white px-3 py-1.5 text-xs font-bold text-rose-800 disabled:opacity-50">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void respond('DECLINED')}
+          className="rounded border border-rose-400 bg-white px-3 py-1.5 text-xs font-bold text-rose-800 disabled:opacity-50"
+        >
           Decline
         </button>
       </div>
@@ -67,10 +82,23 @@ export default function InterviewResponse({ id, current }: { id: string; current
             className="w-full rounded border border-slate-300 p-2 text-sm"
           />
           <div className="flex gap-2">
-            <button type="button" disabled={busy} onClick={() => void respond('RESCHEDULE_REQUESTED')} className="rounded bg-amber-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void respond('RESCHEDULE_REQUESTED')}
+              className="rounded bg-amber-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+            >
               Send request
             </button>
-            <button type="button" disabled={busy} onClick={() => { setRescheduling(false); setComment('') }} className="rounded border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setRescheduling(false)
+                setComment('')
+              }}
+              className="rounded border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+            >
               Cancel
             </button>
           </div>
@@ -78,7 +106,11 @@ export default function InterviewResponse({ id, current }: { id: string; current
       )}
 
       {current && <p className="text-xs text-slate-500">Your response: {current.replaceAll('_', ' ').toLowerCase()}</p>}
-      {message && <p role="status" className="text-xs text-slate-600">{message}</p>}
+      {message && (
+        <p role="status" className="text-xs text-slate-600">
+          {message}
+        </p>
+      )}
     </div>
   )
 }

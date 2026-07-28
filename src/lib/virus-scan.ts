@@ -35,20 +35,36 @@ async function scanWithClamAv(buffer: Buffer): Promise<ScanStatus> {
   if (!host) return 'PENDING'
   return new Promise((resolve) => {
     const socket = createConnection({ host, port })
-    const timeout = setTimeout(() => { socket.destroy(); resolve('PENDING') }, Number(process.env.CLAMAV_TIMEOUT_MS || 15_000))
+    const timeout = setTimeout(
+      () => {
+        socket.destroy()
+        resolve('PENDING')
+      },
+      Number(process.env.CLAMAV_TIMEOUT_MS || 15_000)
+    )
     let response = ''
     socket.on('connect', () => {
       socket.write(Buffer.from('zINSTREAM\0'))
       const chunkSize = 64 * 1024
       for (let offset = 0; offset < buffer.length; offset += chunkSize) {
         const chunk = buffer.subarray(offset, Math.min(offset + chunkSize, buffer.length))
-        const size = Buffer.alloc(4); size.writeUInt32BE(chunk.length)
-        socket.write(size); socket.write(chunk)
+        const size = Buffer.alloc(4)
+        size.writeUInt32BE(chunk.length)
+        socket.write(size)
+        socket.write(chunk)
       }
       socket.end(Buffer.alloc(4))
     })
-    socket.on('data', (chunk) => { response += chunk.toString('utf8') })
-    socket.on('end', () => { clearTimeout(timeout); resolve(response.includes('FOUND') ? 'INFECTED' : response.includes('OK') ? 'CLEAN' : 'PENDING') })
-    socket.on('error', () => { clearTimeout(timeout); resolve('PENDING') })
+    socket.on('data', (chunk) => {
+      response += chunk.toString('utf8')
+    })
+    socket.on('end', () => {
+      clearTimeout(timeout)
+      resolve(response.includes('FOUND') ? 'INFECTED' : response.includes('OK') ? 'CLEAN' : 'PENDING')
+    })
+    socket.on('error', () => {
+      clearTimeout(timeout)
+      resolve('PENDING')
+    })
   })
 }

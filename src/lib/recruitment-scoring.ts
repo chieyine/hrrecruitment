@@ -24,5 +24,8 @@ export function weightedFinalScore(input: {
   const available = parts.filter((part) => part[0] !== null)
   if (!available.length) return null
   const weight = available.reduce((sum, part) => sum + part[1], 0)
-  return Math.round((available.reduce((sum, [score, partWeight]) => sum + (score ?? 0) * partWeight, 0) / weight) * 100) / 100
+  return (
+    Math.round((available.reduce((sum, [score, partWeight]) => sum + (score ?? 0) * partWeight, 0) / weight) * 100) /
+    100
+  )
 }

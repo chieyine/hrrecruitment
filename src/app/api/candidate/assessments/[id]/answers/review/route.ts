@@ -71,7 +71,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
               : Array.isArray(value)
                 ? value.map(String).join(', ')
                 : typeof value === 'boolean'
-                  ? value ? 'True' : 'False'
+                  ? value
+                    ? 'True'
+                    : 'False'
                   : String(value),
         }
       }),

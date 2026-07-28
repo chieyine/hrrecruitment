@@ -18,7 +18,9 @@ async function main() {
     !/[a-z]/.test(password) ||
     !/[0-9]/.test(password)
   ) {
-    throw new Error('BOOTSTRAP_ADMIN_PASSWORD must be 16-72 UTF-8 bytes and contain upper-case, lower-case, and numeric characters')
+    throw new Error(
+      'BOOTSTRAP_ADMIN_PASSWORD must be 16-72 UTF-8 bytes and contain upper-case, lower-case, and numeric characters'
+    )
   }
 
   const existingAdmin = await prisma.userRole.findFirst({

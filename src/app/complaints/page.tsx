@@ -29,7 +29,11 @@ export default function ComplaintIntakePage() {
     event.preventDefault()
     setBusy(true)
     setMessage('')
-    const response = await fetch('/api/complaints', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category, subject, description, reporterEmail: email || undefined }) })
+    const response = await fetch('/api/complaints', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, subject, description, reporterEmail: email || undefined }),
+    })
     const body = await response.json()
     setBusy(false)
     if (response.ok) {
@@ -47,13 +51,24 @@ export default function ComplaintIntakePage() {
           <aside>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-brand-700">Confidential reporting</p>
             <h1 className="mt-3 text-4xl font-bold tracking-tight text-stone-950">Raise a recruitment concern</h1>
-            <p className="mt-4 text-sm leading-6 text-stone-600">Tell us what happened in your own words. Your report goes to staff authorized to handle the category you choose.</p>
+            <p className="mt-4 text-sm leading-6 text-stone-600">
+              Tell us what happened in your own words. Your report goes to staff authorized to handle the category you
+              choose.
+            </p>
             <div className="mt-6 border-l-4 border-brand-600 bg-brand-50 p-4">
               <Shield className="h-5 w-5 text-brand-700" />
               <p className="mt-2 text-sm font-bold text-stone-900">You can report without an account</p>
-              <p className="mt-1 text-xs leading-5 text-stone-600">An email address is optional. If you leave it blank, keep the reference number shown after submission.</p>
+              <p className="mt-1 text-xs leading-5 text-stone-600">
+                An email address is optional. If you leave it blank, keep the reference number shown after submission.
+              </p>
             </div>
-            <p className="mt-6 text-xs leading-5 text-stone-500">If someone asked you to pay for a job, use the <Link href="/report-fraud" className="font-semibold text-brand-800 underline">fraud report</Link>.</p>
+            <p className="mt-6 text-xs leading-5 text-stone-500">
+              If someone asked you to pay for a job, use the{' '}
+              <Link href="/report-fraud" className="font-semibold text-brand-800 underline">
+                fraud report
+              </Link>
+              .
+            </p>
           </aside>
 
           <section className="section-panel p-5 sm:p-8">
@@ -61,15 +76,28 @@ export default function ComplaintIntakePage() {
               <div role="status" className="py-8 text-center">
                 <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-700" />
                 <h2 className="mt-4 text-2xl font-bold text-stone-950">Your concern has been received.</h2>
-                <p className="mt-2 text-sm leading-6 text-stone-600">Keep this reference if you need to contact FRAD about the report.</p>
-                <p className="mx-auto mt-5 w-fit border border-stone-300 bg-stone-50 px-4 py-3 font-mono text-sm font-bold text-stone-900">{reference}</p>
-                <button type="button" onClick={() => setReference('')} className="btn-secondary mt-6">Submit another concern</button>
+                <p className="mt-2 text-sm leading-6 text-stone-600">
+                  Keep this reference if you need to contact FRAD about the report.
+                </p>
+                <p className="mx-auto mt-5 w-fit border border-stone-300 bg-stone-50 px-4 py-3 font-mono text-sm font-bold text-stone-900">
+                  {reference}
+                </p>
+                <button type="button" onClick={() => setReference('')} className="btn-secondary mt-6">
+                  Submit another concern
+                </button>
               </div>
             ) : (
               <form onSubmit={submit} className="space-y-5">
                 <div>
-                  <label htmlFor="concern-category" className="field-label">What is this about?</label>
-                  <select id="concern-category" value={category} onChange={(event) => setCategory(event.target.value)} className="field-control">
+                  <label htmlFor="concern-category" className="field-label">
+                    What is this about?
+                  </label>
+                  <select
+                    id="concern-category"
+                    value={category}
+                    onChange={(event) => setCategory(event.target.value)}
+                    className="field-control"
+                  >
                     <option value="COMPLAINT">Complaint about the process</option>
                     <option value="APPEAL">Appeal</option>
                     <option value="SAFEGUARDING">Safeguarding concern</option>
@@ -81,21 +109,56 @@ export default function ComplaintIntakePage() {
                   <p className="field-help">{categoryHelp[category]}</p>
                 </div>
                 <div>
-                  <label htmlFor="concern-email" className="field-label">Contact email <span className="font-normal text-stone-500">(optional)</span></label>
-                  <input id="concern-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="field-control" />
+                  <label htmlFor="concern-email" className="field-label">
+                    Contact email <span className="font-normal text-stone-500">(optional)</span>
+                  </label>
+                  <input
+                    id="concern-email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="field-control"
+                  />
                   <p className="field-help">Provide this only if you want the review team to contact you.</p>
                 </div>
                 <div>
-                  <label htmlFor="concern-subject" className="field-label">Short summary</label>
-                  <input id="concern-subject" required minLength={5} value={subject} onChange={(event) => setSubject(event.target.value)} className="field-control" />
+                  <label htmlFor="concern-subject" className="field-label">
+                    Short summary
+                  </label>
+                  <input
+                    id="concern-subject"
+                    required
+                    minLength={5}
+                    value={subject}
+                    onChange={(event) => setSubject(event.target.value)}
+                    className="field-control"
+                  />
                 </div>
                 <div>
-                  <label htmlFor="concern-details" className="field-label">What happened?</label>
-                  <textarea id="concern-details" required minLength={20} rows={8} value={description} onChange={(event) => setDescription(event.target.value)} className="field-control" placeholder="Include dates, names or vacancy references if you know them." />
+                  <label htmlFor="concern-details" className="field-label">
+                    What happened?
+                  </label>
+                  <textarea
+                    id="concern-details"
+                    required
+                    minLength={20}
+                    rows={8}
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    className="field-control"
+                    placeholder="Include dates, names or vacancy references if you know them."
+                  />
                   <p className="field-help">Do not include your password, bank PIN or sign-in codes.</p>
                 </div>
-                {message && <p role="alert" className="border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{message}</p>}
-                <button disabled={busy} className="btn-primary">{busy ? 'Submitting…' : 'Submit concern'}</button>
+                {message && (
+                  <p role="alert" className="border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                    {message}
+                  </p>
+                )}
+                <button disabled={busy} className="btn-primary">
+                  {busy ? 'Submitting…' : 'Submit concern'}
+                </button>
               </form>
             )}
           </section>

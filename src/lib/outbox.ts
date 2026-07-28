@@ -3,7 +3,11 @@ import { sendEmail } from './mailer'
 import { logger } from './logger'
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'crypto'
 
-type EmailPayload = { html: string; text?: string; attachments?: Array<{ filename: string; contentBase64: string; contentType?: string }> }
+type EmailPayload = {
+  html: string
+  text?: string
+  attachments?: Array<{ filename: string; contentBase64: string; contentType?: string }>
+}
 
 function outboxKey() {
   const secret = process.env.OUTBOX_ENCRYPTION_KEY || process.env.STORAGE_ENCRYPTION_KEY
@@ -31,22 +35,43 @@ function readOutboxPayload(value: string): EmailPayload {
   const [, , iv, tag, ciphertext] = value.split(':')
   const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url'))
   decipher.setAuthTag(Buffer.from(tag, 'base64url'))
-  return JSON.parse(Buffer.concat([decipher.update(Buffer.from(ciphertext, 'base64url')), decipher.final()]).toString('utf8')) as EmailPayload
+  return JSON.parse(
+    Buffer.concat([decipher.update(Buffer.from(ciphertext, 'base64url')), decipher.final()]).toString('utf8')
+  ) as EmailPayload
 }
 
-export async function enqueueEmail(input: { recipient: string; subject: string; html: string; text?: string; applicationId?: string; attachments?: Array<{ filename: string; content: Buffer; contentType?: string }>; deduplicationKey?: string; availableAt?: Date }) {
+export async function enqueueEmail(input: {
+  recipient: string
+  subject: string
+  html: string
+  text?: string
+  applicationId?: string
+  attachments?: Array<{ filename: string; content: Buffer; contentType?: string }>
+  deduplicationKey?: string
+  availableAt?: Date
+}) {
   return prisma.outboxMessage.create({
     data: {
-      channel: 'EMAIL', recipient: input.recipient, subject: input.subject,
+      channel: 'EMAIL',
+      recipient: input.recipient,
+      subject: input.subject,
       applicationId: input.applicationId || null,
-      payloadJson: protectOutboxPayload({ html: input.html, text: input.text, attachments: input.attachments?.map((item) => ({ filename: item.filename, contentBase64: item.content.toString('base64'), contentType: item.contentType })) }),
+      payloadJson: protectOutboxPayload({
+        html: input.html,
+        text: input.text,
+        attachments: input.attachments?.map((item) => ({
+          filename: item.filename,
+          contentBase64: item.content.toString('base64'),
+          contentType: item.contentType,
+        })),
+      }),
       deduplicationKey: input.deduplicationKey || null,
       availableAt: input.availableAt || new Date(),
     },
   })
 }
 
-export async function processOutboxBatch(limit = 25) {
+export async function processOutboxBatch(limit = 10) {
   const now = new Date()
   // Reclaim messages from interrupted workers after ten minutes.
   await prisma.outboxMessage.updateMany({
@@ -56,38 +81,82 @@ export async function processOutboxBatch(limit = 25) {
   // The retry ceiling is per-message (`maximumAttempts`). A hardcoded `lt: 5`
   // stranded any message configured with a higher ceiling in FAILED for ever:
   // it stopped being picked up but never reached DEAD_LETTER either.
-  const candidates = (await prisma.outboxMessage.findMany({
-    where: { status: { in: ['PENDING', 'FAILED'] }, availableAt: { lte: now } },
-    orderBy: { createdAt: 'asc' }, take: Math.max(1, Math.min(limit, 100)) * 2,
-  })).filter((message) => message.attempts < message.maximumAttempts).slice(0, Math.max(1, Math.min(limit, 100)))
+  const candidates = (
+    await prisma.outboxMessage.findMany({
+      where: { status: { in: ['PENDING', 'FAILED'] }, availableAt: { lte: now } },
+      orderBy: { createdAt: 'asc' },
+      take: Math.max(1, Math.min(limit, 100)) * 2,
+    })
+  )
+    .filter((message) => message.attempts < message.maximumAttempts)
+    .slice(0, Math.max(1, Math.min(limit, 100)))
   let delivered = 0
   let failed = 0
   let deadLettered = 0
-  for (const message of candidates) {
-    const leaseOwner = randomUUID()
-    const claimed = await prisma.outboxMessage.updateMany({
-      where: { id: message.id, status: { in: ['PENDING', 'FAILED'] }, lockedAt: null, leaseOwner: null },
-      data: { status: 'PROCESSING', lockedAt: now, leaseOwner, attempts: { increment: 1 } },
-    })
-    if (!claimed.count) continue
-    try {
-      if (message.channel !== 'EMAIL') throw new Error(`Unsupported outbox channel: ${message.channel}`)
-      const payload = readOutboxPayload(message.payloadJson)
-      const result = await sendEmail({ to: message.recipient, subject: message.subject || 'FRAD notification', html: payload.html, text: payload.text, attachments: payload.attachments?.map((item) => ({ filename: item.filename, content: Buffer.from(item.contentBase64, 'base64'), contentType: item.contentType })) })
-      if (!result.success) throw new Error(result.error instanceof Error ? result.error.message : 'Delivery failed')
-      const finalized = await prisma.outboxMessage.updateMany({ where: { id: message.id, status: 'PROCESSING', leaseOwner }, data: { status: 'DELIVERED', deliveredAt: new Date(), lockedAt: null, leaseOwner: null, lastError: null, payloadJson: JSON.stringify({ scrubbed: true }) } })
-      if (finalized.count !== 1) throw new Error('Outbox lease was lost before delivery finalization')
-      delivered++
-    } catch (error) {
-      const attempts = message.attempts + 1
-      const dead = attempts >= message.maximumAttempts
-      await prisma.outboxMessage.updateMany({ where: { id: message.id, status: 'PROCESSING', leaseOwner }, data: {
-        status: dead ? 'DEAD_LETTER' : 'FAILED', lockedAt: null, leaseOwner: null,
-        availableAt: new Date(Date.now() + Math.min(60, 2 ** attempts) * 60_000),
-        lastError: error instanceof Error ? error.message.slice(0, 2000) : 'Unknown delivery error',
-      } })
-      if (dead) deadLettered++; else failed++
-      logger.error('outbox.delivery_failed', { messageId: message.id, channel: message.channel, attempts, dead })
+  const configuredConcurrency = Number(process.env.OUTBOX_CONCURRENCY || 5)
+  const concurrency = Number.isFinite(configuredConcurrency)
+    ? Math.max(1, Math.min(10, Math.floor(configuredConcurrency)))
+    : 5
+
+  for (let offset = 0; offset < candidates.length; offset += concurrency) {
+    const results = await Promise.all(
+      candidates.slice(offset, offset + concurrency).map(async (message) => {
+        const leaseOwner = randomUUID()
+        const claimed = await prisma.outboxMessage.updateMany({
+          where: { id: message.id, status: { in: ['PENDING', 'FAILED'] }, lockedAt: null, leaseOwner: null },
+          data: { status: 'PROCESSING', lockedAt: now, leaseOwner, attempts: { increment: 1 } },
+        })
+        if (!claimed.count) return 'SKIPPED' as const
+        try {
+          if (message.channel !== 'EMAIL') throw new Error(`Unsupported outbox channel: ${message.channel}`)
+          const payload = readOutboxPayload(message.payloadJson)
+          const result = await sendEmail({
+            to: message.recipient,
+            subject: message.subject || 'FRAD notification',
+            html: payload.html,
+            text: payload.text,
+            attachments: payload.attachments?.map((item) => ({
+              filename: item.filename,
+              content: Buffer.from(item.contentBase64, 'base64'),
+              contentType: item.contentType,
+            })),
+          })
+          if (!result.success) throw new Error(result.error instanceof Error ? result.error.message : 'Delivery failed')
+          const finalized = await prisma.outboxMessage.updateMany({
+            where: { id: message.id, status: 'PROCESSING', leaseOwner },
+            data: {
+              status: 'DELIVERED',
+              deliveredAt: new Date(),
+              lockedAt: null,
+              leaseOwner: null,
+              lastError: null,
+              payloadJson: JSON.stringify({ scrubbed: true }),
+            },
+          })
+          if (finalized.count !== 1) throw new Error('Outbox lease was lost before delivery finalization')
+          return 'DELIVERED' as const
+        } catch (error) {
+          const attempts = message.attempts + 1
+          const dead = attempts >= message.maximumAttempts
+          await prisma.outboxMessage.updateMany({
+            where: { id: message.id, status: 'PROCESSING', leaseOwner },
+            data: {
+              status: dead ? 'DEAD_LETTER' : 'FAILED',
+              lockedAt: null,
+              leaseOwner: null,
+              availableAt: new Date(Date.now() + Math.min(60, 2 ** attempts) * 60_000),
+              lastError: error instanceof Error ? error.message.slice(0, 2000) : 'Unknown delivery error',
+            },
+          })
+          logger.error('outbox.delivery_failed', { messageId: message.id, channel: message.channel, attempts, dead })
+          return dead ? ('DEAD_LETTERED' as const) : ('FAILED' as const)
+        }
+      })
+    )
+    for (const result of results) {
+      if (result === 'DELIVERED') delivered++
+      else if (result === 'FAILED') failed++
+      else if (result === 'DEAD_LETTERED') deadLettered++
     }
   }
   return { considered: candidates.length, delivered, failed, deadLettered }

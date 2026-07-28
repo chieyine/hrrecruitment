@@ -11,12 +11,42 @@ describe('validation schemas', () => {
     expect(loginSchema.safeParse({ email: 'nope', password: 'x' }).success).toBe(false)
   })
   it('enforces password rules on register', () => {
-    expect(registerSchema.safeParse({ legalFirstName: 'A', lastName: 'B', email: 'a@b.com', password: 'short' }).success).toBe(false)
-    expect(registerSchema.safeParse({ legalFirstName: 'A', lastName: 'B', email: 'a@b.com', password: 'longenough1', privacyAccepted: true, termsAccepted: true }).success).toBe(true)
-    expect(registerSchema.safeParse({ legalFirstName: 'A', lastName: 'B', email: 'a@b.com', password: `Valid1${'é'.repeat(40)}`, privacyAccepted: true, termsAccepted: true }).success).toBe(false)
+    expect(
+      registerSchema.safeParse({ legalFirstName: 'A', lastName: 'B', email: 'a@b.com', password: 'short' }).success
+    ).toBe(false)
+    expect(
+      registerSchema.safeParse({
+        legalFirstName: 'A',
+        lastName: 'B',
+        email: 'a@b.com',
+        password: 'longenough1',
+        privacyAccepted: true,
+        termsAccepted: true,
+      }).success
+    ).toBe(true)
+    expect(
+      registerSchema.safeParse({
+        legalFirstName: 'A',
+        lastName: 'B',
+        email: 'a@b.com',
+        password: `Valid1${'é'.repeat(40)}`,
+        privacyAccepted: true,
+        termsAccepted: true,
+      }).success
+    ).toBe(false)
   })
   it('requires closing date after opening date', () => {
-    const base = { title: 'T', departmentId: 'd', categoryId: 'c', dutyStationId: 's', numberOfPositions: 1, contractType: 'PERMANENT', summary: 's', responsibilities: 'r', essentialQualifications: 'e' }
+    const base = {
+      title: 'T',
+      departmentId: 'd',
+      categoryId: 'c',
+      dutyStationId: 's',
+      numberOfPositions: 1,
+      contractType: 'PERMANENT',
+      summary: 's',
+      responsibilities: 'r',
+      essentialQualifications: 'e',
+    }
     expect(vacancySchema.safeParse({ ...base, openingAt: '2026-02-01', closingAt: '2026-01-01' }).success).toBe(false)
     expect(vacancySchema.safeParse({ ...base, openingAt: '2026-01-01', closingAt: '2026-02-01' }).success).toBe(true)
   })

@@ -40,7 +40,12 @@ export async function GET() {
     await requireRole('SYSTEM_ADMIN')
     const [slaPolicies, workflows, integrations, requests] = await Promise.all([
       prisma.slaPolicy.findMany({ orderBy: { name: 'asc' } }),
-      prisma.workflowDefinition.findMany({ include: { versions: { include: { transitions: { orderBy: { displayOrder: 'asc' } } }, orderBy: { version: 'desc' } } }, orderBy: { name: 'asc' } }),
+      prisma.workflowDefinition.findMany({
+        include: {
+          versions: { include: { transitions: { orderBy: { displayOrder: 'asc' } } }, orderBy: { version: 'desc' } },
+        },
+        orderBy: { name: 'asc' },
+      }),
       prisma.integrationConnection.findMany({ orderBy: [{ connectionType: 'asc' }, { provider: 'asc' }] }),
       prisma.configurationChangeRequest.findMany({ orderBy: { requestedAt: 'desc' }, take: 200 }),
     ])
@@ -65,7 +70,14 @@ export async function POST(request: Request) {
     const created = await prisma.configurationChangeRequest.create({
       data: { changeType, resourceId, reason, proposedJson: JSON.stringify(proposed), requestedBy: user.userId },
     })
-    await logAudit({ actorUserId: user.userId, action: 'CONFIGURATION_CHANGE_REQUESTED', resourceType: 'ConfigurationChangeRequest', resourceId: created.id, newValue: { changeType, resourceId }, reason })
+    await logAudit({
+      actorUserId: user.userId,
+      action: 'CONFIGURATION_CHANGE_REQUESTED',
+      resourceType: 'ConfigurationChangeRequest',
+      resourceId: created.id,
+      newValue: { changeType, resourceId },
+      reason,
+    })
     return Response.json({ success: true, request: created }, { status: 201 })
   } catch (error) {
     return authzResponse(error)
@@ -79,14 +91,17 @@ export async function PATCH(request: Request) {
     const change = await prisma.configurationChangeRequest.findUnique({ where: { id: input.id } })
     if (!change) throw new AuthzError('Configuration change not found', 404)
     if (change.status !== 'PENDING') throw new AuthzError('This change has already been decided', 409)
-    if (change.requestedBy === user.userId) throw new AuthzError('The requester cannot approve their own configuration change', 409)
+    if (change.requestedBy === user.userId)
+      throw new AuthzError('The requester cannot approve their own configuration change', 409)
     const proposed = JSON.parse(change.proposedJson) as Record<string, unknown>
     await prisma.$transaction(async (tx) => {
       const claimed = await tx.configurationChangeRequest.updateMany({
         where: { id: change.id, status: 'PENDING', lockVersion: input.lockVersion },
         data: {
           status: input.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED',
-          decidedBy: user.userId, decidedAt: new Date(), decisionComment: input.comment,
+          decidedBy: user.userId,
+          decidedAt: new Date(),
+          decisionComment: input.comment,
           lockVersion: { increment: 1 },
         },
       })
@@ -98,16 +113,25 @@ export async function PATCH(request: Request) {
           data: {
             targetMinutes: Number(proposed.targetMinutes),
             warningMinutes: Number(proposed.warningMinutes),
-            escalationAfterMinutes: proposed.escalationAfterMinutes === null ? null : Number(proposed.escalationAfterMinutes),
+            escalationAfterMinutes:
+              proposed.escalationAfterMinutes === null ? null : Number(proposed.escalationAfterMinutes),
             escalationRole: proposed.escalationRole ? String(proposed.escalationRole) : null,
           },
         })
       } else if (change.changeType === 'WORKFLOW_PUBLISH') {
         const version = await tx.workflowVersion.findUnique({ where: { id: change.resourceId } })
-        if (!version || version.status !== 'DRAFT') throw new AuthzError('Only a draft workflow version can be published', 409)
-        if (await tx.workflowTransitionRule.count({ where: { workflowVersionId: version.id } }) === 0) throw new AuthzError('A workflow must contain transition rules before publication', 422)
-        await tx.workflowVersion.updateMany({ where: { workflowDefinitionId: version.workflowDefinitionId, status: 'ACTIVE' }, data: { status: 'RETIRED' } })
-        await tx.workflowVersion.update({ where: { id: version.id }, data: { status: 'ACTIVE', publishedBy: user.userId, publishedAt: new Date() } })
+        if (!version || version.status !== 'DRAFT')
+          throw new AuthzError('Only a draft workflow version can be published', 409)
+        if ((await tx.workflowTransitionRule.count({ where: { workflowVersionId: version.id } })) === 0)
+          throw new AuthzError('A workflow must contain transition rules before publication', 422)
+        await tx.workflowVersion.updateMany({
+          where: { workflowDefinitionId: version.workflowDefinitionId, status: 'ACTIVE' },
+          data: { status: 'RETIRED' },
+        })
+        await tx.workflowVersion.update({
+          where: { id: version.id },
+          data: { status: 'ACTIVE', publishedBy: user.userId, publishedAt: new Date() },
+        })
       } else {
         await tx.integrationConnection.update({
           where: { id: change.resourceId },
@@ -117,9 +141,18 @@ export async function PATCH(request: Request) {
           },
         })
       }
-      await tx.configurationChangeRequest.update({ where: { id: change.id }, data: { status: 'APPLIED', appliedAt: new Date() } })
+      await tx.configurationChangeRequest.update({
+        where: { id: change.id },
+        data: { status: 'APPLIED', appliedAt: new Date() },
+      })
     })
-    await logAudit({ actorUserId: user.userId, action: `CONFIGURATION_CHANGE_${input.decision}D`, resourceType: 'ConfigurationChangeRequest', resourceId: change.id, reason: input.comment })
+    await logAudit({
+      actorUserId: user.userId,
+      action: `CONFIGURATION_CHANGE_${input.decision}D`,
+      resourceType: 'ConfigurationChangeRequest',
+      resourceId: change.id,
+      reason: input.comment,
+    })
     return Response.json({ success: true })
   } catch (error) {
     return authzResponse(error)

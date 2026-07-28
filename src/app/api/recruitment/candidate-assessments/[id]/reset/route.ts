@@ -6,7 +6,7 @@ import { logAudit } from '@/lib/audit'
 import { applicationAccess } from '@/lib/recruitment-access'
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requirePermission('assessment.manage')
     const { reason } = await parseBody(request, z.object({ reason: z.string().trim().min(10).max(1000) }))
@@ -16,17 +16,57 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     })
     if (!record) throw new AuthzError('Assessment assignment not found', 404)
     const access = await applicationAccess(user.userId, record.applicationId)
-    if (!access.readAll && !access.vacancyOwner && !access.assignedReviewer) throw new AuthzError('Assessment assignment not found or outside your assigned scope', 404)
-    if (!['SUBMITTED', 'AUTO_SUBMITTED', 'MARKED', 'PASSED', 'FAILED'].includes(record.status)) throw new AuthzError('Only a completed attempt can be reset', 409)
-    const priorAttempts = await prisma.auditLog.count({ where: { resourceType: 'CandidateAssessment', resourceId: record.id, action: 'ASSESSMENT_SUBMITTED' } })
-    if (priorAttempts >= record.assessment.maximumAttempts) throw new AuthzError(`The configured maximum of ${record.assessment.maximumAttempts} attempt(s) has been reached`, 409)
+    if (!access.readAll && !access.vacancyOwner && !access.assignedReviewer)
+      throw new AuthzError('Assessment assignment not found or outside your assigned scope', 404)
+    if (!['SUBMITTED', 'AUTO_SUBMITTED', 'MARKED', 'PASSED', 'FAILED'].includes(record.status))
+      throw new AuthzError('Only a completed attempt can be reset', 409)
+    const priorAttempts = await prisma.auditLog.count({
+      where: { resourceType: 'CandidateAssessment', resourceId: record.id, action: 'ASSESSMENT_SUBMITTED' },
+    })
+    if (priorAttempts >= record.assessment.maximumAttempts)
+      throw new AuthzError(
+        `The configured maximum of ${record.assessment.maximumAttempts} attempt(s) has been reached`,
+        409
+      )
     await prisma.$transaction([
       prisma.candidateAssessmentAnswer.deleteMany({ where: { candidateAssessmentId: record.id } }),
-      prisma.candidateAssessment.update({ where: { id: record.id }, data: { status: 'INVITED', startedAt: null, submittedAt: null, autoSubmitted: false, score: null, passed: null, markerUserId: null, markerComment: null } }),
-      prisma.application.update({ where: { id: record.applicationId }, data: { internalStatus: 'ASSESSMENT_INVITED', candidateVisibleStatus: 'ASSESSMENT_INVITED', assessmentScore: null, finalScore: null, lockVersion: { increment: 1 } } }),
+      prisma.candidateAssessment.update({
+        where: { id: record.id },
+        data: {
+          status: 'INVITED',
+          startedAt: null,
+          submittedAt: null,
+          autoSubmitted: false,
+          score: null,
+          passed: null,
+          markerUserId: null,
+          markerComment: null,
+        },
+      }),
+      prisma.application.update({
+        where: { id: record.applicationId },
+        data: {
+          internalStatus: 'ASSESSMENT_INVITED',
+          candidateVisibleStatus: 'ASSESSMENT_INVITED',
+          assessmentScore: null,
+          finalScore: null,
+          lockVersion: { increment: 1 },
+        },
+      }),
     ])
-    await logAudit({ actorUserId: user.userId, action: 'ASSESSMENT_ATTEMPT_RESET', resourceType: 'CandidateAssessment', resourceId: record.id, reason, newValue: { nextAttempt: priorAttempts + 1, maximumAttempts: record.assessment.maximumAttempts } })
-    return Response.json({ success: true, attemptsUsed: priorAttempts, attemptsRemaining: record.assessment.maximumAttempts - priorAttempts })
+    await logAudit({
+      actorUserId: user.userId,
+      action: 'ASSESSMENT_ATTEMPT_RESET',
+      resourceType: 'CandidateAssessment',
+      resourceId: record.id,
+      reason,
+      newValue: { nextAttempt: priorAttempts + 1, maximumAttempts: record.assessment.maximumAttempts },
+    })
+    return Response.json({
+      success: true,
+      attemptsUsed: priorAttempts,
+      attemptsRemaining: record.assessment.maximumAttempts - priorAttempts,
+    })
   } catch (error) {
     return authzResponse(error)
   }

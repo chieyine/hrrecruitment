@@ -17,35 +17,59 @@ function normalize(value: unknown): string {
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requireUser()
     const record = await prisma.candidateAssessment.findUnique({
       where: { id: params.id },
-      include: { assessment: { include: { questions: { orderBy: { displayOrder: 'asc' } } } }, application: { include: { candidate: true } } },
+      include: {
+        assessment: { include: { questions: { orderBy: { displayOrder: 'asc' } } } },
+        application: { include: { candidate: true } },
+      },
     })
     if (!record) return NextResponse.json({ error: 'Assessment not found' }, { status: 404 })
     if (record.application.candidate.userId !== user.userId) throw new AuthzError('Forbidden', 403)
     const now = new Date()
-    if (record.assessment.opensAt && record.assessment.opensAt > now) return NextResponse.json({ error: 'Assessment is not open yet' }, { status: 409 })
-    if (record.assessment.closesAt && record.assessment.closesAt <= now) return NextResponse.json({ error: 'Assessment has closed' }, { status: 409 })
+    if (record.assessment.opensAt && record.assessment.opensAt > now)
+      return NextResponse.json({ error: 'Assessment is not open yet' }, { status: 409 })
+    if (record.assessment.closesAt && record.assessment.closesAt <= now)
+      return NextResponse.json({ error: 'Assessment has closed' }, { status: 409 })
     let startedAt = record.startedAt
     let status = record.status
     if (['INVITED', 'NOT_STARTED'].includes(status)) {
-      startedAt = now; status = 'IN_PROGRESS'
+      startedAt = now
+      status = 'IN_PROGRESS'
       await prisma.candidateAssessment.update({ where: { id: record.id }, data: { startedAt, status } })
     }
     const durationEnd = (startedAt || now).getTime() + record.assessment.durationMinutes * 60_000
     const closingEnd = record.assessment.closesAt?.getTime() ?? Number.POSITIVE_INFINITY
     const secondsRemaining = Math.max(0, Math.floor((Math.min(durationEnd, closingEnd) - now.getTime()) / 1000))
-    const questions = record.assessment.randomizeQuestions ? deterministicShuffle(record.assessment.questions, record.id) : record.assessment.questions
-    return NextResponse.json({ assessment: { id: record.id, title: record.assessment.title, description: record.assessment.description, status, secondsRemaining, questions: questions.map((q) => ({ id: q.id, questionType: q.questionType, prompt: q.prompt, optionsJson: q.optionsJson, maximumScore: q.maximumScore })) } })
-  } catch (err) { return authzResponse(err) }
+    const questions = record.assessment.randomizeQuestions
+      ? deterministicShuffle(record.assessment.questions, record.id)
+      : record.assessment.questions
+    return NextResponse.json({
+      assessment: {
+        id: record.id,
+        title: record.assessment.title,
+        description: record.assessment.description,
+        status,
+        secondsRemaining,
+        questions: questions.map((q) => ({
+          id: q.id,
+          questionType: q.questionType,
+          prompt: q.prompt,
+          optionsJson: q.optionsJson,
+          maximumScore: q.maximumScore,
+        })),
+      },
+    })
+  } catch (err) {
+    return authzResponse(err)
+  }
 }
 
-export async function POST(
-  request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params
   try {
     const user = await requireUser()
     const { answers } = await parseBody(request, assessmentSubmitSchema)
@@ -74,12 +98,19 @@ export async function POST(
     if (['SUBMITTED', 'AUTO_SUBMITTED', 'MARKED', 'PASSED', 'FAILED'].includes(candidateAssessment.status)) {
       return NextResponse.json({ error: 'Assessment has already been submitted' }, { status: 409 })
     }
-    if (candidateAssessment.status !== 'IN_PROGRESS' || !candidateAssessment.startedAt) return NextResponse.json({ error: 'Start the assessment before submitting it' }, { status: 409 })
+    if (candidateAssessment.status !== 'IN_PROGRESS' || !candidateAssessment.startedAt)
+      return NextResponse.json({ error: 'Start the assessment before submitting it' }, { status: 409 })
     const now = new Date()
-    const assessmentEnd = new Date(candidateAssessment.startedAt.getTime() + candidateAssessment.assessment.durationMinutes * 60_000)
-    if (candidateAssessment.assessment.opensAt && now < candidateAssessment.assessment.opensAt) return NextResponse.json({ error: 'Assessment is not open yet' }, { status: 409 })
-    const timedOut = now >= assessmentEnd || Boolean(candidateAssessment.assessment.closesAt && now >= candidateAssessment.assessment.closesAt)
-    if (timedOut && !candidateAssessment.assessment.autoSubmit) return NextResponse.json({ error: 'The assessment submission window has closed' }, { status: 409 })
+    const assessmentEnd = new Date(
+      candidateAssessment.startedAt.getTime() + candidateAssessment.assessment.durationMinutes * 60_000
+    )
+    if (candidateAssessment.assessment.opensAt && now < candidateAssessment.assessment.opensAt)
+      return NextResponse.json({ error: 'Assessment is not open yet' }, { status: 409 })
+    const timedOut =
+      now >= assessmentEnd ||
+      Boolean(candidateAssessment.assessment.closesAt && now >= candidateAssessment.assessment.closesAt)
+    if (timedOut && !candidateAssessment.assessment.autoSubmit)
+      return NextResponse.json({ error: 'The assessment submission window has closed' }, { status: 409 })
 
     const questions = candidateAssessment.assessment.questions
     // Normalise answers into a list regardless of whether the client sent an
@@ -89,16 +120,22 @@ export async function POST(
       : Object.entries(answers ?? {}).map(([questionId, answer]) => ({ questionId, answer }))
     const answerMap = new Map(answerList.map((a) => [a.questionId, a.answer]))
     const questionIds = new Set(questions.map((question) => question.id))
-    if (answerList.some((answer) => !questionIds.has(answer.questionId))) return NextResponse.json({ error: 'An answer does not belong to this assessment' }, { status: 422 })
+    if (answerList.some((answer) => !questionIds.has(answer.questionId)))
+      return NextResponse.json({ error: 'An answer does not belong to this assessment' }, { status: 422 })
     if (!timedOut) {
       const unanswered = questions.find((question) => {
         const value = answerMap.get(question.id)
         return value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)
       })
-      if (unanswered) return NextResponse.json({ error: `Answer the required question: ${unanswered.prompt}` }, { status: 422 })
+      if (unanswered)
+        return NextResponse.json({ error: `Answer the required question: ${unanswered.prompt}` }, { status: 422 })
     }
-    const fileQuestionIds = new Set(questions.filter((question) => question.questionType === 'FILE').map((question) => question.id))
-    const submittedFileIds = answerList.filter((answer) => fileQuestionIds.has(answer.questionId) && answer.answer).map((answer) => String(answer.answer))
+    const fileQuestionIds = new Set(
+      questions.filter((question) => question.questionType === 'FILE').map((question) => question.id)
+    )
+    const submittedFileIds = answerList
+      .filter((answer) => fileQuestionIds.has(answer.questionId) && answer.answer)
+      .map((answer) => String(answer.answer))
     if (submittedFileIds.length) {
       const ownedFiles = await prisma.fileAsset.count({
         where: { id: { in: submittedFileIds }, ownerUserId: user.userId, virusScanStatus: 'CLEAN' },
@@ -122,9 +159,13 @@ export async function POST(
       if (isAuto) {
         possibleAuto += question.maximumScore
         let correct: unknown = null
-        try { correct = question.correctAnswerJson ? JSON.parse(question.correctAnswerJson) : null }
-        catch { correct = question.correctAnswerJson }
-        const correctValue = Array.isArray(correct) && correct.length === 1 && !Array.isArray(submitted) ? correct[0] : correct
+        try {
+          correct = question.correctAnswerJson ? JSON.parse(question.correctAnswerJson) : null
+        } catch {
+          correct = question.correctAnswerJson
+        }
+        const correctValue =
+          Array.isArray(correct) && correct.length === 1 && !Array.isArray(submitted) ? correct[0] : correct
         scoreForQuestion = normalize(submitted) === normalize(correctValue) ? question.maximumScore : 0
         awardedAuto += scoreForQuestion
       } else {
@@ -137,13 +178,7 @@ export async function POST(
     const percentage = possibleAuto > 0 ? Math.round((awardedAuto / possibleAuto) * 1000) / 10 : 0
     const passMark = candidateAssessment.assessment.passMark
     const passed = requiresMarking ? null : percentage >= passMark
-    const status = requiresMarking
-      ? timedOut
-        ? 'AUTO_SUBMITTED'
-        : 'SUBMITTED'
-      : passed
-        ? 'PASSED'
-        : 'FAILED'
+    const status = requiresMarking ? (timedOut ? 'AUTO_SUBMITTED' : 'SUBMITTED') : passed ? 'PASSED' : 'FAILED'
 
     const updated = await prisma.$transaction(async (tx) => {
       const claimed = await tx.candidateAssessment.updateMany({
@@ -159,8 +194,16 @@ export async function POST(
       if (claimed.count !== 1) throw new AuthzError('Assessment was already submitted or changed', 409)
       for (const answer of preparedAnswers) {
         await tx.candidateAssessmentAnswer.upsert({
-          where: { candidateAssessmentId_assessmentQuestionId: { candidateAssessmentId: candidateAssessment.id, assessmentQuestionId: answer.question.id } },
-          update: { answerJson: answer.submitted !== undefined ? JSON.stringify(answer.submitted) : null, score: answer.scoreForQuestion },
+          where: {
+            candidateAssessmentId_assessmentQuestionId: {
+              candidateAssessmentId: candidateAssessment.id,
+              assessmentQuestionId: answer.question.id,
+            },
+          },
+          update: {
+            answerJson: answer.submitted !== undefined ? JSON.stringify(answer.submitted) : null,
+            score: answer.scoreForQuestion,
+          },
           create: {
             candidateAssessmentId: candidateAssessment.id,
             assessmentQuestionId: answer.question.id,

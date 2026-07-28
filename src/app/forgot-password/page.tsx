@@ -14,7 +14,8 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true); setError('')
+    setLoading(true)
+    setError('')
     try {
       const response = await fetch('/api/auth/forgot-password', {
         method: 'POST',
@@ -53,9 +54,15 @@ export default function ForgotPasswordPage() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+              {error && (
+                <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">
+                  {error}
+                </p>
+              )}
               <div>
-                <label htmlFor="recovery-email" className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                <label htmlFor="recovery-email" className="block text-sm font-medium text-slate-700 mb-1">
+                  Email Address
+                </label>
                 <input
                   id="recovery-email"
                   type="email"
@@ -79,7 +86,10 @@ export default function ForgotPasswordPage() {
           )}
 
           <div className="mt-6 text-center">
-            <Link href="/auth/login" className="inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900">
+            <Link
+              href="/auth/login"
+              className="inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900"
+            >
               <ArrowLeft className="w-4 h-4 mr-1" /> Back to Sign In
             </Link>
           </div>

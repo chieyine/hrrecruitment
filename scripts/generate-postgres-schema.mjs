@@ -15,10 +15,11 @@ if (!match) {
 }
 // Preserve the original formatting when the source is already PostgreSQL so
 // the generated file stays byte-identical to the canonical schema.
-const postgres = match[1] === 'postgresql'
-  ? schema
-  : schema.replace(providerPattern, 'provider = "postgresql"')
+const postgres = match[1] === 'postgresql' ? schema : schema.replace(providerPattern, 'provider = "postgresql"')
 
 await mkdir(dirname(target), { recursive: true })
-await writeFile(target, `// Generated from ../schema.prisma. Run npm run db:postgres:schema after schema changes.\n${postgres}`)
+await writeFile(
+  target,
+  `// Generated from ../schema.prisma. Run npm run db:postgres:schema after schema changes.\n${postgres}`
+)
 console.log(`Generated ${target} (source provider: ${match[1]})`)

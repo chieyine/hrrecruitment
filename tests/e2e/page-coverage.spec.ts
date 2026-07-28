@@ -1,6 +1,11 @@
 import { test } from '@playwright/test'
 import { assertPageRenders, login } from './helpers'
 
+// These are deliberate route inventories, not single-screen smoke tests. On a
+// modest laptop the 20–25 authenticated server-rendered pages legitimately
+// exceed the suite's normal per-workflow timeout.
+test.describe.configure({ timeout: 300_000 })
+
 const candidatePages = [
   '/candidate/dashboard',
   '/candidate/profile',
@@ -90,9 +95,12 @@ test('all recruitment workspace pages render for HR', async ({ page }) => {
   for (const path of recruitmentPages) await assertPageRenders(page, path)
 
   const vacancyResponse = await page.request.get('/api/recruitment/vacancies')
-  if (!vacancyResponse.ok()) throw new Error(`Vacancy API returned ${vacancyResponse.status()}: ${await vacancyResponse.text()}`)
+  if (!vacancyResponse.ok())
+    throw new Error(`Vacancy API returned ${vacancyResponse.status()}: ${await vacancyResponse.text()}`)
   const vacancyBody = await vacancyResponse.json()
-  const vacancyId = vacancyBody.vacancies.find((vacancy: { referenceNumber: string }) => vacancy.referenceNumber === 'FRAD-HR-2026-001')?.id
+  const vacancyId = vacancyBody.vacancies.find(
+    (vacancy: { referenceNumber: string }) => vacancy.referenceNumber === 'FRAD-HR-2026-001'
+  )?.id
   if (vacancyId) {
     await assertPageRenders(page, `/recruitment/vacancies/${vacancyId}`)
     await assertPageRenders(page, `/recruitment/vacancies/${vacancyId}/applications`)

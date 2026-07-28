@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { BellRing, BellOff, Trash2, Loader2, Plus } from 'lucide-react'
+import { formatDate } from '@/lib/utils'
 
 /**
  * Candidate-facing saved searches and job alerts.
@@ -114,14 +115,18 @@ export default function SavedSearchManager() {
       <div className="section-heading">
         <div>
           <h2 id="alerts-heading" className="flex items-center gap-2 text-lg font-bold text-slate-950">
-            <BellRing className="h-5 w-5 text-blue-700" aria-hidden /> Job alerts
+            <BellRing className="h-5 w-5 text-brand-700" aria-hidden /> Job alerts
           </h2>
           <p className="mt-1 text-sm text-slate-600">
             Save a search and we will email you when a new vacancy matches it. You can turn any alert off at any time.
           </p>
         </div>
         {!adding && searches.length < maximum && (
-          <button type="button" onClick={() => setAdding(true)} className="btn-secondary inline-flex items-center gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="btn-secondary inline-flex items-center gap-2 text-xs"
+          >
             <Plus className="h-4 w-4" aria-hidden /> New alert
           </button>
         )}
@@ -157,7 +162,9 @@ export default function SavedSearchManager() {
               >
                 <option value="">Any department</option>
                 {departments.map((department) => (
-                  <option key={department.id} value={department.id}>{department.name}</option>
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
                 ))}
               </select>
             </label>
@@ -170,7 +177,9 @@ export default function SavedSearchManager() {
               >
                 <option value="">Any location</option>
                 {dutyStations.map((station) => (
-                  <option key={station.id} value={station.id}>{station.name}</option>
+                  <option key={station.id} value={station.id}>
+                    {station.name}
+                  </option>
                 ))}
               </select>
             </label>
@@ -218,7 +227,9 @@ export default function SavedSearchManager() {
                 <p className="font-semibold text-slate-900">{search.name}</p>
                 <p className="mt-0.5 text-xs text-slate-600">
                   {describe(search)} · {search.frequency.toLowerCase()}
-                  {search.lastAlertAt ? ` · last sent ${new Date(search.lastAlertAt).toLocaleDateString('en-GB')}` : ' · not sent yet'}
+                  {search.lastAlertAt
+                    ? ` · last sent ${formatDate(search.lastAlertAt)}`
+                    : ' · not sent yet'}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -228,7 +239,11 @@ export default function SavedSearchManager() {
                   disabled={busy !== null}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 disabled:opacity-50"
                 >
-                  {search.alertsEnabled ? <BellRing className="h-3.5 w-3.5 text-emerald-700" aria-hidden /> : <BellOff className="h-3.5 w-3.5 text-slate-400" aria-hidden />}
+                  {search.alertsEnabled ? (
+                    <BellRing className="h-3.5 w-3.5 text-emerald-700" aria-hidden />
+                  ) : (
+                    <BellOff className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+                  )}
                   {search.alertsEnabled ? 'On' : 'Off'}
                 </button>
                 <button

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import type { Prisma } from '@prisma/client'
 import Link from 'next/link'
 import { ArrowRight, Building2, CalendarDays, MapPin, Search } from 'lucide-react'
 import Header from '@/components/shared/Header'
@@ -8,7 +9,7 @@ import { getVerifiedUser } from '@/lib/auth'
 import { formatDate } from '@/lib/utils'
 
 export const metadata: Metadata = {
-  title: 'Open Vacancies',
+  title: 'Open roles',
   description: 'View current FRAD vacancies and apply through the official candidate portal.',
 }
 
@@ -24,7 +25,7 @@ export default async function VacanciesPage({
     prisma.dutyStation.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
   ])
 
-  const where: any = {
+  const where: Prisma.VacancyWhereInput = {
     status: 'OPEN',
     openingAt: { lte: new Date() },
     closingAt: { gt: new Date() },
@@ -56,28 +57,31 @@ export default async function VacanciesPage({
       <Header currentUser={user} />
 
       <main id="main-content" className="flex-1">
-        <section className="border-b border-surface-200 bg-surface-50">
-          <div className="mx-auto grid max-w-7xl lg:grid-cols-[1fr_360px]">
+        <section className="border-b border-surface-200 bg-[#f8f6f0]">
+          <div className="mx-auto grid max-w-7xl lg:grid-cols-[1fr_380px]">
             <div className="px-4 py-14 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
-              <span className="editorial-kicker">FRAD vacancies</span>
-              <h1 className="editorial-title mt-5 max-w-3xl text-5xl text-navy-900 sm:text-6xl lg:text-7xl">
-                Current opportunities
+              <span className="editorial-kicker">Careers at FRAD Foundation</span>
+              <h1 className="editorial-title mt-6 max-w-3xl text-5xl text-navy-900 sm:text-6xl">
+                Bring your judgement. Stay close to the work.
               </h1>
-              <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted sm:text-lg">
-                Search current vacancies, read the requirements and apply before the published closing date.
+              <p className="mt-7 max-w-2xl text-base leading-7 text-muted sm:text-lg">
+                Find the role that fits your experience, read the requirements carefully and apply through our official
+                recruitment service.
               </p>
             </div>
 
-            <div className="flex flex-col justify-between bg-brand-900 px-7 py-9 text-white sm:px-9 lg:py-12">
+            <div className="flex flex-col justify-between border-l-4 border-[#bc6747] bg-brand-950 px-7 py-9 text-white sm:px-9 lg:py-12">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-200">Now recruiting</p>
-                <p className="mt-4 font-display text-6xl">{vacancies.length}</p>
-                <p className="mt-1 text-sm text-brand-100">{vacancies.length === 1 ? 'open position' : 'open positions'}</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-300">Applications open</p>
+                <p className="mt-5 text-5xl font-semibold tracking-[-.04em]">{vacancies.length}</p>
+                <p className="mt-1 text-sm text-brand-100">
+                  {vacancies.length === 1 ? 'role available now' : 'roles available now'}
+                </p>
               </div>
-              <div className="mt-12 border-t border-brand-700 pt-5">
-                <p className="text-sm font-bold">No recruitment fees</p>
+              <div className="mt-12 border-t border-brand-800 pt-5">
+                <p className="text-sm font-bold">Applying costs nothing</p>
                 <p className="mt-2 text-xs leading-5 text-brand-200">
-                  FRAD will never ask you to pay to apply, interview or receive an offer.
+                  FRAD never asks for payment to apply, attend an interview or receive an offer.
                 </p>
               </div>
             </div>
@@ -85,7 +89,10 @@ export default async function VacanciesPage({
         </section>
 
         <section className="border-b border-surface-200 bg-surface-100">
-          <form method="GET" className="mx-auto grid max-w-7xl gap-4 px-4 py-6 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_auto] lg:px-8">
+          <form
+            method="GET"
+            className="mx-auto grid max-w-7xl gap-4 px-4 py-6 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_auto] lg:px-8"
+          >
             <label className="block">
               <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-muted">Search</span>
               <span className="relative block">
@@ -102,17 +109,33 @@ export default async function VacanciesPage({
 
             <label className="block">
               <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-muted">Team</span>
-              <select name="departmentId" defaultValue={query.departmentId || ''} className="h-11 w-full rounded-xl border border-surface-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+              <select
+                name="departmentId"
+                defaultValue={query.departmentId || ''}
+                className="h-11 w-full rounded-xl border border-surface-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              >
                 <option value="">All teams</option>
-                {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
               </select>
             </label>
 
             <label className="block">
               <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.14em] text-muted">Location</span>
-              <select name="dutyStationId" defaultValue={query.dutyStationId || ''} className="h-11 w-full rounded-xl border border-surface-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+              <select
+                name="dutyStationId"
+                defaultValue={query.dutyStationId || ''}
+                className="h-11 w-full rounded-xl border border-surface-200 bg-white px-3 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              >
                 <option value="">All locations</option>
-                {dutyStations.map((station) => <option key={station.id} value={station.id}>{station.name} ({station.state})</option>)}
+                {dutyStations.map((station) => (
+                  <option key={station.id} value={station.id}>
+                    {station.name} ({station.state})
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -134,40 +157,59 @@ export default async function VacanciesPage({
             <div className="mb-5 flex items-end justify-between border-b border-surface-200 pb-4">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">Vacancies</p>
-                <h2 className="mt-1 font-display text-2xl text-navy-800">
-                  {vacancies.length === 0 ? 'No matching roles' : `${vacancies.length} ${vacancies.length === 1 ? 'role' : 'roles'} available`}
+                <h2 className="mt-1 text-2xl font-semibold tracking-[-.025em] text-navy-900">
+                  {vacancies.length === 0
+                    ? 'No roles match those filters'
+                    : `${vacancies.length} ${vacancies.length === 1 ? 'role is' : 'roles are'} open`}
                 </h2>
               </div>
             </div>
 
             {vacancies.length === 0 ? (
               <div className="paper-panel px-6 py-14 text-center">
-                <h3 className="font-display text-2xl text-navy-800">Nothing matches those filters.</h3>
+                <h3 className="text-xl font-semibold text-navy-900">Try widening your search.</h3>
                 <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted">
-                  Clear one or more filters, or return later when new roles have been published.
+                  Clear one or more filters. New roles are added here as soon as applications open.
                 </p>
-                <Link href="/careers" className="mt-6 inline-flex border-b border-brand-800 pb-1 text-sm font-bold text-brand-800 transition hover:text-brand-600 hover:border-brand-600">
+                <Link
+                  href="/careers"
+                  className="mt-6 inline-flex border-b border-brand-800 pb-1 text-sm font-bold text-brand-800 transition hover:text-brand-600 hover:border-brand-600"
+                >
                   View every open role
                 </Link>
               </div>
             ) : (
               <div className="space-y-4">
                 {vacancies.map((vacancy) => (
-                  <article key={vacancy.id} className="paper-panel group grid gap-5 px-5 py-7 transition hover:shadow-soft-hover sm:px-7 md:grid-cols-[1fr_auto] md:items-center">
+                  <article
+                    key={vacancy.id}
+                    className="paper-panel group grid gap-5 px-5 py-6 transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-soft-hover sm:px-7 md:grid-cols-[1fr_auto] md:items-center"
+                  >
                     <div>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-bold uppercase tracking-[0.12em] text-brand-500">
                         <span>{vacancy.referenceNumber}</span>
                         <span>{vacancy.contractType.replaceAll('_', ' ')}</span>
                         {vacancy.numberOfPositions > 1 && <span>{vacancy.numberOfPositions} positions</span>}
                       </div>
-                      <h3 className="mt-3 font-display text-2xl leading-tight text-navy-800 transition group-hover:text-brand-700 sm:text-[28px]">
+                      <h3 className="mt-3 text-xl font-semibold leading-tight tracking-[-.025em] text-navy-900 transition group-hover:text-brand-700 sm:text-2xl">
                         <Link href={`/careers/${encodeURIComponent(vacancy.referenceNumber)}`}>{vacancy.title}</Link>
                       </h3>
                       <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">{vacancy.summary}</p>
                       <dl className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted">
-                        <div className="flex items-center gap-2"><Building2 className="h-3.5 w-3.5" /><span>{vacancy.department.name}</span></div>
-                        <div className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5" /><span>{vacancy.dutyStation.name}, {vacancy.dutyStation.state}</span></div>
-                        <div className="flex items-center gap-2 font-bold text-signal"><CalendarDays className="h-3.5 w-3.5" /><span>Closes {formatDate(vacancy.closingAt)}</span></div>
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-3.5 w-3.5" />
+                          <span>{vacancy.department.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-3.5 w-3.5" />
+                          <span>
+                            {vacancy.dutyStation.name}, {vacancy.dutyStation.state}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 font-bold text-signal">
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          <span>Closes {formatDate(vacancy.closingAt)}</span>
+                        </div>
                       </dl>
                     </div>
                     <Link
@@ -184,11 +226,15 @@ export default async function VacanciesPage({
 
           <aside className="space-y-8">
             <div className="border-t-2 border-brand-700 pt-5">
-              <h2 className="font-display text-xl text-navy-800">Before you apply</h2>
+              <h2 className="text-lg font-semibold text-navy-900">Before you apply</h2>
               <p className="mt-3 text-sm leading-6 text-muted">
-                Read the person specification carefully. Your application should show how your experience meets the essential requirements.
+                Read the person specification carefully. Your application should show how your experience meets the
+                essential requirements.
               </p>
-              <Link href="/recruitment-process" className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-brand-700 hover:text-brand-600 transition-colors">
+              <Link
+                href="/recruitment-process"
+                className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-brand-700 hover:text-brand-600 transition-colors"
+              >
                 How selection works <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
@@ -197,7 +243,12 @@ export default async function VacanciesPage({
               <p className="mt-2 text-xs leading-5 text-muted">
                 Candidate help covers accounts, documents, reasonable adjustments and technical problems.
               </p>
-              <Link href="/recruitment-faq" className="mt-3 inline-flex text-xs font-bold text-brand-700 hover:text-brand-600 transition-colors">Candidate help</Link>
+              <Link
+                href="/recruitment-faq"
+                className="mt-3 inline-flex text-xs font-bold text-brand-700 hover:text-brand-600 transition-colors"
+              >
+                Candidate help
+              </Link>
             </div>
           </aside>
         </section>

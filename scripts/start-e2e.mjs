@@ -17,7 +17,11 @@ execFileSync('npm', ['run', 'db:seed'], { cwd: root, env: environment, stdio: 'i
 const serverEnvironment = { ...environment }
 delete serverEnvironment.NODE_ENV
 execFileSync('npm', ['run', 'build'], { cwd: root, env: serverEnvironment, stdio: 'inherit' })
-const server = spawn('npm', ['start', '--', '--hostname', '127.0.0.1', '--port', '3107'], { cwd: root, env: serverEnvironment, stdio: 'inherit' })
+const server = spawn('npm', ['start', '--', '--hostname', '127.0.0.1', '--port', '3107'], {
+  cwd: root,
+  env: serverEnvironment,
+  stdio: 'inherit',
+})
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => server.kill(signal))

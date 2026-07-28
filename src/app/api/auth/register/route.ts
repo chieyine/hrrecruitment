@@ -43,7 +43,7 @@ export async function POST(request: Request) {
         await enqueueEmail({
           recipient: existingUser.email,
           subject: 'Verify your FRAD Recruitment email',
-          html: `<p>Welcome to FRAD Recruitment.</p><p><a href="${verificationLink.toString()}">Verify your email address</a> before submitting an application. This link expires in 24 hours.</p>`,
+          html: `<p>Thanks for creating a candidate account.</p><p><a href="${verificationLink.toString()}">Confirm your email address</a> before you submit an application. This link expires in 24 hours.</p>`,
           deduplicationKey: `email-verification:${existingUser.id}:${resendWindow}`,
         })
       }
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
             roleId: candidateRole.id,
             scopeType: 'GLOBAL',
             scopeId: 'GLOBAL',
-            }
+          },
         },
         candidateProfile: {
           create: {
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
     await enqueueEmail({
       recipient: user.email,
       subject: 'Verify your FRAD Recruitment email',
-      html: `<p>Welcome to FRAD Recruitment.</p><p><a href="${verificationLink.toString()}">Verify your email address</a> before submitting an application. This link expires in 24 hours.</p>`,
+      html: `<p>Thanks for creating a candidate account.</p><p><a href="${verificationLink.toString()}">Confirm your email address</a> before you submit an application. This link expires in 24 hours.</p>`,
       deduplicationKey: `email-verification:${user.id}:${new Date().toISOString().slice(0, 13)}`,
     })
 

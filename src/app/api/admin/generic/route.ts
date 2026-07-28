@@ -23,24 +23,147 @@ interface EntityConfig {
 }
 
 const ENTITIES: Record<string, EntityConfig> = {
-  departments: { model: 'department', fields: { name: 'string', code: 'string', active: 'bool' }, orderBy: { name: 'asc' } },
+  departments: {
+    model: 'department',
+    fields: { name: 'string', code: 'string', active: 'bool' },
+    orderBy: { name: 'asc' },
+  },
   projects: { model: 'project', fields: { name: 'string', code: 'string', active: 'bool' }, orderBy: { name: 'asc' } },
-  'duty-stations': { model: 'dutyStation', fields: { name: 'string', state: 'string', lga: 'string', address: 'string', active: 'bool' }, orderBy: { name: 'asc' } },
-  courses: { model: 'course', fields: { title: 'string', description: 'string', category: 'string', learningObjectives: 'string', estimatedDurationMinutes: 'int', passMark: 'float', allowedAttempts: 'int', certificateEnabled: 'bool', active: 'bool' }, orderBy: { title: 'asc' }, versioned: true },
-  policies: { model: 'policyDocument', fields: { title: 'string', category: 'string', effectiveDate: 'date', summary: 'string', acknowledgementMethod: 'string', signatureMethod: 'string', active: 'bool' }, orderBy: { title: 'asc' }, versioned: true },
-  forms: { model: 'preboardingFormTemplate', fields: { title: 'string', description: 'string', schemaJson: 'string', required: 'bool', reviewRequired: 'bool', active: 'bool' }, orderBy: { title: 'asc' }, versioned: true },
-  tasks: { model: 'preboardingTaskTemplate', fields: { title: 'string', description: 'string', category: 'string', required: 'bool', reviewRequired: 'bool', evidenceRequired: 'bool', active: 'bool' }, orderBy: { title: 'asc' }, versioned: true },
-  'document-requirements': { model: 'documentRequirement', fields: { name: 'string', description: 'string', documentType: 'string', required: 'bool', allowedFileTypes: 'string', maximumFileSize: 'int', expiryRequired: 'bool', reviewRequired: 'bool', sensitivityClass: 'string', active: 'bool' }, orderBy: { name: 'asc' } },
-  'preboarding-packages': { model: 'preboardingPackage', fields: { name: 'string', description: 'string', candidateType: 'string', roleCategory: 'string', active: 'bool' }, orderBy: { name: 'asc' }, versioned: true },
-  scorecards: { model: 'scorecardTemplate', fields: { name: 'string', scorecardType: 'string', description: 'string', active: 'bool' }, orderBy: { name: 'asc' }, include: { criteria: true }, versioned: true },
-  'notification-templates': { model: 'notificationTemplate', fields: { code: 'string', subject: 'string', bodyTemplate: 'string', active: 'bool' }, orderBy: { code: 'asc' }, versioned: true },
-  templates: { model: 'offerTemplate', fields: { name: 'string', candidateType: 'string', bodyTemplate: 'string', active: 'bool' }, orderBy: { name: 'asc' }, versioned: true },
-  'email-templates': { model: 'notificationTemplate', fields: { code: 'string', subject: 'string', bodyTemplate: 'string', active: 'bool' }, orderBy: { code: 'asc' }, versioned: true },
-  'system-settings': { model: 'systemSetting', fields: { key: 'string', valueJson: 'string', description: 'string' }, orderBy: { key: 'asc' } },
-  'contract-types': { model: 'contractType', fields: { code: 'string', name: 'string', description: 'string', active: 'bool' }, orderBy: { name: 'asc' } },
-  'vacancy-categories': { model: 'vacancyCategory', fields: { code: 'string', name: 'string', active: 'bool' }, orderBy: { name: 'asc' } },
-  'document-types': { model: 'documentType', fields: { code: 'string', name: 'string', allowedFileTypes: 'string', maximumFileSize: 'int', active: 'bool' }, orderBy: { name: 'asc' } },
-  roles: { model: 'role', fields: { name: 'string', description: 'string' }, orderBy: { name: 'asc' }, include: { rolePermissions: { include: { permission: true } } } },
+  'duty-stations': {
+    model: 'dutyStation',
+    fields: { name: 'string', state: 'string', lga: 'string', address: 'string', active: 'bool' },
+    orderBy: { name: 'asc' },
+  },
+  courses: {
+    model: 'course',
+    fields: {
+      title: 'string',
+      description: 'string',
+      category: 'string',
+      learningObjectives: 'string',
+      estimatedDurationMinutes: 'int',
+      passMark: 'float',
+      allowedAttempts: 'int',
+      certificateEnabled: 'bool',
+      active: 'bool',
+    },
+    orderBy: { title: 'asc' },
+    versioned: true,
+  },
+  policies: {
+    model: 'policyDocument',
+    fields: {
+      title: 'string',
+      category: 'string',
+      effectiveDate: 'date',
+      summary: 'string',
+      acknowledgementMethod: 'string',
+      signatureMethod: 'string',
+      active: 'bool',
+    },
+    orderBy: { title: 'asc' },
+    versioned: true,
+  },
+  forms: {
+    model: 'preboardingFormTemplate',
+    fields: {
+      title: 'string',
+      description: 'string',
+      schemaJson: 'string',
+      required: 'bool',
+      reviewRequired: 'bool',
+      active: 'bool',
+    },
+    orderBy: { title: 'asc' },
+    versioned: true,
+  },
+  tasks: {
+    model: 'preboardingTaskTemplate',
+    fields: {
+      title: 'string',
+      description: 'string',
+      category: 'string',
+      required: 'bool',
+      reviewRequired: 'bool',
+      evidenceRequired: 'bool',
+      active: 'bool',
+    },
+    orderBy: { title: 'asc' },
+    versioned: true,
+  },
+  'document-requirements': {
+    model: 'documentRequirement',
+    fields: {
+      name: 'string',
+      description: 'string',
+      documentType: 'string',
+      required: 'bool',
+      allowedFileTypes: 'string',
+      maximumFileSize: 'int',
+      expiryRequired: 'bool',
+      reviewRequired: 'bool',
+      sensitivityClass: 'string',
+      active: 'bool',
+    },
+    orderBy: { name: 'asc' },
+  },
+  'preboarding-packages': {
+    model: 'preboardingPackage',
+    fields: { name: 'string', description: 'string', candidateType: 'string', roleCategory: 'string', active: 'bool' },
+    orderBy: { name: 'asc' },
+    versioned: true,
+  },
+  scorecards: {
+    model: 'scorecardTemplate',
+    fields: { name: 'string', scorecardType: 'string', description: 'string', active: 'bool' },
+    orderBy: { name: 'asc' },
+    include: { criteria: true },
+    versioned: true,
+  },
+  'notification-templates': {
+    model: 'notificationTemplate',
+    fields: { code: 'string', subject: 'string', bodyTemplate: 'string', active: 'bool' },
+    orderBy: { code: 'asc' },
+    versioned: true,
+  },
+  templates: {
+    model: 'offerTemplate',
+    fields: { name: 'string', candidateType: 'string', bodyTemplate: 'string', active: 'bool' },
+    orderBy: { name: 'asc' },
+    versioned: true,
+  },
+  'email-templates': {
+    model: 'notificationTemplate',
+    fields: { code: 'string', subject: 'string', bodyTemplate: 'string', active: 'bool' },
+    orderBy: { code: 'asc' },
+    versioned: true,
+  },
+  'system-settings': {
+    model: 'systemSetting',
+    fields: { key: 'string', valueJson: 'string', description: 'string' },
+    orderBy: { key: 'asc' },
+  },
+  'contract-types': {
+    model: 'contractType',
+    fields: { code: 'string', name: 'string', description: 'string', active: 'bool' },
+    orderBy: { name: 'asc' },
+  },
+  'vacancy-categories': {
+    model: 'vacancyCategory',
+    fields: { code: 'string', name: 'string', active: 'bool' },
+    orderBy: { name: 'asc' },
+  },
+  'document-types': {
+    model: 'documentType',
+    fields: { code: 'string', name: 'string', allowedFileTypes: 'string', maximumFileSize: 'int', active: 'bool' },
+    orderBy: { name: 'asc' },
+  },
+  roles: {
+    model: 'role',
+    fields: { name: 'string', description: 'string' },
+    orderBy: { name: 'asc' },
+    include: { rolePermissions: { include: { permission: true } } },
+  },
   permissions: { model: 'permission', fields: { code: 'string', description: 'string' }, orderBy: { code: 'asc' } },
 }
 
@@ -54,11 +177,23 @@ function coerce(fields: Record<string, FieldType>, data: Record<string, any>) {
       continue
     }
     switch (type) {
-      case 'int': out[key] = parseInt(String(v), 10); if (!Number.isFinite(out[key])) throw new AuthzError(`${key} must be a number`, 400); break
-      case 'float': out[key] = parseFloat(String(v)); if (!Number.isFinite(out[key])) throw new AuthzError(`${key} must be a number`, 400); break
-      case 'bool': out[key] = v === true || v === 'true' || v === 'on'; break
-      case 'date': out[key] = new Date(v); if (Number.isNaN(out[key].getTime())) throw new AuthzError(`${key} must be a valid date`, 400); break
-      default: out[key] = typeof v === 'string' ? v.trim() : String(v)
+      case 'int':
+        out[key] = parseInt(String(v), 10)
+        if (!Number.isFinite(out[key])) throw new AuthzError(`${key} must be a number`, 400)
+        break
+      case 'float':
+        out[key] = parseFloat(String(v))
+        if (!Number.isFinite(out[key])) throw new AuthzError(`${key} must be a number`, 400)
+        break
+      case 'bool':
+        out[key] = v === true || v === 'true' || v === 'on'
+        break
+      case 'date':
+        out[key] = new Date(v)
+        if (Number.isNaN(out[key].getTime())) throw new AuthzError(`${key} must be a valid date`, 400)
+        break
+      default:
+        out[key] = typeof v === 'string' ? v.trim() : String(v)
     }
   }
   return out
@@ -112,9 +247,7 @@ const HR_MANAGED_ENTITIES = new Set([
 async function authorizeEntity(entity: string, mode: 'read' | 'write' = 'write') {
   if (mode === 'read' && STAFF_READABLE_ENTITIES.has(entity)) return requireStaff()
   if (HR_MANAGED_ENTITIES.has(entity)) return requireRole('HR_MANAGER', 'SYSTEM_ADMIN')
-  return entity === 'courses'
-    ? requirePermission('course.manage')
-    : requireRole('SYSTEM_ADMIN')
+  return entity === 'courses' ? requirePermission('course.manage') : requireRole('SYSTEM_ADMIN')
 }
 
 export async function GET(request: Request) {
@@ -128,7 +261,20 @@ export async function GET(request: Request) {
     }
     await authorizeEntity(entity, 'read')
     if (entity === 'users') {
-      const users = await prisma.user.findMany({ select: { id: true, email: true, phone: true, accountStatus: true, emailVerifiedAt: true, lastLoginAt: true, createdAt: true, userRoles: { include: { role: true } } }, orderBy: { email: 'asc' }, take: MAX_ITEMS })
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          accountStatus: true,
+          emailVerifiedAt: true,
+          lastLoginAt: true,
+          createdAt: true,
+          userRoles: { include: { role: true } },
+        },
+        orderBy: { email: 'asc' },
+        take: MAX_ITEMS,
+      })
       return NextResponse.json({ items: users, truncated: users.length === MAX_ITEMS })
     }
 
@@ -139,7 +285,11 @@ export async function GET(request: Request) {
       if (!id || !cfg.versioned) throw new AuthzError('Version history is not available for this record', 400)
       const [current, versions] = await Promise.all([
         model(entity).findUnique({ where: { id } }),
-        prisma.entityVersion.findMany({ where: { entityType: cfg.model, entityId: id }, orderBy: { version: 'desc' }, take: MAX_ITEMS }),
+        prisma.entityVersion.findMany({
+          where: { entityType: cfg.model, entityId: id },
+          orderBy: { version: 'desc' },
+          take: MAX_ITEMS,
+        }),
       ])
       if (!current) throw new AuthzError('Configuration record not found', 404)
       return NextResponse.json({ current, versions })
@@ -151,16 +301,24 @@ export async function GET(request: Request) {
         counts['Candidate assignments'] = await prisma.candidateCourse.count({ where: { courseId: id } })
         counts['Preboarding packages'] = await prisma.packageCourse.count({ where: { courseId: id } })
       } else if (entity === 'policies') {
-        counts['Candidate acknowledgements'] = await prisma.candidatePolicyAcknowledgement.count({ where: { policyDocumentId: id } })
+        counts['Candidate acknowledgements'] = await prisma.candidatePolicyAcknowledgement.count({
+          where: { policyDocumentId: id },
+        })
         counts['Preboarding packages'] = await prisma.packagePolicy.count({ where: { policyDocumentId: id } })
       } else if (entity === 'forms') {
         counts['Candidate forms'] = await prisma.candidatePreboardingForm.count({ where: { formTemplateId: id } })
         counts['Preboarding packages'] = await prisma.packageForm.count({ where: { formTemplateId: id } })
       } else if (entity === 'preboarding-packages') {
-        counts['Candidate assignments'] = await prisma.candidatePreboardingPackage.count({ where: { preboardingPackageId: id } })
+        counts['Candidate assignments'] = await prisma.candidatePreboardingPackage.count({
+          where: { preboardingPackageId: id },
+        })
       } else if (entity === 'scorecards') {
-        counts['Submitted or draft scorecards'] = await prisma.candidateScorecard.count({ where: { scorecardTemplateId: id } })
-        counts['Configured vacancies'] = await prisma.vacancy.count({ where: { OR: [{ screeningScorecardTemplateId: id }, { interviewScorecardTemplateId: id }] } })
+        counts['Submitted or draft scorecards'] = await prisma.candidateScorecard.count({
+          where: { scorecardTemplateId: id },
+        })
+        counts['Configured vacancies'] = await prisma.vacancy.count({
+          where: { OR: [{ screeningScorecardTemplateId: id }, { interviewScorecardTemplateId: id }] },
+        })
       } else if (entity === 'templates') {
         counts['Offers'] = await prisma.offer.count({ where: { offerTemplateId: id } })
       }
@@ -187,7 +345,13 @@ export async function POST(request: Request) {
     if (!cfg) return NextResponse.json({ error: `Unknown entity: ${entity}` }, { status: 400 })
 
     const created = await model(entity).create({ data: coerce(cfg.fields, data) })
-    await logAudit({ actorUserId: user.userId, action: 'ADMIN_CREATE', resourceType: cfg.model, resourceId: created.id, newValue: created })
+    await logAudit({
+      actorUserId: user.userId,
+      action: 'ADMIN_CREATE',
+      resourceType: cfg.model,
+      resourceId: created.id,
+      newValue: created,
+    })
     return NextResponse.json({ success: true, item: created })
   } catch (err) {
     return authzResponse(err)
@@ -204,11 +368,31 @@ export async function PUT(request: Request) {
     const previous = await model(entity).findUnique({ where: { id } })
     if (!previous) throw new AuthzError('Configuration record not found', 404)
     const writable = coerce(cfg.fields, data)
-    const updated = cfg.versioned ? await prisma.$transaction(async (tx) => {
-      await tx.entityVersion.upsert({ where: { entityType_entityId_version: { entityType: cfg.model, entityId: id, version: previous.version } }, update: {}, create: { entityType: cfg.model, entityId: id, version: previous.version, snapshotJson: JSON.stringify(previous), changeReason: 'Administrative update', createdBy: user.userId } })
-      return (tx as any)[cfg.model].update({ where: { id }, data: { ...writable, version: { increment: 1 } } })
-    }) : await model(entity).update({ where: { id }, data: writable })
-    await logAudit({ actorUserId: user.userId, action: 'ADMIN_UPDATE', resourceType: cfg.model, resourceId: id, previousValue: previous, newValue: updated })
+    const updated = cfg.versioned
+      ? await prisma.$transaction(async (tx) => {
+          await tx.entityVersion.upsert({
+            where: { entityType_entityId_version: { entityType: cfg.model, entityId: id, version: previous.version } },
+            update: {},
+            create: {
+              entityType: cfg.model,
+              entityId: id,
+              version: previous.version,
+              snapshotJson: JSON.stringify(previous),
+              changeReason: 'Administrative update',
+              createdBy: user.userId,
+            },
+          })
+          return (tx as any)[cfg.model].update({ where: { id }, data: { ...writable, version: { increment: 1 } } })
+        })
+      : await model(entity).update({ where: { id }, data: writable })
+    await logAudit({
+      actorUserId: user.userId,
+      action: 'ADMIN_UPDATE',
+      resourceType: cfg.model,
+      resourceId: id,
+      previousValue: previous,
+      newValue: updated,
+    })
     return NextResponse.json({ success: true, item: updated })
   } catch (err) {
     return authzResponse(err)

@@ -8,7 +8,7 @@ import { rowsToCsv, safeExportName, zipEntries, type ExportEntry } from '@/lib/e
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requirePermission('report.export')
     const readAll = await hasPermission(user.userId, 'application.read.all')
@@ -31,9 +31,17 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         answers: { include: { vacancyQuestion: true } },
         files: { include: { fileAsset: true, vacancyQuestion: true } },
         stageHistory: { orderBy: { createdAt: 'asc' } },
-        scorecards: { include: { reviewer: { select: { email: true } }, scorecardTemplate: true, criterionScores: { include: { criterion: true } } } },
+        scorecards: {
+          include: {
+            reviewer: { select: { email: true } },
+            scorecardTemplate: true,
+            criterionScores: { include: { criterion: true } },
+          },
+        },
         candidateAssessments: { include: { assessment: true } },
-        interviews: { include: { panelMembers: { include: { user: { select: { email: true } } } }, panelSubmissions: true } },
+        interviews: {
+          include: { panelMembers: { include: { user: { select: { email: true } } } }, panelSubmissions: true },
+        },
         referees: { include: { requests: { include: { response: true } } } },
         selectionDecisions: true,
         offers: true,
@@ -48,14 +56,20 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
             readinessChecks: true,
           },
         },
-        messageThreads: { where: { restricted: false }, include: { messages: { include: { sender: { select: { email: true } } }, orderBy: { sentAt: 'asc' } } } },
+        messageThreads: {
+          where: { restricted: false },
+          include: { messages: { include: { sender: { select: { email: true } } }, orderBy: { sentAt: 'asc' } } },
+        },
         resumptionRecord: true,
         erpTransferRecord: true,
       },
     })
     if (!application) throw new AuthzError('Application not found', 404)
     if (!readAll && application.assignedReviewerId !== user.userId && application.vacancy.ownerUserId !== user.userId) {
-      const panel = await prisma.interviewPanelMember.findFirst({ where: { userId: user.userId, interview: { applicationId: application.id } }, select: { id: true } })
+      const panel = await prisma.interviewPanelMember.findFirst({
+        where: { userId: user.userId, interview: { applicationId: application.id } },
+        select: { id: true },
+      })
       if (!panel) throw new AuthzError('This application is outside your assigned scope', 403)
     }
 
@@ -68,64 +82,265 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       },
       {
         name: '01-case-summary.csv',
-        data: rowsToCsv([{
-          'Application ID': application.id,
-          Candidate: candidateName,
-          Email: application.candidate.user.email,
-          Phone: application.candidate.primaryPhone || application.candidate.user.phone || '',
-          Vacancy: application.vacancy.title,
-          Reference: application.vacancy.referenceNumber,
-          Department: application.vacancy.department.name,
-          Project: application.vacancy.project?.name || '',
-          'Duty station': application.vacancy.dutyStation.name,
-          'Internal stage': application.internalStatus,
-          'Candidate-visible status': application.candidateVisibleStatus,
-          Submitted: application.submittedAt,
-          'Last updated': application.updatedAt,
-        }]),
+        data: rowsToCsv([
+          {
+            'Application ID': application.id,
+            Candidate: candidateName,
+            Email: application.candidate.user.email,
+            Phone: application.candidate.primaryPhone || application.candidate.user.phone || '',
+            Vacancy: application.vacancy.title,
+            Reference: application.vacancy.referenceNumber,
+            Department: application.vacancy.department.name,
+            Project: application.vacancy.project?.name || '',
+            'Duty station': application.vacancy.dutyStation.name,
+            'Internal stage': application.internalStatus,
+            'Candidate-visible status': application.candidateVisibleStatus,
+            Submitted: application.submittedAt,
+            'Last updated': application.updatedAt,
+          },
+        ]),
       },
-      { name: '02-education.csv', data: rowsToCsv(application.candidate.education.map((item) => ({ Qualification: item.qualification, 'Field of study': item.fieldOfStudy, Institution: item.institution, Year: item.completionYear }))) },
-      { name: '03-employment.csv', data: rowsToCsv(application.candidate.employment.map((item) => ({ Employer: item.employer, 'Job title': item.jobTitle, Start: item.startDate, End: item.endDate, Current: item.isCurrent }))) },
-      { name: '04-application-answers.csv', data: rowsToCsv(application.answers.map((item) => ({ Question: item.vacancyQuestion.label, Answer: item.answerJson }))) },
-      { name: '05-stage-history.csv', data: rowsToCsv(application.stageHistory.map((item) => ({ From: item.fromStatus, To: item.toStatus, Reason: item.reason || '', 'Changed by': item.changedBy, At: item.createdAt }))) },
-      { name: '06-screening-scorecards.csv', data: rowsToCsv(application.scorecards.flatMap((scorecard) => scorecard.criterionScores.map((item) => ({ Template: scorecard.scorecardTemplate.name, Reviewer: scorecard.reviewer.email, Status: scorecard.status, Criterion: item.criterion.name, Score: item.score, Maximum: item.criterion.maximumScore, Comment: item.comment || '', Submitted: scorecard.submittedAt })))) },
-      { name: '07-assessments.csv', data: rowsToCsv(application.candidateAssessments.map((item) => ({ Assessment: item.assessment.title, Type: item.assessment.type, Status: item.status, Score: item.score ?? '', Passed: item.passed ?? '', Invited: item.invitedAt, Started: item.startedAt, Submitted: item.submittedAt }))) },
-      { name: '08-interviews.csv', data: rowsToCsv(application.interviews.map((item) => ({ Interview: item.title, Format: item.format, Status: item.status, Start: item.scheduledStart, End: item.scheduledEnd, 'Candidate response': item.candidateResponse || '', 'Panel members': item.panelMembers.map((member) => member.user.email).join('; '), 'Scores submitted': item.panelSubmissions.length }))) },
-      { name: '09-references.csv', data: rowsToCsv(application.referees.map((item) => ({ Referee: item.name, Organization: item.organization, Position: item.position, Relationship: item.relationship, Status: item.requests.at(-1)?.status || 'NOT_SENT', Outcome: item.requests.at(-1)?.response?.outcome || '' }))) },
-      { name: '10-selection.csv', data: rowsToCsv(application.selectionDecisions.map((item) => ({ Outcome: item.outcome, Rank: item.rank ?? '', Justification: item.justification || '', Override: item.overrideFlag, Approved: item.approvedAt }))) },
-      { name: '11-offers.csv', data: rowsToCsv(application.offers.map((item) => ({ Position: item.position, 'Duty station': item.dutyStation, 'Contract type': item.contractType, Status: item.status, 'Start date': item.startDate, Deadline: item.acceptanceDeadline, Sent: item.sentAt, Accepted: item.acceptedAt, Declined: item.declinedAt, 'Proposed start': item.candidateProposedStartDate }))) },
-      { name: '12-communications.csv', data: rowsToCsv(application.messageThreads.flatMap((thread) => thread.messages.map((message) => ({ Subject: thread.subject, Category: thread.category, Sender: message.sender.email, Message: message.body, Sent: message.sentAt, Read: message.readAt })))) },
+      {
+        name: '02-education.csv',
+        data: rowsToCsv(
+          application.candidate.education.map((item) => ({
+            Qualification: item.qualification,
+            'Field of study': item.fieldOfStudy,
+            Institution: item.institution,
+            Year: item.completionYear,
+          }))
+        ),
+      },
+      {
+        name: '03-employment.csv',
+        data: rowsToCsv(
+          application.candidate.employment.map((item) => ({
+            Employer: item.employer,
+            'Job title': item.jobTitle,
+            Start: item.startDate,
+            End: item.endDate,
+            Current: item.isCurrent,
+          }))
+        ),
+      },
+      {
+        name: '04-application-answers.csv',
+        data: rowsToCsv(
+          application.answers.map((item) => ({ Question: item.vacancyQuestion.label, Answer: item.answerJson }))
+        ),
+      },
+      {
+        name: '05-stage-history.csv',
+        data: rowsToCsv(
+          application.stageHistory.map((item) => ({
+            From: item.fromStatus,
+            To: item.toStatus,
+            Reason: item.reason || '',
+            'Changed by': item.changedBy,
+            At: item.createdAt,
+          }))
+        ),
+      },
+      {
+        name: '06-screening-scorecards.csv',
+        data: rowsToCsv(
+          application.scorecards.flatMap((scorecard) =>
+            scorecard.criterionScores.map((item) => ({
+              Template: scorecard.scorecardTemplate.name,
+              Reviewer: scorecard.reviewer.email,
+              Status: scorecard.status,
+              Criterion: item.criterion.name,
+              Score: item.score,
+              Maximum: item.criterion.maximumScore,
+              Comment: item.comment || '',
+              Submitted: scorecard.submittedAt,
+            }))
+          )
+        ),
+      },
+      {
+        name: '07-assessments.csv',
+        data: rowsToCsv(
+          application.candidateAssessments.map((item) => ({
+            Assessment: item.assessment.title,
+            Type: item.assessment.type,
+            Status: item.status,
+            Score: item.score ?? '',
+            Passed: item.passed ?? '',
+            Invited: item.invitedAt,
+            Started: item.startedAt,
+            Submitted: item.submittedAt,
+          }))
+        ),
+      },
+      {
+        name: '08-interviews.csv',
+        data: rowsToCsv(
+          application.interviews.map((item) => ({
+            Interview: item.title,
+            Format: item.format,
+            Status: item.status,
+            Start: item.scheduledStart,
+            End: item.scheduledEnd,
+            'Candidate response': item.candidateResponse || '',
+            'Panel members': item.panelMembers.map((member) => member.user.email).join('; '),
+            'Scores submitted': item.panelSubmissions.length,
+          }))
+        ),
+      },
+      {
+        name: '09-references.csv',
+        data: rowsToCsv(
+          application.referees.map((item) => ({
+            Referee: item.name,
+            Organization: item.organization,
+            Position: item.position,
+            Relationship: item.relationship,
+            Status: item.requests.at(-1)?.status || 'NOT_SENT',
+            Outcome: item.requests.at(-1)?.response?.outcome || '',
+          }))
+        ),
+      },
+      {
+        name: '10-selection.csv',
+        data: rowsToCsv(
+          application.selectionDecisions.map((item) => ({
+            Outcome: item.outcome,
+            Rank: item.rank ?? '',
+            Justification: item.justification || '',
+            Override: item.overrideFlag,
+            Approved: item.approvedAt,
+          }))
+        ),
+      },
+      {
+        name: '11-offers.csv',
+        data: rowsToCsv(
+          application.offers.map((item) => ({
+            Position: item.position,
+            'Duty station': item.dutyStation,
+            'Contract type': item.contractType,
+            Status: item.status,
+            'Start date': item.startDate,
+            Deadline: item.acceptanceDeadline,
+            Sent: item.sentAt,
+            Accepted: item.acceptedAt,
+            Declined: item.declinedAt,
+            'Proposed start': item.candidateProposedStartDate,
+          }))
+        ),
+      },
+      {
+        name: '12-communications.csv',
+        data: rowsToCsv(
+          application.messageThreads.flatMap((thread) =>
+            thread.messages.map((message) => ({
+              Subject: thread.subject,
+              Category: thread.category,
+              Sender: message.sender.email,
+              Message: message.body,
+              Sent: message.sentAt,
+              Read: message.readAt,
+            }))
+          )
+        ),
+      },
     ]
 
     for (const preboarding of application.preboardings) {
       files.push(
-        { name: '13-preboarding-summary.csv', data: rowsToCsv([{ Status: preboarding.status, Readiness: preboarding.readinessStatus, Completion: `${preboarding.overallCompletionPercentage}%`, Started: preboarding.startedAt, Ready: preboarding.readyAt, Completed: preboarding.completedAt, 'Confirmed start date': preboarding.confirmedStartDate }]) },
-        { name: '14-preboarding-requirements.csv', data: rowsToCsv([
-          ...preboarding.forms.map((item) => ({ Type: 'FORM', Requirement: item.formTemplate.title, Required: item.required, Status: item.status, Due: item.dueAt })),
-          ...preboarding.documents.map((item) => ({ Type: 'DOCUMENT', Requirement: item.documentRequirement.name, Required: item.required, Status: item.status, Due: item.dueAt })),
-          ...preboarding.policyAcknowledgements.map((item) => ({ Type: 'POLICY', Requirement: item.policyDocument.title, Required: item.required, Status: item.status, Due: item.dueAt })),
-          ...preboarding.courses.map((item) => ({ Type: 'COURSE', Requirement: item.course.title, Required: item.required, Status: item.status, Due: item.dueAt })),
-          ...preboarding.tasks.map((item) => ({ Type: 'TASK', Requirement: item.taskTemplate.title, Required: item.required, Status: item.status, Due: item.dueAt })),
-        ]) },
-        { name: '15-readiness-checks.csv', data: rowsToCsv(preboarding.readinessChecks.map((item) => ({ Check: item.checkType, Required: item.required, Status: item.status, 'Waiver reason': item.waiverReason || '', Reviewed: item.reviewedAt || item.waivedAt }))) },
+        {
+          name: '13-preboarding-summary.csv',
+          data: rowsToCsv([
+            {
+              Status: preboarding.status,
+              Readiness: preboarding.readinessStatus,
+              Completion: `${preboarding.overallCompletionPercentage}%`,
+              Started: preboarding.startedAt,
+              Ready: preboarding.readyAt,
+              Completed: preboarding.completedAt,
+              'Confirmed start date': preboarding.confirmedStartDate,
+            },
+          ]),
+        },
+        {
+          name: '14-preboarding-requirements.csv',
+          data: rowsToCsv([
+            ...preboarding.forms.map((item) => ({
+              Type: 'FORM',
+              Requirement: item.formTemplate.title,
+              Required: item.required,
+              Status: item.status,
+              Due: item.dueAt,
+            })),
+            ...preboarding.documents.map((item) => ({
+              Type: 'DOCUMENT',
+              Requirement: item.documentRequirement.name,
+              Required: item.required,
+              Status: item.status,
+              Due: item.dueAt,
+            })),
+            ...preboarding.policyAcknowledgements.map((item) => ({
+              Type: 'POLICY',
+              Requirement: item.policyDocument.title,
+              Required: item.required,
+              Status: item.status,
+              Due: item.dueAt,
+            })),
+            ...preboarding.courses.map((item) => ({
+              Type: 'COURSE',
+              Requirement: item.course.title,
+              Required: item.required,
+              Status: item.status,
+              Due: item.dueAt,
+            })),
+            ...preboarding.tasks.map((item) => ({
+              Type: 'TASK',
+              Requirement: item.taskTemplate.title,
+              Required: item.required,
+              Status: item.status,
+              Due: item.dueAt,
+            })),
+          ]),
+        },
+        {
+          name: '15-readiness-checks.csv',
+          data: rowsToCsv(
+            preboarding.readinessChecks.map((item) => ({
+              Check: item.checkType,
+              Required: item.required,
+              Status: item.status,
+              'Waiver reason': item.waiverReason || '',
+              Reviewed: item.reviewedAt || item.waivedAt,
+            }))
+          ),
+        }
       )
     }
-    if (application.resumptionRecord) files.push({ name: '16-resumption.csv', data: rowsToCsv([application.resumptionRecord]) })
-    if (application.erpTransferRecord) files.push({ name: '17-erp-handover.csv', data: rowsToCsv([application.erpTransferRecord]) })
+    if (application.resumptionRecord)
+      files.push({ name: '16-resumption.csv', data: rowsToCsv([application.resumptionRecord]) })
+    if (application.erpTransferRecord)
+      files.push({ name: '17-erp-handover.csv', data: rowsToCsv([application.erpTransferRecord]) })
 
     const includeFiles = new URL(request.url).searchParams.get('includeFiles') === '1'
     const mayReadRestricted = await hasPermission(user.userId, 'preboarding.restricted.read')
     const skipped: Array<{ file: string; reason: string }> = []
     if (includeFiles) {
       const assets = [
-        ...application.candidate.documents.map((item) => ({ prefix: `candidate-${item.documentType}`, asset: item.fileAsset })),
+        ...application.candidate.documents.map((item) => ({
+          prefix: `candidate-${item.documentType}`,
+          asset: item.fileAsset,
+        })),
         ...application.files.map((item) => ({ prefix: 'application', asset: item.fileAsset })),
       ]
       let totalBytes = 0
       for (const entry of assets) {
         const allowedSensitivity = entry.asset.sensitivityClass === 'STANDARD' || mayReadRestricted
         if (!allowedSensitivity || entry.asset.virusScanStatus !== 'CLEAN') {
-          skipped.push({ file: entry.asset.originalName, reason: allowedSensitivity ? 'Security scan is not clean' : 'Restricted by export permission' })
+          skipped.push({
+            file: entry.asset.originalName,
+            reason: allowedSensitivity ? 'Security scan is not clean' : 'Restricted by export permission',
+          })
           continue
         }
         if (entry.asset.sizeBytes > 10_000_000 || totalBytes + entry.asset.sizeBytes > 50_000_000) {
@@ -138,13 +353,31 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
           continue
         }
         totalBytes += contents.length
-        files.push({ name: `attachments/${safeExportName(entry.prefix)}-${safeExportName(entry.asset.originalName)}`, data: contents })
+        files.push({
+          name: `attachments/${safeExportName(entry.prefix)}-${safeExportName(entry.asset.originalName)}`,
+          data: contents,
+        })
       }
     }
-    files.push({ name: 'attachment-register.csv', data: rowsToCsv([
-      ...application.candidate.documents.map((item) => ({ Source: 'Candidate profile', Type: item.documentType, File: item.fileAsset.originalName, Status: item.status, Sensitivity: item.fileAsset.sensitivityClass })),
-      ...application.files.map((item) => ({ Source: 'Application', Type: item.vacancyQuestion?.label || 'Application file', File: item.fileAsset.originalName, Status: item.fileAsset.virusScanStatus, Sensitivity: item.fileAsset.sensitivityClass })),
-    ]) })
+    files.push({
+      name: 'attachment-register.csv',
+      data: rowsToCsv([
+        ...application.candidate.documents.map((item) => ({
+          Source: 'Candidate profile',
+          Type: item.documentType,
+          File: item.fileAsset.originalName,
+          Status: item.status,
+          Sensitivity: item.fileAsset.sensitivityClass,
+        })),
+        ...application.files.map((item) => ({
+          Source: 'Application',
+          Type: item.vacancyQuestion?.label || 'Application file',
+          File: item.fileAsset.originalName,
+          Status: item.fileAsset.virusScanStatus,
+          Sensitivity: item.fileAsset.sensitivityClass,
+        })),
+      ]),
+    })
     if (skipped.length) files.push({ name: 'attachments-not-included.csv', data: rowsToCsv(skipped) })
 
     const archive = zipEntries(files)
@@ -157,7 +390,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     })
     const filename = `frad-case-${safeExportName(application.vacancy.referenceNumber)}-${safeExportName(candidateName)}.zip`
     return new Response(new Uint8Array(archive), {
-      headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${filename}"`, 'Cache-Control': 'private, no-store' },
+      headers: {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Cache-Control': 'private, no-store',
+      },
     })
   } catch (error) {
     return authzResponse(error)

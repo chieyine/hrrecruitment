@@ -57,7 +57,10 @@ test.describe('direct acceptance for specialist-role workflows', () => {
       prisma.user.findUniqueOrThrow({ where: { email: 'hiring.manager@frad.org' }, select: { id: true } }),
       prisma.user.findUniqueOrThrow({ where: { email: 'panel.member@frad.org' }, select: { id: true } }),
       prisma.user.findUniqueOrThrow({ where: { email: 'approver@frad.org' }, select: { id: true } }),
-      prisma.user.findUniqueOrThrow({ where: { email: 'candidate@example.com' }, include: { candidateProfile: { select: { id: true } } } }),
+      prisma.user.findUniqueOrThrow({
+        where: { email: 'candidate@example.com' },
+        include: { candidateProfile: { select: { id: true } } },
+      }),
       prisma.department.findFirstOrThrow({ where: { active: true }, select: { id: true } }),
       prisma.dutyStation.findFirstOrThrow({ where: { active: true }, select: { id: true } }),
     ])
@@ -84,7 +87,12 @@ test.describe('direct acceptance for specialist-role workflows', () => {
   test('approver can record all four documented decisions with the correct vacancy transition', async ({ page }) => {
     const decisions = [
       { decision: 'APPROVED', expectedStatus: 'PENDING_APPROVAL', comment: undefined },
-      { decision: 'APPROVED_WITH_CONDITIONS', storedDecision: 'CONDITIONS_PENDING', expectedStatus: 'PENDING_APPROVAL', comment: 'Publish after the safeguarding wording is added.' },
+      {
+        decision: 'APPROVED_WITH_CONDITIONS',
+        storedDecision: 'CONDITIONS_PENDING',
+        expectedStatus: 'PENDING_APPROVAL',
+        comment: 'Publish after the safeguarding wording is added.',
+      },
       { decision: 'RETURNED', expectedStatus: 'DRAFT', comment: 'Clarify the reporting line before resubmission.' },
       { decision: 'REJECTED', expectedStatus: 'DRAFT', comment: 'The approved headcount does not cover this vacancy.' },
     ] as const
@@ -144,7 +152,9 @@ test.describe('direct acceptance for specialist-role workflows', () => {
 
     const applicationResponse = await page.request.get('/api/recruitment/applications')
     expect(applicationResponse.status()).toBe(200)
-    const applicationIds = (await applicationResponse.json()).applications.map((application: { id: string }) => application.id)
+    const applicationIds = (await applicationResponse.json()).applications.map(
+      (application: { id: string }) => application.id
+    )
     expect(applicationIds).toContain(ownedApplication.id)
     expect(applicationIds).toContain(assignedApplication.id)
     expect(applicationIds).not.toContain(unrelatedApplication.id)
@@ -184,7 +194,13 @@ test.describe('direct acceptance for specialist-role workflows', () => {
         panelMemberId: member.id,
         recommendation: 'RECOMMENDED',
         conflictType: 'NONE',
-        questionScores: [{ interviewQuestionId: question.id, score: 8, comment: 'The answer used a clear risk-based escalation path.' }],
+        questionScores: [
+          {
+            interviewQuestionId: question.id,
+            score: 8,
+            comment: 'The answer used a clear risk-based escalation path.',
+          },
+        ],
       },
     })
     expect(response.status(), await response.text()).toBe(200)
@@ -201,7 +217,9 @@ test.describe('direct acceptance for specialist-role workflows', () => {
     await logout(page)
 
     await login(page, 'hrmanager@frad.org')
-    const confirmation = await page.request.post(`/api/recruitment/interviews/${interview.id}/confirm-panel`, { data: {} })
+    const confirmation = await page.request.post(`/api/recruitment/interviews/${interview.id}/confirm-panel`, {
+      data: {},
+    })
     expect(confirmation.status(), await confirmation.text()).toBe(200)
     const [savedApplication, savedInterview] = await Promise.all([
       prisma.application.findUniqueOrThrow({ where: { id: application.id } }),
@@ -234,7 +252,10 @@ test.describe('direct acceptance for specialist-role workflows', () => {
     expect(missingEvidence.status()).toBe(400)
 
     const response = await page.request.post(`/api/recruitment/applications/${application.id}/referees`, {
-      data: { ...basePayload, manualComment: 'Identity verified by telephone; the referee noted a manageable punctuality concern.' },
+      data: {
+        ...basePayload,
+        manualComment: 'Identity verified by telephone; the referee noted a manageable punctuality concern.',
+      },
     })
     expect(response.status(), await response.text()).toBe(200)
     const saved = await prisma.application.findUniqueOrThrow({ where: { id: application.id } })

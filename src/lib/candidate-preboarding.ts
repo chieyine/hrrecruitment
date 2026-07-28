@@ -9,7 +9,11 @@ export async function getMyPreboarding(userId: string) {
     include: {
       forms: { include: { formTemplate: { select: { title: true, description: true, schemaJson: true } } } },
       documents: { include: { documentRequirement: true } },
-      policyAcknowledgements: { include: { policyDocument: { select: { title: true, summary: true, acknowledgementMethod: true, fileAssetId: true } } } },
+      policyAcknowledgements: {
+        include: {
+          policyDocument: { select: { title: true, summary: true, acknowledgementMethod: true, fileAssetId: true } },
+        },
+      },
       courses: {
         include: {
           course: {

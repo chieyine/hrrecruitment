@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Trash2 } from 'lucide-react'
 import { ReasonDialog } from '@/components/ui/Dialog'
 
-export default function DeleteDraftButton({ applicationId, vacancyId }: { applicationId: string, vacancyId: string }) {
+export default function DeleteDraftButton({ applicationId, vacancyId }: { applicationId: string; vacancyId: string }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -32,22 +32,22 @@ export default function DeleteDraftButton({ applicationId, vacancyId }: { applic
 
   return (
     <>
-      <button 
-        type="button" 
+      <button
+        type="button"
         onClick={() => setOpen(true)}
         className="font-bold text-rose-700 hover:underline flex items-center gap-1"
         aria-label="Delete draft"
       >
         <Trash2 className="w-3.5 h-3.5" /> Delete draft
       </button>
-      
+
       <ReasonDialog
         open={open}
         onClose={() => setOpen(false)}
         onConfirm={handleDelete}
         title="Delete application draft?"
         description="Are you sure you want to permanently delete this application draft? This action cannot be undone."
-        confirmLabel={deleting ? "Deleting..." : "Delete draft"}
+        confirmLabel={deleting ? 'Deleting...' : 'Delete draft'}
         reasonRequired={false}
         tone="danger"
       />

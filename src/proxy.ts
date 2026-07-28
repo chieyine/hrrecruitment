@@ -25,7 +25,8 @@ async function readSession(req: NextRequest): Promise<TokenPayload | null> {
       !session.userId ||
       !Array.isArray(session.roles) ||
       !Number.isInteger(session.sessionVersion)
-    ) return null
+    )
+      return null
     return session
   } catch {
     return null
@@ -57,10 +58,7 @@ export async function proxy(req: NextRequest) {
 
   const deny = (status: number, redirectTo: string) => {
     if (isApi) {
-      const response = NextResponse.json(
-        { error: status === 401 ? 'Unauthorized' : 'Forbidden' },
-        { status }
-      )
+      const response = NextResponse.json({ error: status === 401 ? 'Unauthorized' : 'Forbidden' }, { status })
       response.headers.set('x-request-id', requestId)
       return response
     }
@@ -68,9 +66,10 @@ export async function proxy(req: NextRequest) {
     const host = req.headers.get('host')
     const safeHost = host && /^[a-z0-9.-]+(?::\d{1,5})?$/i.test(host) ? host : null
     const forwardedProtocol = req.headers.get('x-forwarded-proto')?.toLowerCase()
-    const protocol = forwardedProtocol === 'http' || forwardedProtocol === 'https'
-      ? forwardedProtocol
-      : new URL(req.url).protocol.replace(':', '')
+    const protocol =
+      forwardedProtocol === 'http' || forwardedProtocol === 'https'
+        ? forwardedProtocol
+        : new URL(req.url).protocol.replace(':', '')
     // Build the absolute URL from the validated request host rather than
     // nextUrl's internal server hostname.
     const url = new URL(location, safeHost ? `${protocol}://${safeHost}` : req.url)

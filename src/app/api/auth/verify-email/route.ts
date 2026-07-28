@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const body = await request.json().catch(() => ({})) as { token?: unknown }
+    const body = (await request.json().catch(() => ({}))) as { token?: unknown }
     const token = typeof body.token === 'string' ? body.token : ''
     // Bound the input: an unbounded string is pointless work for a JWT check.
     if (!token || token.length > 4096) {
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
 
     // A valid, unexpired, purpose-bound token is REQUIRED (no email-only verify).
     const emailChange = await verifyEmailChangeToken(token)
-    const userId = emailChange?.userId || await verifyEmailVerifyToken(token)
+    const userId = emailChange?.userId || (await verifyEmailVerifyToken(token))
     if (!userId) {
       return NextResponse.json({ error: 'Invalid or expired verification link' }, { status: 400 })
     }
@@ -36,11 +36,16 @@ export async function POST(request: Request) {
 
     if (emailChange) {
       const duplicate = await prisma.user.findUnique({ where: { email: emailChange.email } })
-      if (duplicate && duplicate.id !== user.id) return NextResponse.json({ error: 'That email is already in use' }, { status: 409 })
+      if (duplicate && duplicate.id !== user.id)
+        return NextResponse.json({ error: 'That email is already in use' }, { status: 409 })
     }
     if (emailChange) {
-      const consumed = await prisma.user.updateMany({ where: { id: user.id, sessionVersion: emailChange.sessionVersion }, data: { email: emailChange.email, emailVerifiedAt: new Date(), sessionVersion: { increment: 1 } } })
-      if (consumed.count !== 1) return NextResponse.json({ error: 'Invalid or expired verification link' }, { status: 400 })
+      const consumed = await prisma.user.updateMany({
+        where: { id: user.id, sessionVersion: emailChange.sessionVersion },
+        data: { email: emailChange.email, emailVerifiedAt: new Date(), sessionVersion: { increment: 1 } },
+      })
+      if (consumed.count !== 1)
+        return NextResponse.json({ error: 'Invalid or expired verification link' }, { status: 400 })
     } else {
       await prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } })
     }

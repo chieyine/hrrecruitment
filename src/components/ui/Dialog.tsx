@@ -61,7 +61,7 @@ export function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/50 p-4 animate-fade-in"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-navy-950/60 p-4 backdrop-blur-[2px] animate-fade-in"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
@@ -71,16 +71,18 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl shadow-slate-900/20 animate-dialog-in"
+        className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-[0_24px_80px_rgba(10,16,13,.28)] animate-dialog-in"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className={`text-lg font-bold ${tone === 'danger' ? 'text-rose-700' : 'text-slate-900'}`}>
+          <h2
+            className={`text-lg font-semibold tracking-[-0.015em] ${tone === 'danger' ? 'text-rose-700' : 'text-navy-900'}`}
+          >
             {title}
           </h2>
           <button
             aria-label="Close dialog"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
           >
             <X className="h-5 w-5" />
           </button>
@@ -120,10 +122,7 @@ export function ReasonDialog({
     if (open) setReason('')
   }, [open])
 
-  const confirmClasses =
-    tone === 'danger'
-      ? 'bg-rose-600 hover:bg-rose-700'
-      : 'bg-blue-600 hover:bg-blue-700'
+  const confirmClasses = tone === 'danger' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-brand-700 hover:bg-brand-800'
 
   return (
     <Dialog open={open} onClose={onClose} title={title} tone={tone}>
@@ -134,9 +133,9 @@ export function ReasonDialog({
         }}
         className="space-y-4"
       >
-        {description && <p className="text-sm text-slate-600">{description}</p>}
+        {description && <p className="text-sm leading-6 text-stone-600">{description}</p>}
         <div>
-          <label htmlFor="dialog-reason" className="mb-1 block text-xs font-semibold text-slate-600">
+          <label htmlFor="dialog-reason" className="field-label">
             {reasonLabel}
             {reasonRequired ? ' *' : ' (optional)'}
           </label>
@@ -146,21 +145,17 @@ export function ReasonDialog({
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="field-control min-h-24 resize-y"
           />
         </div>
         <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
+          <button type="button" onClick={onClose} className="btn-secondary min-h-10 px-4 py-2">
             Cancel
           </button>
           <button
             type="submit"
             disabled={busy}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${confirmClasses}`}
+            className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60 ${confirmClasses}`}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
             {confirmLabel}
@@ -192,9 +187,9 @@ export function ConfirmDialog({
 }) {
   return (
     <Dialog open={open} onClose={onClose} title={title} tone={tone}>
-      <p className="text-sm leading-6 text-slate-600">{description}</p>
+      <p className="text-sm leading-6 text-stone-600">{description}</p>
       <div className="mt-5 flex justify-end gap-2">
-        <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        <button type="button" onClick={onClose} className="btn-secondary min-h-10 px-4 py-2">
           Cancel
         </button>
         <button
@@ -202,7 +197,7 @@ export function ConfirmDialog({
           disabled={busy}
           onClick={() => void onConfirm()}
           className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${
-            tone === 'danger' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700'
+            tone === 'danger' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-brand-700 hover:bg-brand-800'
           }`}
         >
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}

@@ -68,7 +68,8 @@ export default function InterviewCoordinationActions({
   }
 
   const spinner = (label: string) => busy === label && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-  const canInvite = status !== 'CANCELLED' && ['SHORTLISTED', 'ASSESSMENT_COMPLETED', 'INTERVIEW_INVITED'].includes(applicationStatus)
+  const canInvite =
+    status !== 'CANCELLED' && ['SHORTLISTED', 'ASSESSMENT_COMPLETED', 'INTERVIEW_INVITED'].includes(applicationStatus)
   const declaredConflicts = panelMembers.filter(
     (member) => member.conflictStatus !== 'NONE' && member.conflictStatus !== 'RESOLVED_EXCEPTION'
   )
@@ -79,7 +80,7 @@ export default function InterviewCoordinationActions({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-400 hover:text-blue-700"
+        className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-brand-400 hover:text-brand-700"
       >
         Coordinator actions
         {declaredConflicts.length > 0 && (
@@ -103,7 +104,7 @@ export default function InterviewCoordinationActions({
       {/* ---- invite the candidate ---- */}
       <div className="rounded-xl border border-slate-200 bg-white p-3">
         <h5 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
-          <Send className="h-3.5 w-3.5 text-blue-700" aria-hidden /> Send candidate invitation
+          <Send className="h-3.5 w-3.5 text-brand-700" aria-hidden /> Send candidate invitation
         </h5>
         {canInvite ? (
           <>
@@ -128,7 +129,7 @@ export default function InterviewCoordinationActions({
                 )
               }
               disabled={busy !== null}
-              className="mt-2 inline-flex items-center gap-2 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+              className="mt-2 inline-flex items-center gap-2 rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
             >
               {spinner('invite')}Send invitation
             </button>

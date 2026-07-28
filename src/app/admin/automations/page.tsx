@@ -10,7 +10,9 @@ export default async function AutomationsPage() {
       <div className="page-intro">
         <p className="editorial-kicker">Scheduled work</p>
         <h1 className="page-title">Automation controls</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">Check, pause or turn on reminders and scheduled tasks. Every run remains in the audit record.</p>
+        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+          Check, pause or turn on reminders and scheduled tasks. Every run remains in the audit record.
+        </p>
       </div>
       <AutomationManager />
     </div>

@@ -5,7 +5,6 @@ import { Plus, Pencil, Trash2, Loader2, RefreshCw, Search, Copy, History } from 
 import { useToast } from '@/components/ui/Toaster'
 import { Dialog, ReasonDialog } from '@/components/ui/Dialog'
 
-
 export interface CrudField {
   name: string
   label: string
@@ -24,14 +23,7 @@ interface AdminCrudProps {
   readOnly?: boolean
 }
 
-export default function AdminCrud({
-  entity,
-  title,
-  subtitle,
-  fields,
-  columns,
-  readOnly = false,
-}: AdminCrudProps) {
+export default function AdminCrud({ entity, title, subtitle, fields, columns, readOnly = false }: AdminCrudProps) {
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -54,7 +46,13 @@ export default function AdminCrud({
       ? title.slice(0, -1)
       : title
   const visibleItems = query.trim()
-    ? items.filter((item) => columns.some((column) => String(item[column.name] ?? '').toLowerCase().includes(query.trim().toLowerCase())))
+    ? items.filter((item) =>
+        columns.some((column) =>
+          String(item[column.name] ?? '')
+            .toLowerCase()
+            .includes(query.trim().toLowerCase())
+        )
+      )
     : items
 
   const load = useCallback(async () => {
@@ -84,7 +82,9 @@ export default function AdminCrud({
       const saved = JSON.parse(localStorage.getItem(`frad-admin-draft:${entity}:new`) || '{}')
       setForm(saved.form || blank)
       if (saved.form) toast('info', 'Restored your unfinished draft.')
-    } catch { setForm(blank) }
+    } catch {
+      setForm(blank)
+    }
     setShowForm(true)
   }
 
@@ -100,7 +100,9 @@ export default function AdminCrud({
       const saved = JSON.parse(localStorage.getItem(`frad-admin-draft:${entity}:${item.id}`) || '{}')
       setForm(saved.form || populated)
       if (saved.form) toast('info', 'Restored your unfinished changes.')
-    } catch { setForm(populated) }
+    } catch {
+      setForm(populated)
+    }
     setDraftReason('')
     setScheduledFor('')
     setEffectiveFrom('')
@@ -125,12 +127,28 @@ export default function AdminCrud({
   useEffect(() => {
     if (!showForm) return
     const key = `frad-admin-draft:${entity}:${editing?.id || 'new'}`
-    const timer = window.setTimeout(() => localStorage.setItem(key, JSON.stringify({ form, draftReason, scheduledFor, effectiveFrom, effectiveTo, savedAt: new Date().toISOString() })), 400)
+    const timer = window.setTimeout(
+      () =>
+        localStorage.setItem(
+          key,
+          JSON.stringify({
+            form,
+            draftReason,
+            scheduledFor,
+            effectiveFrom,
+            effectiveTo,
+            savedAt: new Date().toISOString(),
+          })
+        ),
+      400
+    )
     return () => window.clearTimeout(timer)
   }, [showForm, entity, editing?.id, form, draftReason, scheduledFor, effectiveFrom, effectiveTo])
 
   async function openHistory(item: any) {
-    const response = await fetch(`/api/admin/generic?entity=${encodeURIComponent(entity)}&id=${encodeURIComponent(item.id)}&history=1`)
+    const response = await fetch(
+      `/api/admin/generic?entity=${encodeURIComponent(entity)}&id=${encodeURIComponent(item.id)}&history=1`
+    )
     const body = await response.json()
     if (!response.ok) return toast('error', body.error || 'Could not load version history.')
     setHistory({ item: body.current, versions: body.versions || [] })
@@ -138,7 +156,9 @@ export default function AdminCrud({
 
   async function prepareRemove(item: any) {
     setDeletingImpact({})
-    const response = await fetch(`/api/admin/generic?entity=${encodeURIComponent(entity)}&id=${encodeURIComponent(item.id)}&impact=1`)
+    const response = await fetch(
+      `/api/admin/generic?entity=${encodeURIComponent(entity)}&id=${encodeURIComponent(item.id)}&impact=1`
+    )
     if (response.ok) {
       const body = await response.json()
       setDeletingImpact(body.counts || {})
@@ -151,11 +171,18 @@ export default function AdminCrud({
     setError('')
     try {
       const controlledDraft = Boolean(editing?.version !== undefined)
-      if (controlledDraft && draftReason.trim().length < 10) throw new Error('Explain the reason for this configuration change (at least 10 characters).')
+      if (controlledDraft && draftReason.trim().length < 10)
+        throw new Error('Explain the reason for this configuration change (at least 10 characters).')
       const method = controlledDraft ? 'POST' : editing ? 'PUT' : 'POST'
       const body: any = { entity, data: form }
       if (editing) body.id = editing.id
-      if (controlledDraft) Object.assign(body, { reason: draftReason, ...(scheduledFor ? { scheduledFor } : {}), ...(effectiveFrom ? { effectiveFrom } : {}), ...(effectiveTo ? { effectiveTo } : {}) })
+      if (controlledDraft)
+        Object.assign(body, {
+          reason: draftReason,
+          ...(scheduledFor ? { scheduledFor } : {}),
+          ...(effectiveFrom ? { effectiveFrom } : {}),
+          ...(effectiveTo ? { effectiveTo } : {}),
+        })
       const res = await fetch(controlledDraft ? '/api/admin/configuration-releases' : '/api/admin/generic', {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -165,7 +192,10 @@ export default function AdminCrud({
       if (!res.ok) throw new Error(json.error || 'Save failed')
       localStorage.removeItem(`frad-admin-draft:${entity}:${editing?.id || 'new'}`)
       setShowForm(false)
-      toast('success', controlledDraft ? 'Configuration draft created for review.' : editing ? 'Record updated.' : 'Record created.')
+      toast(
+        'success',
+        controlledDraft ? 'Configuration draft created for review.' : editing ? 'Record updated.' : 'Record created.'
+      )
       await load()
     } catch (e: any) {
       toast('error', e.message)
@@ -199,18 +229,16 @@ export default function AdminCrud({
           {subtitle && <p className="text-slate-600 text-sm mt-1">{subtitle}</p>}
         </div>
         <div className="flex items-center gap-2">
-          {items.some((item) => item.version !== undefined) && <a href="/admin/configuration-releases" className="btn-secondary min-h-0 px-3 py-2">Review drafts</a>}
-          <button
-            onClick={load}
-            className="btn-secondary min-h-0 px-3 py-2"
-          >
+          {items.some((item) => item.version !== undefined) && (
+            <a href="/admin/configuration-releases" className="btn-secondary min-h-0 px-3 py-2">
+              Review drafts
+            </a>
+          )}
+          <button onClick={load} className="btn-secondary min-h-0 px-3 py-2">
             <RefreshCw className="w-4 h-4" /> Refresh
           </button>
           {!readOnly && (
-            <button
-              onClick={openCreate}
-              className="btn-primary min-h-0 px-4 py-2"
-            >
+            <button onClick={openCreate} className="btn-primary min-h-0 px-4 py-2">
               <Plus className="w-4 h-4" /> Add {singularTitle.toLowerCase()}
             </button>
           )}
@@ -227,9 +255,17 @@ export default function AdminCrud({
         <label className="relative block max-w-sm flex-1">
           <span className="sr-only">Search {title.toLowerCase()}</span>
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${title.toLowerCase()}`} className="field-control pl-9" />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={`Search ${title.toLowerCase()}`}
+            className="field-control pl-9"
+          />
         </label>
-        <p className="text-xs font-medium text-stone-500">{visibleItems.length} of {items.length} records</p>
+        <p className="text-xs font-medium text-stone-500">
+          {visibleItems.length} of {items.length} records
+        </p>
       </div>
 
       <div className="overflow-x-auto section-panel">
@@ -267,12 +303,40 @@ export default function AdminCrud({
                   ))}
                   {!readOnly && (
                     <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <button aria-label="Edit" title="Edit" onClick={() => openEdit(item)} className="mr-2 text-slate-500 hover:text-blue-600">
+                      <button
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={() => openEdit(item)}
+                        className="mr-2 text-slate-500 hover:text-brand-600"
+                      >
                         <Pencil className="inline h-4 w-4" />
                       </button>
-                      {item.version !== undefined && <button aria-label="Copy" title="Create a copy" onClick={() => openClone(item)} className="mr-2 text-slate-500 hover:text-blue-600"><Copy className="inline h-4 w-4" /></button>}
-                      {item.version !== undefined && <button aria-label="Version history" title="Version history" onClick={() => void openHistory(item)} className="mr-2 text-slate-500 hover:text-blue-600"><History className="inline h-4 w-4" /></button>}
-                      <button aria-label="Delete" title="Delete" onClick={() => void prepareRemove(item)} className="text-slate-500 hover:text-rose-600">
+                      {item.version !== undefined && (
+                        <button
+                          aria-label="Copy"
+                          title="Create a copy"
+                          onClick={() => openClone(item)}
+                          className="mr-2 text-slate-500 hover:text-brand-600"
+                        >
+                          <Copy className="inline h-4 w-4" />
+                        </button>
+                      )}
+                      {item.version !== undefined && (
+                        <button
+                          aria-label="Version history"
+                          title="Version history"
+                          onClick={() => void openHistory(item)}
+                          className="mr-2 text-slate-500 hover:text-brand-600"
+                        >
+                          <History className="inline h-4 w-4" />
+                        </button>
+                      )}
+                      <button
+                        aria-label="Delete"
+                        title="Delete"
+                        onClick={() => void prepareRemove(item)}
+                        className="text-slate-500 hover:text-rose-600"
+                      >
                         <Trash2 className="inline h-4 w-4" />
                       </button>
                     </td>
@@ -290,95 +354,182 @@ export default function AdminCrud({
         title={`${editing ? 'Edit' : 'Add'} ${singularTitle.toLowerCase()}`}
       >
         <div className="max-h-[70vh] overflow-y-auto pr-1">
-            <div className="space-y-4">
-              {fields.map((f) => (
-                <div key={f.name}>
-                  <label htmlFor={`${entity}-${f.name}`} className="block text-xs font-semibold text-slate-600 mb-1">{f.label}</label>
-                  {f.type === 'textarea' ? (
-                    <textarea
-                      id={`${entity}-${f.name}`}
-                      name={f.name}
-                      required={f.required}
-                      value={form[f.name] ?? ''}
-                      onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
-                      placeholder={f.placeholder}
-                      rows={3}
-                      className="field-control"
-                    />
-                  ) : f.type === 'checkbox' ? (
-                    <input
-                      id={`${entity}-${f.name}`}
-                      name={f.name}
-                      type="checkbox"
-                      checked={!!form[f.name]}
-                      onChange={(e) => setForm({ ...form, [f.name]: e.target.checked })}
-                      className="h-4 w-4 rounded border-slate-300"
-                    />
-                  ) : f.type === 'select' ? (
-                    <select
-                      id={`${entity}-${f.name}`}
-                      name={f.name}
-                      required={f.required}
-                      value={form[f.name] ?? ''}
-                      onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
-                      className="field-control"
-                    >
-                      <option value="">Select…</option>
-                      {f.options?.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      id={`${entity}-${f.name}`}
-                      name={f.name}
-                      required={f.required}
-                      type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
-                      value={form[f.name] ?? ''}
-                      onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
-                      placeholder={f.placeholder}
-                      className="field-control"
-                    />
-                  )}
-                </div>
-              ))}
-              {editing?.version !== undefined && <div className="space-y-4 border-t border-slate-200 pt-4">
+          <div className="space-y-4">
+            {fields.map((f) => (
+              <div key={f.name}>
+                <label htmlFor={`${entity}-${f.name}`} className="block text-xs font-semibold text-slate-600 mb-1">
+                  {f.label}
+                </label>
+                {f.type === 'textarea' ? (
+                  <textarea
+                    id={`${entity}-${f.name}`}
+                    name={f.name}
+                    required={f.required}
+                    value={form[f.name] ?? ''}
+                    onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
+                    placeholder={f.placeholder}
+                    rows={3}
+                    className="field-control"
+                  />
+                ) : f.type === 'checkbox' ? (
+                  <input
+                    id={`${entity}-${f.name}`}
+                    name={f.name}
+                    type="checkbox"
+                    checked={!!form[f.name]}
+                    onChange={(e) => setForm({ ...form, [f.name]: e.target.checked })}
+                    className="h-4 w-4 rounded border-slate-300"
+                  />
+                ) : f.type === 'select' ? (
+                  <select
+                    id={`${entity}-${f.name}`}
+                    name={f.name}
+                    required={f.required}
+                    value={form[f.name] ?? ''}
+                    onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
+                    className="field-control"
+                  >
+                    <option value="">Select…</option>
+                    {f.options?.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id={`${entity}-${f.name}`}
+                    name={f.name}
+                    required={f.required}
+                    type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
+                    value={form[f.name] ?? ''}
+                    onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
+                    placeholder={f.placeholder}
+                    className="field-control"
+                  />
+                )}
+              </div>
+            ))}
+            {editing?.version !== undefined && (
+              <div className="space-y-4 border-t border-slate-200 pt-4">
                 <p className="text-sm font-bold text-slate-900">Release controls</p>
-                <label className="block"><span className="field-label">Reason for change</span><textarea required minLength={10} value={draftReason} onChange={(event) => setDraftReason(event.target.value)} rows={3} className="field-control" placeholder="Explain why this change is needed and what users it affects."/></label>
-                <div className="grid gap-3 sm:grid-cols-3"><label><span className="field-label">Scheduled publication</span><input type="datetime-local" value={scheduledFor} onChange={(event) => setScheduledFor(event.target.value)} className="field-control"/></label><label><span className="field-label">Effective from</span><input type="datetime-local" value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} className="field-control"/></label><label><span className="field-label">Effective until</span><input type="datetime-local" value={effectiveTo} onChange={(event) => setEffectiveTo(event.target.value)} className="field-control"/></label></div>
-                <p className="text-xs leading-5 text-slate-500">Saving creates a draft. A different system administrator must approve it before publication.</p>
-              </div>}
-            </div>
-            <div className="mt-6 flex justify-end gap-2">
-              <button onClick={() => setShowForm(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                Cancel
-              </button>
-              <button
-                onClick={save}
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />} {editing?.version !== undefined ? 'Create draft' : 'Save'}
-              </button>
-            </div>
+                <label className="block">
+                  <span className="field-label">Reason for change</span>
+                  <textarea
+                    required
+                    minLength={10}
+                    value={draftReason}
+                    onChange={(event) => setDraftReason(event.target.value)}
+                    rows={3}
+                    className="field-control"
+                    placeholder="Explain why this change is needed and what users it affects."
+                  />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <label>
+                    <span className="field-label">Scheduled publication</span>
+                    <input
+                      type="datetime-local"
+                      value={scheduledFor}
+                      onChange={(event) => setScheduledFor(event.target.value)}
+                      className="field-control"
+                    />
+                  </label>
+                  <label>
+                    <span className="field-label">Effective from</span>
+                    <input
+                      type="datetime-local"
+                      value={effectiveFrom}
+                      onChange={(event) => setEffectiveFrom(event.target.value)}
+                      className="field-control"
+                    />
+                  </label>
+                  <label>
+                    <span className="field-label">Effective until</span>
+                    <input
+                      type="datetime-local"
+                      value={effectiveTo}
+                      onChange={(event) => setEffectiveTo(event.target.value)}
+                      className="field-control"
+                    />
+                  </label>
+                </div>
+                <p className="text-xs leading-5 text-slate-500">
+                  Saving creates a draft. A different system administrator must approve it before publication.
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="mt-6 flex justify-end gap-2">
+            <button
+              onClick={() => setShowForm(false)}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}{' '}
+              {editing?.version !== undefined ? 'Create draft' : 'Save'}
+            </button>
+          </div>
         </div>
       </Dialog>
 
       <ReasonDialog
         open={deleting !== null}
         onClose={() => setDeleting(null)}
-        onConfirm={() => { if (deleting) return remove(deleting) }}
+        onConfirm={() => {
+          if (deleting) return remove(deleting)
+        }}
         title={`Remove "${deleting?.name || deleting?.title || deleting?.code || 'record'}"?`}
-        description={`Records with an active flag are deactivated rather than permanently deleted.${Object.keys(deletingImpact).length ? ` Current dependencies: ${Object.entries(deletingImpact).map(([label, count]) => `${label}: ${count}`).join('; ')}.` : ' No linked operational records were found by the impact check.'}`}
+        description={`Records with an active flag are deactivated rather than permanently deleted.${
+          Object.keys(deletingImpact).length
+            ? ` Current dependencies: ${Object.entries(deletingImpact)
+                .map(([label, count]) => `${label}: ${count}`)
+                .join('; ')}.`
+            : ' No linked operational records were found by the impact check.'
+        }`}
         confirmLabel="Remove"
         reasonLabel="Note"
         tone="danger"
       />
       <Dialog open={history !== null} onClose={() => setHistory(null)} title="Version history">
-        {history && <div className="space-y-4">
-          <div className="border border-blue-200 bg-blue-50 p-3 text-sm"><p className="font-semibold text-blue-950">Current version {history.item.version}</p><pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-xs text-blue-900">{JSON.stringify(history.item, null, 2)}</pre></div>
-          {history.versions.length === 0 ? <p className="text-sm text-slate-600">No earlier versions have been recorded yet.</p> : <ol className="max-h-72 space-y-3 overflow-y-auto">{history.versions.map((version) => <li key={version.id} className="border border-slate-200 p-3"><p className="text-sm font-semibold text-slate-900">Version {version.version}</p><p className="mt-1 text-xs text-slate-500">{new Date(version.createdAt).toLocaleString()} · {version.changeReason || 'Administrative update'}</p><details className="mt-2"><summary className="cursor-pointer text-xs font-semibold text-blue-700">Compare stored values</summary><pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap bg-slate-50 p-2 text-xs">{JSON.stringify(JSON.parse(version.snapshotJson), null, 2)}</pre></details></li>)}</ol>}
-        </div>}
+        {history && (
+          <div className="space-y-4">
+            <div className="border border-brand-200 bg-brand-50 p-3 text-sm">
+              <p className="font-semibold text-brand-950">Current version {history.item.version}</p>
+              <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-xs text-brand-900">
+                {JSON.stringify(history.item, null, 2)}
+              </pre>
+            </div>
+            {history.versions.length === 0 ? (
+              <p className="text-sm text-slate-600">No earlier versions have been recorded yet.</p>
+            ) : (
+              <ol className="max-h-72 space-y-3 overflow-y-auto">
+                {history.versions.map((version) => (
+                  <li key={version.id} className="border border-slate-200 p-3">
+                    <p className="text-sm font-semibold text-slate-900">Version {version.version}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {new Date(version.createdAt).toLocaleString()} · {version.changeReason || 'Administrative update'}
+                    </p>
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-xs font-semibold text-brand-700">
+                        Compare stored values
+                      </summary>
+                      <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap bg-slate-50 p-2 text-xs">
+                        {JSON.stringify(JSON.parse(version.snapshotJson), null, 2)}
+                      </pre>
+                    </details>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        )}
       </Dialog>
     </div>
   )

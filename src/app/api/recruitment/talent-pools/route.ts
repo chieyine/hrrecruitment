@@ -38,7 +38,9 @@ export async function GET() {
             include: {
               candidate: {
                 select: {
-                  legalFirstName: true, lastName: true, primaryPhone: true,
+                  legalFirstName: true,
+                  lastName: true,
+                  primaryPhone: true,
                   user: { select: { email: true } },
                   skills: { select: { name: true }, take: 10 },
                 },
@@ -55,7 +57,10 @@ export async function GET() {
           user: { accountStatus: 'ACTIVE' },
         },
         select: {
-          id: true, legalFirstName: true, lastName: true, primaryPhone: true,
+          id: true,
+          legalFirstName: true,
+          lastName: true,
+          primaryPhone: true,
           user: { select: { email: true } },
           skills: { select: { name: true }, take: 10 },
           applications: {
@@ -78,7 +83,9 @@ export async function GET() {
       pools,
       eligibleCandidates: eligibleCandidates.map((candidate) => ({
         ...candidate,
-        possibleDuplicate: Boolean(candidate.primaryPhone && (phoneCounts.get(candidate.primaryPhone.replace(/\D/g, '')) || 0) > 1),
+        possibleDuplicate: Boolean(
+          candidate.primaryPhone && (phoneCounts.get(candidate.primaryPhone.replace(/\D/g, '')) || 0) > 1
+        ),
       })),
     })
   } catch (error) {
@@ -92,9 +99,20 @@ export async function POST(request: Request) {
     const input = await parseBody(request, schema)
     if (input.action === 'CREATE_POOL') {
       const pool = await prisma.talentPool.create({
-        data: { name: input.name, description: input.description || null, poolType: input.poolType, createdBy: user.userId },
+        data: {
+          name: input.name,
+          description: input.description || null,
+          poolType: input.poolType,
+          createdBy: user.userId,
+        },
       })
-      await logAudit({ actorUserId: user.userId, action: 'TALENT_POOL_CREATED', resourceType: 'TalentPool', resourceId: pool.id, newValue: { name: pool.name, poolType: pool.poolType } })
+      await logAudit({
+        actorUserId: user.userId,
+        action: 'TALENT_POOL_CREATED',
+        resourceType: 'TalentPool',
+        resourceId: pool.id,
+        newValue: { name: pool.name, poolType: pool.poolType },
+      })
       return Response.json({ success: true, pool }, { status: 201 })
     }
     if (input.action === 'ADD_MEMBER') {
@@ -104,21 +122,43 @@ export async function POST(request: Request) {
       if (!consent) throw new AuthzError('This candidate has not consented to future-opportunity contact', 409)
       const member = await prisma.talentPoolMember.upsert({
         where: { talentPoolId_candidateId: { talentPoolId: input.talentPoolId, candidateId: input.candidateId } },
-        update: { status: 'ACTIVE', tagsJson: JSON.stringify(input.tags), notes: input.notes || null, sourceApplicationId: input.sourceApplicationId || null, addedBy: user.userId },
-        create: {
-          talentPoolId: input.talentPoolId, candidateId: input.candidateId,
+        update: {
+          status: 'ACTIVE',
+          tagsJson: JSON.stringify(input.tags),
+          notes: input.notes || null,
           sourceApplicationId: input.sourceApplicationId || null,
-          tagsJson: JSON.stringify(input.tags), notes: input.notes || null,
+          addedBy: user.userId,
+        },
+        create: {
+          talentPoolId: input.talentPoolId,
+          candidateId: input.candidateId,
+          sourceApplicationId: input.sourceApplicationId || null,
+          tagsJson: JSON.stringify(input.tags),
+          notes: input.notes || null,
           addedBy: user.userId,
         },
       })
-      await logAudit({ actorUserId: user.userId, action: 'TALENT_POOL_MEMBER_ADDED', resourceType: 'TalentPoolMember', resourceId: member.id })
+      await logAudit({
+        actorUserId: user.userId,
+        action: 'TALENT_POOL_MEMBER_ADDED',
+        resourceType: 'TalentPoolMember',
+        resourceId: member.id,
+      })
       return Response.json({ success: true, member })
     }
     const member = await prisma.talentPoolMember.findUnique({ where: { id: input.memberId } })
     if (!member) throw new AuthzError('Talent-pool member not found', 404)
-    await prisma.talentPoolMember.update({ where: { id: member.id }, data: { status: 'REMOVED', notes: `${member.notes || ''}\nRemoval: ${input.reason}`.trim() } })
-    await logAudit({ actorUserId: user.userId, action: 'TALENT_POOL_MEMBER_REMOVED', resourceType: 'TalentPoolMember', resourceId: member.id, reason: input.reason })
+    await prisma.talentPoolMember.update({
+      where: { id: member.id },
+      data: { status: 'REMOVED', notes: `${member.notes || ''}\nRemoval: ${input.reason}`.trim() },
+    })
+    await logAudit({
+      actorUserId: user.userId,
+      action: 'TALENT_POOL_MEMBER_REMOVED',
+      resourceType: 'TalentPoolMember',
+      resourceId: member.id,
+      reason: input.reason,
+    })
     return Response.json({ success: true })
   } catch (error) {
     return authzResponse(error)

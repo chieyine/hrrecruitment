@@ -26,7 +26,7 @@ export default async function CandidateSettingsPage() {
         <div className="page-shell max-w-4xl space-y-6">
           <Link
             href="/candidate/dashboard"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-blue-700"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-brand-700"
           >
             <ArrowLeft className="h-4 w-4" /> Back to your account
           </Link>
@@ -40,8 +40,12 @@ export default async function CandidateSettingsPage() {
           <section className="section-panel" aria-labelledby="delivery-heading">
             <div className="section-heading">
               <div>
-                <h2 id="delivery-heading" className="text-lg font-bold text-slate-950">Recruitment updates</h2>
-                <p className="mt-1 text-sm text-slate-600">Updates about an application are always sent to your account and registered email.</p>
+                <h2 id="delivery-heading" className="text-lg font-bold text-slate-950">
+                  Recruitment updates
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Updates about an application are always sent to your account and registered email.
+                </p>
               </div>
               <span className="status-chip bg-emerald-50 text-emerald-800">Always on</span>
             </div>
@@ -52,7 +56,9 @@ export default async function CandidateSettingsPage() {
               </div>
               <div>
                 <dt className="font-semibold text-slate-900">What we send</dt>
-                <dd className="mt-1 text-slate-600">Receipts, interview and assessment details, decisions, offers and security alerts.</dd>
+                <dd className="mt-1 text-slate-600">
+                  Receipts, interview and assessment details, decisions, offers and security alerts.
+                </dd>
               </div>
             </dl>
           </section>

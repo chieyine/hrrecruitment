@@ -37,7 +37,10 @@ export function profileCompletion(profile: ProfileForCompletion | null | undefin
     ['Reusable document', Boolean(profile.documents?.length)],
     ['Skills', Boolean(profile.skills?.length)],
     ['Languages', Boolean(profile.languages?.length)],
-    ['Preferred duty locations', Boolean(profile.preferredDutyLocationsJson && profile.preferredDutyLocationsJson !== '[]')],
+    [
+      'Preferred duty locations',
+      Boolean(profile.preferredDutyLocationsJson && profile.preferredDutyLocationsJson !== '[]'),
+    ],
   ] as const
   const complete = checks.filter(([, done]) => done).length
   return {

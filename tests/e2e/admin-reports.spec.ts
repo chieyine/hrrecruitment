@@ -4,18 +4,18 @@ import { login, logout } from './helpers'
 test.describe('Admin and Reports', () => {
   test('Admin can manage system dictionaries and settings', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once.')
-    
+
     await login(page, 'admin@frad.org')
-    
+
     // Duty Stations
     await page.goto('/admin/duty-stations')
-    await page.getByRole('button', { name: /^new$/i }).click()
+    await page.getByRole('button', { name: /^add duty station$/i }).click()
     const unique = Date.now().toString()
     await page.getByLabel('Name').fill(`Station ${unique}`)
     await page.getByLabel('State').fill(`STN${unique.slice(-4)}`)
     await page.getByRole('button', { name: /^save$/i }).click()
     await expect(page.getByText(`Station ${unique}`)).toBeVisible()
-    
+
     // Privacy Requests
     await page.goto('/admin/deletion-requests')
     await expect(page.getByRole('heading', { name: /deletion requests/i })).toBeVisible()
@@ -25,9 +25,9 @@ test.describe('Admin and Reports', () => {
 
   test('HR can export pipeline reports and manage My Work queue', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once.')
-    
+
     await login(page, 'hrmanager@frad.org')
-    
+
     // Reports
     await page.goto('/recruitment/reports')
     const exportCSV = page.locator('a[href*=\"report=pipeline\"][href*=\"format=csv\"]')
@@ -57,7 +57,10 @@ test.describe('Admin and Reports', () => {
     await holdDialog.getByRole('button', { name: /cancel/i }).click()
 
     await page.goto('/admin/operating-model')
-    await page.getByRole('button', { name: /propose change/i }).first().click()
+    await page
+      .getByRole('button', { name: /propose change/i })
+      .first()
+      .click()
     const targetDialog = page.getByRole('dialog', { name: /propose service target change/i })
     await expect(targetDialog.getByLabel(/new target in minutes/i)).toBeVisible()
     await expect(targetDialog.getByLabel(/reason for change/i)).toBeVisible()

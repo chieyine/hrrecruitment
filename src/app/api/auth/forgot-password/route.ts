@@ -18,7 +18,11 @@ export async function POST(request: Request) {
 
     const { email } = await parseBody(request, forgotPasswordSchema)
     const accountLimit = await rateLimitDistributed(`forgot-account:${email}`, 3, 60 * 60_000)
-    if (!accountLimit.allowed) return NextResponse.json({ success: true, message: 'If an account exists with this email, a password reset link has been sent.' })
+    if (!accountLimit.allowed)
+      return NextResponse.json({
+        success: true,
+        message: 'If an account exists with this email, a password reset link has been sent.',
+      })
 
     const user = await prisma.user.findUnique({ where: { email } })
     if (user) {

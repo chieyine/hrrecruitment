@@ -14,10 +14,12 @@ import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } fro
  */
 
 function storageRoot(): string {
-  return process.env.STORAGE_LOCAL_PATH || path.join(process.cwd(), '.storage')
+  return process.env.STORAGE_LOCAL_PATH || path.join(/* turbopackIgnore: true */ process.cwd(), '.storage')
 }
 
-function objectStorageEnabled() { return process.env.STORAGE_DRIVER === 's3' }
+function objectStorageEnabled() {
+  return process.env.STORAGE_DRIVER === 's3'
+}
 
 function objectStorage() {
   const bucket = process.env.S3_BUCKET
@@ -25,12 +27,15 @@ function objectStorage() {
   const accessKeyId = process.env.S3_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID
   if (!bucket || !region) throw new Error('S3_BUCKET and S3_REGION are required when STORAGE_DRIVER=s3')
   const client = new S3Client({
-    region, endpoint: process.env.S3_ENDPOINT || undefined,
+    region,
+    endpoint: process.env.S3_ENDPOINT || undefined,
     forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
     // Accept the conventional AWS_* names as well: deployments commonly set
     // those, and only reading S3_* silently fell back to the ambient provider
     // chain (or no credentials at all).
-    credentials: accessKeyId ? { accessKeyId, secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY || '' } : undefined,
+    credentials: accessKeyId
+      ? { accessKeyId, secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY || '' }
+      : undefined,
   })
   return { client, bucket }
 }
@@ -39,13 +44,15 @@ function signingSecret(): string {
   const secret = process.env.SESSION_SECRET || process.env.JWT_SECRET
   // 32 characters everywhere: a 16-character download-signing key was weaker
   // than every other secret this application requires.
-  if (!secret || secret.length < 32) throw new Error('SESSION_SECRET or JWT_SECRET must be at least 32 characters for signed downloads')
+  if (!secret || secret.length < 32)
+    throw new Error('SESSION_SECRET or JWT_SECRET must be at least 32 characters for signed downloads')
   return secret
 }
 
 function encryptionKey(): Buffer {
   const secret = process.env.STORAGE_ENCRYPTION_KEY || process.env.SESSION_SECRET
-  if (!secret || secret.length < 32) throw new Error('STORAGE_ENCRYPTION_KEY or a 32-character SESSION_SECRET must be configured')
+  if (!secret || secret.length < 32)
+    throw new Error('STORAGE_ENCRYPTION_KEY or a 32-character SESSION_SECRET must be configured')
   return createHash('sha256').update(secret).digest()
 }
 
@@ -102,12 +109,22 @@ export async function uploadFileAsset(options: S3UploadOptions) {
   if (options.buffer) {
     virusScanStatus = await scanBuffer(options.buffer)
     if (virusScanStatus !== 'INFECTED') {
-      const target = absPath(storageKey)
       const encrypted = encrypt(options.buffer)
       if (objectStorageEnabled()) {
         const { client, bucket } = objectStorage()
-        await client.send(new PutObjectCommand({ Bucket: bucket, Key: storageKey, Body: encrypted, ContentType: 'application/octet-stream', ServerSideEncryption: process.env.S3_KMS_KEY_ID ? 'aws:kms' : 'AES256', SSEKMSKeyId: process.env.S3_KMS_KEY_ID || undefined, Metadata: { sensitivity: options.sensitivityClass || 'STANDARD' } }))
+        await client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: storageKey,
+            Body: encrypted,
+            ContentType: 'application/octet-stream',
+            ServerSideEncryption: process.env.S3_KMS_KEY_ID ? 'aws:kms' : 'AES256',
+            SSEKMSKeyId: process.env.S3_KMS_KEY_ID || undefined,
+            Metadata: { sensitivity: options.sensitivityClass || 'STANDARD' },
+          })
+        )
       } else {
+        const target = absPath(storageKey)
         await fs.mkdir(path.dirname(target), { recursive: true })
         await fs.writeFile(target, encrypted)
       }
@@ -133,9 +150,7 @@ export async function uploadFileAsset(options: S3UploadOptions) {
   return { fileAsset, storageKey, signedUrl: buildSignedUrl(fileAsset.id) }
 }
 
-export async function readFileAsset(
-  storageKey: string
-): Promise<Buffer | null> {
+export async function readFileAsset(storageKey: string): Promise<Buffer | null> {
   try {
     if (objectStorageEnabled()) {
       const { client, bucket } = objectStorage()
@@ -150,14 +165,20 @@ export async function readFileAsset(
 }
 
 export async function deleteStoredFile(storageKey: string): Promise<void> {
-  if (objectStorageEnabled()) { const { client, bucket } = objectStorage(); await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: storageKey })); return }
-  try { await fs.unlink(absPath(storageKey)) } catch (error: any) { if (error?.code !== 'ENOENT') throw error }
+  if (objectStorageEnabled()) {
+    const { client, bucket } = objectStorage()
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: storageKey }))
+    return
+  }
+  try {
+    await fs.unlink(absPath(storageKey))
+  } catch (error: any) {
+    if (error?.code !== 'ENOENT') throw error
+  }
 }
 
 function sign(assetId: string, expires: number): string {
-  return createHmac('sha256', signingSecret())
-    .update(`${assetId}.${expires}`)
-    .digest('hex')
+  return createHmac('sha256', signingSecret()).update(`${assetId}.${expires}`).digest('hex')
 }
 
 export function buildSignedUrl(fileAssetId: string, expiryMinutes = 60): string {

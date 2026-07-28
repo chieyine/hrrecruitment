@@ -31,17 +31,22 @@ export default async function CandidateMessagesPage() {
       <Header currentUser={user} />
       <main id="main-content" className="flex-1 py-10">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 space-y-8">
-          <Link href="/candidate/dashboard" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600">
+          <Link
+            href="/candidate/dashboard"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600"
+          >
             <ArrowLeft className="h-4 w-4" /> Back to Dashboard
           </Link>
 
-          <div className="rounded-3xl bg-white p-8 border border-slate-200 shadow-sm space-y-6">
+          <div className="rounded-2xl bg-white p-8 border border-slate-200 shadow-sm space-y-6">
             <div className="border-b border-slate-100 pb-4">
               <h1 className="text-2xl font-extrabold text-slate-900 mt-2">Messages</h1>
             </div>
 
             {threads.length === 0 ? (
-              <p className="text-sm text-slate-500">You have no messages yet. HR will contact you here when there is an update.</p>
+              <p className="text-sm text-slate-500">
+                You have no messages yet. HR will contact you here when there is an update.
+              </p>
             ) : (
               <div className="space-y-4">
                 {threads.map((t) => (
@@ -51,9 +56,12 @@ export default async function CandidateMessagesPage() {
                       <p className="text-xs text-slate-400">No messages in this thread yet.</p>
                     ) : (
                       t.messages.map((m) => (
-                        <div key={m.id} className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs">
+                        <div
+                          key={m.id}
+                          className="p-4 rounded-xl bg-brand-50 border border-brand-200 text-brand-900 text-xs"
+                        >
                           <p>{m.body}</p>
-                          <p className="text-[10px] text-blue-500 mt-1">{formatDateTime(m.sentAt)}</p>
+                          <p className="text-[10px] text-brand-500 mt-1">{formatDateTime(m.sentAt)}</p>
                         </div>
                       ))
                     )}

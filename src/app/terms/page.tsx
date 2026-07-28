@@ -49,5 +49,14 @@ const sections = [
 
 export default async function TermsPage() {
   const user = await getVerifiedUser()
-  return <LegalDocument user={user} eyebrow="Using this service" title="Terms of use" summary="These terms set out what FRAD expects when you use the recruitment and preboarding service." version="Version 2026-07 · Effective 22 July 2026" sections={sections} />
+  return (
+    <LegalDocument
+      user={user}
+      eyebrow="Using this service"
+      title="Terms of use"
+      summary="These terms set out what FRAD expects when you use the recruitment and preboarding service."
+      version="Version 2026-07 · Effective 22 July 2026"
+      sections={sections}
+    />
+  )
 }

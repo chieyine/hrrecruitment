@@ -24,7 +24,11 @@ function aggregateReferenceStatus(outcomes: string[], outstanding: number) {
 export async function POST(request: Request) {
   try {
     const limit = await rateLimitDistributed(`reference:${clientIp(request)}`, 10, 60_000)
-    if (!limit.allowed) return NextResponse.json({ error: 'Too many attempts' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } })
+    if (!limit.allowed)
+      return NextResponse.json(
+        { error: 'Too many attempts' },
+        { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } }
+      )
     const { token, answers, outcome, confidentialComment } = await parseBody(request, schema)
 
     // Look up by the HASH of the presented token, and enforce not-expired.
@@ -62,7 +66,7 @@ export async function POST(request: Request) {
         where: { referee: { applicationId: refRequest.referee.applicationId } },
         select: { status: true, response: { select: { outcome: true } } },
       })
-      const outcomes = requests.flatMap((item) => item.response ? [item.response.outcome] : [])
+      const outcomes = requests.flatMap((item) => (item.response ? [item.response.outcome] : []))
       const outstanding = requests.filter((item) => !['COMPLETED', 'EXPIRED'].includes(item.status)).length
       await tx.application.update({
         where: { id: refRequest.referee.applicationId },

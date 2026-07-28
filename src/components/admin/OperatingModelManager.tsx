@@ -4,8 +4,23 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Dialog, ReasonDialog } from '@/components/ui/Dialog'
 
-type Policy = { id: string; name: string; workType: string; targetMinutes: number; warningMinutes: number; escalationRole: string | null }
-type Change = { id: string; changeType: string; resourceId: string; reason: string; status: string; lockVersion: number; requestedAt: string | Date }
+type Policy = {
+  id: string
+  name: string
+  workType: string
+  targetMinutes: number
+  warningMinutes: number
+  escalationRole: string | null
+}
+type Change = {
+  id: string
+  changeType: string
+  resourceId: string
+  reason: string
+  status: string
+  lockVersion: number
+  requestedAt: string | Date
+}
 
 export default function OperatingModelManager({ policies, changes }: { policies: Policy[]; changes: Change[] }) {
   const router = useRouter()
@@ -80,7 +95,11 @@ export default function OperatingModelManager({ policies, changes }: { policies:
 
   return (
     <div className="space-y-6">
-      {message && <p role="status" className="rounded-lg bg-blue-50 p-3 text-xs font-semibold text-blue-800">{message}</p>}
+      {message && (
+        <p role="status" className="rounded-lg bg-brand-50 p-3 text-xs font-semibold text-brand-800">
+          {message}
+        </p>
+      )}
       <div className="border bg-white p-5">
         <h2 className="font-bold">Service-level policies</h2>
         <div className="mt-3 divide-y">
@@ -88,9 +107,17 @@ export default function OperatingModelManager({ policies, changes }: { policies:
             <div key={policy.id} className="flex items-center justify-between gap-3 py-3">
               <div>
                 <p className="text-sm font-bold">{policy.name}</p>
-                <p className="text-xs text-slate-500">{policy.workType.replaceAll('_', ' ')} · target {policy.targetMinutes} min · warning {policy.warningMinutes} min</p>
+                <p className="text-xs text-slate-500">
+                  {policy.workType.replaceAll('_', ' ')} · target {policy.targetMinutes} min · warning{' '}
+                  {policy.warningMinutes} min
+                </p>
               </div>
-              <button onClick={() => openChange(policy)} className="rounded-lg border border-blue-300 px-3 py-2 text-xs font-bold text-blue-700">Propose change</button>
+              <button
+                onClick={() => openChange(policy)}
+                className="rounded-lg border border-brand-300 px-3 py-2 text-xs font-bold text-brand-700"
+              >
+                Propose change
+              </button>
             </div>
           ))}
         </div>
@@ -102,12 +129,24 @@ export default function OperatingModelManager({ policies, changes }: { policies:
             <div key={change.id} className="flex flex-col justify-between gap-3 py-3 md:flex-row md:items-center">
               <div>
                 <p className="text-sm font-bold">{change.changeType.replaceAll('_', ' ')}</p>
-                <p className="text-xs text-slate-500">{change.reason} · {change.status}</p>
+                <p className="text-xs text-slate-500">
+                  {change.reason} · {change.status}
+                </p>
               </div>
               {change.status === 'PENDING' && (
                 <div className="flex gap-2">
-                  <button onClick={() => setDecision({ change, decision: 'APPROVE' })} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white">Approve and apply</button>
-                  <button onClick={() => setDecision({ change, decision: 'REJECT' })} className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-bold text-rose-700">Reject</button>
+                  <button
+                    onClick={() => setDecision({ change, decision: 'APPROVE' })}
+                    className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white"
+                  >
+                    Approve and apply
+                  </button>
+                  <button
+                    onClick={() => setDecision({ change, decision: 'REJECT' })}
+                    className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-bold text-rose-700"
+                  >
+                    Reject
+                  </button>
                 </div>
               )}
             </div>
@@ -116,19 +155,47 @@ export default function OperatingModelManager({ policies, changes }: { policies:
       </div>
 
       <Dialog open={Boolean(editing)} onClose={() => setEditing(null)} title="Propose service target change">
-        <form onSubmit={(event) => { event.preventDefault(); void requestChange() }} className="space-y-4">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void requestChange()
+          }}
+          className="space-y-4"
+        >
           <p className="text-sm text-slate-600">{editing?.name}</p>
           <label className="block text-xs font-semibold text-slate-700">
             New target in minutes
-            <input type="number" min={1} required value={targetMinutes} onChange={(event) => setTargetMinutes(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm" />
+            <input
+              type="number"
+              min={1}
+              required
+              value={targetMinutes}
+              onChange={(event) => setTargetMinutes(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"
+            />
           </label>
           <label className="block text-xs font-semibold text-slate-700">
             Reason for change
-            <textarea required minLength={5} rows={4} value={changeReason} onChange={(event) => setChangeReason(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm" />
+            <textarea
+              required
+              minLength={5}
+              rows={4}
+              value={changeReason}
+              onChange={(event) => setChangeReason(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"
+            />
           </label>
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setEditing(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button>
-            <button type="submit" disabled={busy} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Submit for approval</button>
+            <button type="button" onClick={() => setEditing(null)} className="rounded-lg border px-4 py-2 text-sm">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Submit for approval
+            </button>
           </div>
         </form>
       </Dialog>

@@ -12,7 +12,7 @@ const schema = z.object({
 })
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requirePermission('application.stage.change')
 

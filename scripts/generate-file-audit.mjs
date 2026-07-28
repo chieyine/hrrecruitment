@@ -7,13 +7,31 @@ const outputName = 'COMPLETE_FILE_AUDIT.md'
 const excludedDirectories = new Set([
   '.next',
   '.next-e2e',
+  '.next-final',
   '.git',
+  '.storage',
+  'coverage',
   'node_modules',
   'playwright-report',
   'test-results',
   'uploads',
 ])
-const extensions = new Set(['.ts', '.tsx', '.js', '.mjs', '.prisma', '.sql', '.sh', '.yml', '.yaml', '.json', '.md', '.png', '.css', '.toml'])
+const extensions = new Set([
+  '.ts',
+  '.tsx',
+  '.js',
+  '.mjs',
+  '.prisma',
+  '.sql',
+  '.sh',
+  '.yml',
+  '.yaml',
+  '.json',
+  '.md',
+  '.png',
+  '.css',
+  '.toml',
+])
 const explicitFiles = new Set(['Dockerfile', '.dockerignore', '.gitignore', '.env.example', '.env.production.example'])
 
 async function walk(directory) {
@@ -23,7 +41,7 @@ async function walk(directory) {
     const absolute = resolve(directory, entry.name)
     const path = relative(root, absolute)
     if (entry.isDirectory()) {
-      if (!excludedDirectories.has(entry.name)) found.push(...await walk(absolute))
+      if (!excludedDirectories.has(entry.name)) found.push(...(await walk(absolute)))
       continue
     }
     const extension = entry.name.includes('.') ? `.${entry.name.split('.').pop()}` : ''
@@ -37,7 +55,7 @@ function layer(path) {
   if (path.startsWith('src/app/')) return 'Page/layout'
   if (path.startsWith('src/components/')) return 'UI component'
   if (path.startsWith('src/lib/')) return 'Domain/infrastructure'
-  if (path.startsWith('prisma/migrations/')) return 'SQLite migration'
+  if (path.startsWith('prisma/migrations/')) return 'Database migration'
   if (path.startsWith('prisma/postgresql/migrations/')) return 'PostgreSQL migration'
   if (path.startsWith('prisma/')) return 'Database'
   if (path.startsWith('tests/')) return 'Test'
@@ -64,7 +82,9 @@ for (const path of files) {
   const bytes = await readFile(absolute)
   const info = await stat(absolute)
   const hash = createHash('sha256').update(bytes).digest('hex').slice(0, 12)
-  rows.push(`| \`${path.replaceAll('|', '\\|')}\` | ${layer(path)} | ${info.size} | \`${hash}\` | Inventoried | ${evidence(path)} |`)
+  rows.push(
+    `| \`${path.replaceAll('|', '\\|')}\` | ${layer(path)} | ${info.size} | \`${hash}\` | Inventoried | ${evidence(path)} |`
+  )
 }
 
 const content = `# Complete first-party file inventory

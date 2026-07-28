@@ -56,9 +56,17 @@ function csvCell(value: unknown) {
 
 export function rowsToCsv(rows: Record<string, unknown>[], fallbackHeaders: string[] = ['Message']) {
   const headers = rows[0] ? Object.keys(rows[0]) : fallbackHeaders
-  return [headers.map(csvCell).join(','), ...rows.map((row) => headers.map((header) => csvCell(row[header])).join(','))].join('\r\n')
+  return [
+    headers.map(csvCell).join(','),
+    ...rows.map((row) => headers.map((header) => csvCell(row[header])).join(',')),
+  ].join('\r\n')
 }
 
 export function safeExportName(value: string) {
-  return value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100) || 'file'
+  return (
+    value
+      .replace(/[^a-zA-Z0-9._-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 100) || 'file'
+  )
 }

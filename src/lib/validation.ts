@@ -24,9 +24,7 @@ export async function parseBody<T>(request: Request, schema: z.ZodType<T>, maxBy
   }
   const result = schema.safeParse(json)
   if (!result.success) {
-    const msg = result.error.issues
-      .map((i) => `${i.path.join('.') || 'body'}: ${i.message}`)
-      .join('; ')
+    const msg = result.error.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; ')
     throw new AuthzError(msg || 'Validation failed', 400)
   }
   return result.data
@@ -77,34 +75,36 @@ export const resetPasswordSchema = z.object({
 })
 
 // ---- Vacancy (§46.2) ----
-export const vacancySchema = z.object({
-  title: nonEmpty('Title').max(200),
-  departmentId: nonEmpty('Department'),
-  dutyStationId: nonEmpty('Duty station'),
-  projectId: z.string().optional().nullable(),
-  categoryId: nonEmpty('Vacancy category'),
-  numberOfPositions: z.coerce.number().int().min(1, 'At least one position is required'),
-  contractType: nonEmpty('Contract type'),
-  contractDuration: z.string().optional().nullable(),
-  reportingLine: z.string().optional().nullable(),
-  summary: nonEmpty('Summary'),
-  responsibilities: nonEmpty('Responsibilities'),
-  essentialQualifications: nonEmpty('Essential qualifications'),
-  desirableQualifications: z.string().optional().nullable(),
-  desiredExperience: z.string().max(5000).optional().nullable(),
-  languageRequirements: z.string().max(5000).optional().nullable(),
-  technicalSkills: z.string().max(5000).optional().nullable(),
-  behaviouralCompetencies: z.string().max(5000).optional().nullable(),
-  safeguardingResponsibilities: z.string().max(5000).optional().nullable(),
-  travelRequirement: z.string().max(2000).optional().nullable(),
-  minimumExperienceYears: z.coerce.number().int().min(0).default(0),
-  openingAt: z.coerce.date(),
-  closingAt: z.coerce.date(),
-  status: z.string().optional(),
-}).refine((v) => v.closingAt > v.openingAt, {
-  message: 'Closing date must be after the opening date',
-  path: ['closingAt'],
-})
+export const vacancySchema = z
+  .object({
+    title: nonEmpty('Title').max(200),
+    departmentId: nonEmpty('Department'),
+    dutyStationId: nonEmpty('Duty station'),
+    projectId: z.string().optional().nullable(),
+    categoryId: nonEmpty('Vacancy category'),
+    numberOfPositions: z.coerce.number().int().min(1, 'At least one position is required'),
+    contractType: nonEmpty('Contract type'),
+    contractDuration: z.string().optional().nullable(),
+    reportingLine: z.string().optional().nullable(),
+    summary: nonEmpty('Summary'),
+    responsibilities: nonEmpty('Responsibilities'),
+    essentialQualifications: nonEmpty('Essential qualifications'),
+    desirableQualifications: z.string().optional().nullable(),
+    desiredExperience: z.string().max(5000).optional().nullable(),
+    languageRequirements: z.string().max(5000).optional().nullable(),
+    technicalSkills: z.string().max(5000).optional().nullable(),
+    behaviouralCompetencies: z.string().max(5000).optional().nullable(),
+    safeguardingResponsibilities: z.string().max(5000).optional().nullable(),
+    travelRequirement: z.string().max(2000).optional().nullable(),
+    minimumExperienceYears: z.coerce.number().int().min(0).default(0),
+    openingAt: z.coerce.date(),
+    closingAt: z.coerce.date(),
+    status: z.string().optional(),
+  })
+  .refine((v) => v.closingAt > v.openingAt, {
+    message: 'Closing date must be after the opening date',
+    path: ['closingAt'],
+  })
 
 // ---- Application stage (§42.2 handled separately) ----
 export const stageChangeSchema = z.object({
@@ -130,23 +130,40 @@ export const scorecardSubmitSchema = z.object({
     .superRefine((scores, context) => {
       const seen = new Set<string>()
       scores.forEach((score, index) => {
-        if (seen.has(score.criterionId)) context.addIssue({ code: 'custom', path: [index, 'criterionId'], message: 'Each criterion may be scored only once' })
+        if (seen.has(score.criterionId))
+          context.addIssue({
+            code: 'custom',
+            path: [index, 'criterionId'],
+            message: 'Each criterion may be scored only once',
+          })
         seen.add(score.criterionId)
       })
     }),
 })
 
 // ---- Offer response (§22.4) ----
-export const offerResponseSchema = z.object({
-  action: z.enum(['ACCEPT', 'DECLINE', 'CLARIFY']),
-  candidateComment: z.string().max(2000).optional(),
-  signatureName: z.string().trim().max(200).optional(),
-  signedFileId: z.string().uuid().optional(),
-  proposedStartDate: z.coerce.date().optional(),
-}).superRefine((value, context) => {
-  if (value.action === 'ACCEPT' && !value.signatureName) context.addIssue({ code: 'custom', path: ['signatureName'], message: 'Full legal name is required as your electronic signature' })
-  if (value.action === 'CLARIFY' && !value.candidateComment?.trim() && !value.proposedStartDate) context.addIssue({ code: 'custom', path: ['candidateComment'], message: 'Enter a clarification question or propose a start date' })
-})
+export const offerResponseSchema = z
+  .object({
+    action: z.enum(['ACCEPT', 'DECLINE', 'CLARIFY']),
+    candidateComment: z.string().max(2000).optional(),
+    signatureName: z.string().trim().max(200).optional(),
+    signedFileId: z.string().uuid().optional(),
+    proposedStartDate: z.coerce.date().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.action === 'ACCEPT' && !value.signatureName)
+      context.addIssue({
+        code: 'custom',
+        path: ['signatureName'],
+        message: 'Full legal name is required as your electronic signature',
+      })
+    if (value.action === 'CLARIFY' && !value.candidateComment?.trim() && !value.proposedStartDate)
+      context.addIssue({
+        code: 'custom',
+        path: ['candidateComment'],
+        message: 'Enter a clarification question or propose a start date',
+      })
+  })
 
 // ---- Assessment submission (§18) ----
 // Accept either an array of {questionId, answer} or a map of questionId -> answer.
@@ -154,7 +171,9 @@ export const assessmentSubmitSchema = z.object({
   answers: z
     .union([
       z.array(z.object({ questionId: nonEmpty('questionId'), answer: boundedAnswerValueSchema })).max(200),
-      z.record(z.string(), boundedAnswerValueSchema).refine((value) => Object.keys(value).length <= 200, 'Too many answers'),
+      z
+        .record(z.string(), boundedAnswerValueSchema)
+        .refine((value) => Object.keys(value).length <= 200, 'Too many answers'),
     ])
     .optional(),
   autoSubmitted: z.boolean().optional(),

@@ -27,7 +27,13 @@ interface ReviewQuestion {
 }
 
 interface Review {
-  candidateAssessment: { id: string; status: string; submittedAt: string | null; autoSubmitted: boolean; score: number | null }
+  candidateAssessment: {
+    id: string
+    status: string
+    submittedAt: string | null
+    autoSubmitted: boolean
+    score: number | null
+  }
   assessment: { title: string; type: string; passMark: number }
   candidate: { name: string; vacancy: string }
   questions: ReviewQuestion[]
@@ -115,9 +121,13 @@ export default function AssessmentAnswerReview({
         type="button"
         onClick={load}
         disabled={loading}
-        className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-400 hover:text-blue-700 disabled:opacity-50"
+        className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-brand-400 hover:text-brand-700 disabled:opacity-50"
       >
-        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <FileText className="h-3.5 w-3.5" aria-hidden />}
+        {loading ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+        ) : (
+          <FileText className="h-3.5 w-3.5" aria-hidden />
+        )}
         View submitted answers
         {message && <span className="ml-2 font-medium text-rose-700">{message}</span>}
       </button>
@@ -143,7 +153,11 @@ export default function AssessmentAnswerReview({
             {review.candidateAssessment.autoSubmitted && ' · auto-submitted when time expired'}
           </p>
         </div>
-        <button type="button" onClick={() => setOpen(false)} className="inline-flex items-center gap-1 text-xs font-bold text-slate-600">
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="inline-flex items-center gap-1 text-xs font-bold text-slate-600"
+        >
           <ChevronDown className="h-4 w-4 rotate-180" aria-hidden /> Hide
         </button>
       </div>
@@ -151,7 +165,8 @@ export default function AssessmentAnswerReview({
       {review.totals.awaitingHumanMark > 0 && (
         <p className="flex items-start gap-2 border-b border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          {review.totals.awaitingHumanMark} free-text answer{review.totals.awaitingHumanMark === 1 ? '' : 's'} still need a mark.
+          {review.totals.awaitingHumanMark} free-text answer{review.totals.awaitingHumanMark === 1 ? '' : 's'} still
+          need a mark.
         </p>
       )}
 
@@ -169,7 +184,9 @@ export default function AssessmentAnswerReview({
 
             <div className="mt-2 rounded-xl bg-slate-50 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Candidate answer</p>
-              <p className={`mt-1 whitespace-pre-wrap text-sm ${question.answered ? 'text-slate-900' : 'italic text-slate-500'}`}>
+              <p
+                className={`mt-1 whitespace-pre-wrap text-sm ${question.answered ? 'text-slate-900' : 'italic text-slate-500'}`}
+              >
                 {question.answerDisplay}
               </p>
             </div>
@@ -181,7 +198,8 @@ export default function AssessmentAnswerReview({
                 {question.answered && (
                   <span
                     className={`ml-2 font-bold ${
-                      question.answerDisplay.trim().toLowerCase() === question.expectedAnswerDisplay.trim().toLowerCase()
+                      question.answerDisplay.trim().toLowerCase() ===
+                      question.expectedAnswerDisplay.trim().toLowerCase()
                         ? 'text-emerald-700'
                         : 'text-rose-700'
                     }`}
@@ -237,7 +255,8 @@ export default function AssessmentAnswerReview({
           Running total: {runningTotal} / {review.totals.maximumScore}
           {review.totals.maximumScore > 0 && (
             <span className="ml-2 font-normal text-slate-600">
-              ({Math.round((runningTotal / review.totals.maximumScore) * 1000) / 10}% · pass mark {review.assessment.passMark})
+              ({Math.round((runningTotal / review.totals.maximumScore) * 1000) / 10}% · pass mark{' '}
+              {review.assessment.passMark})
             </span>
           )}
         </p>
@@ -245,9 +264,13 @@ export default function AssessmentAnswerReview({
           type="button"
           onClick={saveMarks}
           disabled={saving}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
         >
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />}
+          {saving ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+          )}
           Save per-question marks
         </button>
       </div>

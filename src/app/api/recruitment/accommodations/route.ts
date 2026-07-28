@@ -21,14 +21,25 @@ export async function PATCH(request: Request) {
     const updated = await prisma.accommodationRequest.updateMany({
       where: { id: current.id, status: current.status },
       data: {
-        status: input.status, decision: input.decision,
-        reviewedBy: user.userId, reviewedAt: new Date(),
+        status: input.status,
+        decision: input.decision,
+        reviewedBy: user.userId,
+        reviewedAt: new Date(),
         fulfilledAt: input.status === 'FULFILLED' ? new Date() : null,
       },
     })
     if (updated.count !== 1) throw new AuthzError('This request changed; refresh and try again', 409)
-    const application = await prisma.application.findUnique({ where: { id: current.applicationId }, select: { candidate: { select: { userId: true } } } })
-    if (application?.candidate.userId) await createNotification({ userId: application.candidate.userId, type: 'ACCOMMODATION_UPDATED', title: 'Update on your adjustment request', body: `Your adjustment request is now ${input.status.replaceAll('_', ' ').toLowerCase()}. Open the request to read HR's decision.` })
+    const application = await prisma.application.findUnique({
+      where: { id: current.applicationId },
+      select: { candidate: { select: { userId: true } } },
+    })
+    if (application?.candidate.userId)
+      await createNotification({
+        userId: application.candidate.userId,
+        type: 'ACCOMMODATION_UPDATED',
+        title: 'Update on your adjustment request',
+        body: `Your adjustment request is now ${input.status.replaceAll('_', ' ').toLowerCase()}. Open the request to read HR's decision.`,
+      })
     await logAudit({
       actorUserId: user.userId,
       action: `ACCOMMODATION_${input.status}`,

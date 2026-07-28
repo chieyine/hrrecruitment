@@ -40,8 +40,14 @@ export async function GET(request: Request) {
     const { application, template } = await resolveTemplate(applicationId)
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     if (!template) return NextResponse.json({ error: 'No screening scorecard template configured' }, { status: 404 })
-    if (!await hasPermission(user.userId, 'application.read.all')) {
-      const assigned = await prisma.application.findFirst({ where: { id: applicationId, OR: [{ assignedReviewerId: user.userId }, { vacancy: { ownerUserId: user.userId } }] }, select: { id: true } })
+    if (!(await hasPermission(user.userId, 'application.read.all'))) {
+      const assigned = await prisma.application.findFirst({
+        where: {
+          id: applicationId,
+          OR: [{ assignedReviewerId: user.userId }, { vacancy: { ownerUserId: user.userId } }],
+        },
+        select: { id: true },
+      })
       if (!assigned) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     return NextResponse.json({ template })
@@ -62,14 +68,24 @@ export async function POST(request: Request) {
     }
     const mayReadAll = await hasPermission(user.userId, 'application.read.all')
     if (!mayReadAll) {
-      const assigned = await prisma.application.findFirst({ where: { id: applicationId, OR: [{ assignedReviewerId: user.userId }, { vacancy: { ownerUserId: user.userId } }] }, select: { id: true } })
+      const assigned = await prisma.application.findFirst({
+        where: {
+          id: applicationId,
+          OR: [{ assignedReviewerId: user.userId }, { vacancy: { ownerUserId: user.userId } }],
+        },
+        select: { id: true },
+      })
       if (!assigned) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     const declaration = await prisma.conflictDeclaration.findFirst({
       where: { applicationId, userId: user.userId },
       orderBy: { createdAt: 'desc' },
     })
-    if (!declaration) return NextResponse.json({ error: 'Complete the conflict-of-interest declaration before scoring' }, { status: 409 })
+    if (!declaration)
+      return NextResponse.json(
+        { error: 'Complete the conflict-of-interest declaration before scoring' },
+        { status: 409 }
+      )
     if (declaration.conflictType !== 'NONE' && !declaration.resolution) {
       return NextResponse.json({ error: 'This declared conflict must be resolved before scoring' }, { status: 409 })
     }
@@ -78,15 +94,18 @@ export async function POST(request: Request) {
     // and clamp scores to each criterion's maximum (fixes the FK-violation bug).
     const criteriaById = new Map(template.criteria.map((c) => [c.id, c]))
     const submittedById = new Map(criterionScores.map((score) => [score.criterionId, score]))
-    const missingCriterion = template.criteria.find((criterion) => criterion.required && !submittedById.has(criterion.id))
-    if (missingCriterion) return NextResponse.json({ error: `Mandatory criterion "${missingCriterion.name}" must be scored` }, { status: 422 })
+    const missingCriterion = template.criteria.find(
+      (criterion) => criterion.required && !submittedById.has(criterion.id)
+    )
+    if (missingCriterion)
+      return NextResponse.json(
+        { error: `Mandatory criterion "${missingCriterion.name}" must be scored` },
+        { status: 422 }
+      )
     for (const s of criterionScores) {
       const criterion = criteriaById.get(s.criterionId)
       if (!criterion) {
-        return NextResponse.json(
-          { error: `Unknown criterion ${s.criterionId} for this scorecard` },
-          { status: 422 }
-        )
+        return NextResponse.json({ error: `Unknown criterion ${s.criterionId} for this scorecard` }, { status: 422 })
       }
       if (s.score > criterion.maximumScore) {
         return NextResponse.json(
@@ -94,49 +113,72 @@ export async function POST(request: Request) {
           { status: 422 }
         )
       }
-      if (criterion.commentRequired && !s.comment?.trim()) return NextResponse.json({ error: `A comment is required for "${criterion.name}"` }, { status: 422 })
+      if (criterion.commentRequired && !s.comment?.trim())
+        return NextResponse.json({ error: `A comment is required for "${criterion.name}"` }, { status: 422 })
     }
 
-    const existingSubmitted = await prisma.candidateScorecard.findFirst({ where: { applicationId, reviewerUserId: user.userId, status: 'SUBMITTED' }, select: { id: true } })
-    if (existingSubmitted) return NextResponse.json({ error: 'Your submitted scorecard is locked. An authorized user must reopen it before changes.', scorecardId: existingSubmitted.id }, { status: 409 })
+    const existingSubmitted = await prisma.candidateScorecard.findFirst({
+      where: { applicationId, reviewerUserId: user.userId, status: 'SUBMITTED' },
+      select: { id: true },
+    })
+    if (existingSubmitted)
+      return NextResponse.json(
+        {
+          error: 'Your submitted scorecard is locked. An authorized user must reopen it before changes.',
+          scorecardId: existingSubmitted.id,
+        },
+        { status: 409 }
+      )
 
     const weightedAwarded = criterionScores.reduce((sum, s) => {
       const c = criteriaById.get(s.criterionId)!
       return sum + s.score * (c.weight ?? 1)
     }, 0)
-    const weightedPossible = template.criteria.reduce((sum, criterion) => sum + criterion.maximumScore * (criterion.weight ?? 1), 0)
+    const weightedPossible = template.criteria.reduce(
+      (sum, criterion) => sum + criterion.maximumScore * (criterion.weight ?? 1),
+      0
+    )
     const totalScore = weightedPossible > 0 ? Math.round((weightedAwarded / weightedPossible) * 10_000) / 100 : 0
 
     const candidateScorecard = await prisma.$transaction(async (tx) => {
       const existing = await tx.candidateScorecard.findUnique({
-        where: { applicationId_scorecardTemplateId_reviewerUserId: { applicationId, scorecardTemplateId: template.id, reviewerUserId: user.userId } },
+        where: {
+          applicationId_scorecardTemplateId_reviewerUserId: {
+            applicationId,
+            scorecardTemplateId: template.id,
+            reviewerUserId: user.userId,
+          },
+        },
         include: { criterionScores: true },
       })
       if (existing?.status === 'SUBMITTED') throw new Error('SCORECARD_LOCKED')
-      const previousVersions = existing?.status === 'REOPENED' && existing.submittedAt
-        ? [
-            ...JSON.parse(existing.previousVersionsJson || '[]'),
-            {
-              version: existing.version,
-              totalScore: existing.totalScore,
-              submittedAt: existing.submittedAt,
-              reopenedAt: existing.reopenedAt,
-              reopenedBy: existing.reopenedBy,
-              reopenReason: existing.reopenReason,
-              criterionScores: existing.criterionScores.map((score) => ({
-                criterionId: score.criterionId,
-                score: score.score,
-                comment: score.comment,
-                evidence: score.evidence,
-              })),
-            },
-          ].slice(-20)
-        : []
+      const previousVersions =
+        existing?.status === 'REOPENED' && existing.submittedAt
+          ? [
+              ...JSON.parse(existing.previousVersionsJson || '[]'),
+              {
+                version: existing.version,
+                totalScore: existing.totalScore,
+                submittedAt: existing.submittedAt,
+                reopenedAt: existing.reopenedAt,
+                reopenedBy: existing.reopenedBy,
+                reopenReason: existing.reopenReason,
+                criterionScores: existing.criterionScores.map((score) => ({
+                  criterionId: score.criterionId,
+                  score: score.score,
+                  comment: score.comment,
+                  evidence: score.evidence,
+                })),
+              },
+            ].slice(-20)
+          : []
       const saved = existing
         ? await tx.candidateScorecard.update({
             where: { id: existing.id },
             data: {
-              status: 'SUBMITTED', totalScore, submittedAt: new Date(),
+              status: 'SUBMITTED',
+              totalScore,
+              submittedAt: new Date(),
               templateSnapshotJson: JSON.stringify(template),
               version: { increment: 1 },
               previousVersionsJson: JSON.stringify(previousVersions),
@@ -145,17 +187,29 @@ export async function POST(request: Request) {
               reopenReason: null,
               criterionScores: {
                 deleteMany: {},
-                create: criterionScores.map((score) => ({ criterionId: score.criterionId, score: score.score, comment: score.comment || null })),
+                create: criterionScores.map((score) => ({
+                  criterionId: score.criterionId,
+                  score: score.score,
+                  comment: score.comment || null,
+                })),
               },
             },
           })
         : await tx.candidateScorecard.create({
             data: {
-              applicationId, scorecardTemplateId: template.id, reviewerUserId: user.userId,
-              status: 'SUBMITTED', totalScore, submittedAt: new Date(),
+              applicationId,
+              scorecardTemplateId: template.id,
+              reviewerUserId: user.userId,
+              status: 'SUBMITTED',
+              totalScore,
+              submittedAt: new Date(),
               templateSnapshotJson: JSON.stringify(template),
               criterionScores: {
-                create: criterionScores.map((score) => ({ criterionId: score.criterionId, score: score.score, comment: score.comment || null })),
+                create: criterionScores.map((score) => ({
+                  criterionId: score.criterionId,
+                  score: score.score,
+                  comment: score.comment || null,
+                })),
               },
             },
           })
@@ -174,7 +228,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, scorecardId: candidateScorecard.id, totalScore })
   } catch (err) {
-    if (err instanceof Error && err.message === 'SCORECARD_LOCKED') return NextResponse.json({ error: 'Your submitted scorecard is locked. An authorized user must reopen it before changes.' }, { status: 409 })
+    if (err instanceof Error && err.message === 'SCORECARD_LOCKED')
+      return NextResponse.json(
+        { error: 'Your submitted scorecard is locked. An authorized user must reopen it before changes.' },
+        { status: 409 }
+      )
     return authzResponse(err)
   }
 }

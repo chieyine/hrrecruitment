@@ -4,20 +4,32 @@ import { requireUser, authzResponse, AuthzError } from '@/lib/authz'
 import { boundedAnswerValueSchema, parseBody } from '@/lib/validation'
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const params = await context.params
   try {
     const user = await requireUser()
-    const { answers } = await parseBody(request, z.object({
-      answers: z.array(z.object({ questionId: z.string().min(1), answer: boundedAnswerValueSchema })).max(200),
-    }))
-    const record = await prisma.candidateAssessment.findFirst({ where: { id: params.id, application: { candidate: { userId: user.userId } } }, include: { assessment: { include: { questions: true } } } })
+    const { answers } = await parseBody(
+      request,
+      z.object({
+        answers: z.array(z.object({ questionId: z.string().min(1), answer: boundedAnswerValueSchema })).max(200),
+      })
+    )
+    const record = await prisma.candidateAssessment.findFirst({
+      where: { id: params.id, application: { candidate: { userId: user.userId } } },
+      include: { assessment: { include: { questions: true } } },
+    })
     if (!record) throw new AuthzError('Assessment not found', 404)
     if (record.status !== 'IN_PROGRESS' || !record.startedAt) throw new AuthzError('Assessment is not in progress', 409)
-    const end = Math.min(record.startedAt.getTime() + record.assessment.durationMinutes * 60000, record.assessment.closesAt?.getTime() ?? Infinity)
+    const end = Math.min(
+      record.startedAt.getTime() + record.assessment.durationMinutes * 60000,
+      record.assessment.closesAt?.getTime() ?? Infinity
+    )
     if (Date.now() >= end) throw new AuthzError('Assessment time has expired', 409)
     const allowed = new Set(record.assessment.questions.map((question) => question.id))
-    if (answers.some((answer) => !allowed.has(answer.questionId))) throw new AuthzError('An answer does not belong to this assessment', 422)
-    const fileQuestionIds = new Set(record.assessment.questions.filter((question) => question.questionType === 'FILE').map((question) => question.id))
+    if (answers.some((answer) => !allowed.has(answer.questionId)))
+      throw new AuthzError('An answer does not belong to this assessment', 422)
+    const fileQuestionIds = new Set(
+      record.assessment.questions.filter((question) => question.questionType === 'FILE').map((question) => question.id)
+    )
     const fileAnswers = answers.filter((answer) => fileQuestionIds.has(answer.questionId) && answer.answer)
     if (fileAnswers.length) {
       const fileIds = fileAnswers.map((answer) => String(answer.answer))
@@ -54,5 +66,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
     })
     return Response.json({ success: true, savedAt: new Date() })
-  } catch (error) { return authzResponse(error) }
+  } catch (error) {
+    return authzResponse(error)
+  }
 }

@@ -11,7 +11,7 @@ test.describe('candidate profile lifecycle', () => {
     await expect(page.getByRole('navigation', { name: /edit profile sections/i })).toBeVisible()
     await page.getByRole('link', { name: /edit personal details/i }).click()
     await expect(page).toHaveURL(/\/candidate\/profile\/personal$/)
-    await expect(page.getByRole('link', { name: /candidate account/i })).toBeVisible()
+    await expect(page.getByRole('link', { name: /candidate overview/i })).toBeVisible()
     await expect(page.getByRole('link', { name: /sign in/i })).toHaveCount(0)
     await expect(page.getByRole('link', { name: /create account/i })).toHaveCount(0)
     await expect(page.getByLabel('Preferred Name')).toHaveValue('Aminu')
@@ -47,7 +47,10 @@ test.describe('candidate profile lifecycle', () => {
     await expect(page.getByText('E2E University Updated')).toBeVisible()
 
     await page.getByRole('button', { name: /delete e2e university updated/i }).click()
-    await page.getByRole('dialog', { name: /delete education record/i }).getByRole('button', { name: /delete record/i }).click()
+    await page
+      .getByRole('dialog', { name: /delete education record/i })
+      .getByRole('button', { name: /delete record/i })
+      .click()
     await expect(page.getByRole('status')).toContainText(/deleted/i)
     await expect(page.getByText('E2E University Updated')).toHaveCount(0)
   })
@@ -72,7 +75,10 @@ test.describe('candidate profile lifecycle', () => {
     await expect(page.getByText('Recruitment Officer')).toBeVisible()
 
     await page.getByRole('button', { name: /delete recruitment officer at e2e relief foundation/i }).click()
-    await page.getByRole('dialog', { name: /delete employment record/i }).getByRole('button', { name: /delete record/i }).click()
+    await page
+      .getByRole('dialog', { name: /delete employment record/i })
+      .getByRole('button', { name: /delete record/i })
+      .click()
     await expect(page.getByRole('status')).toContainText(/deleted/i)
     await expect(page.getByText('Recruitment Officer')).toHaveCount(0)
   })
@@ -97,7 +103,10 @@ test.describe('candidate profile lifecycle', () => {
     await expect(page.getByText('Senior Professional Member')).toBeVisible()
 
     await page.getByRole('button', { name: /delete licence e2e-lic-100/i }).click()
-    await page.getByRole('dialog', { name: /delete licence/i }).getByRole('button', { name: /delete licence/i }).click()
+    await page
+      .getByRole('dialog', { name: /delete licence/i })
+      .getByRole('button', { name: /delete licence/i })
+      .click()
     await expect(page.getByRole('status')).toContainText(/deleted/i)
     await expect(page.getByText('Senior Professional Member')).toHaveCount(0)
   })
@@ -115,7 +124,12 @@ test.describe('candidate profile lifecycle', () => {
     await section.getByPlaceholder('Skill').fill('Strategic workforce planning')
     await section.getByRole('button', { name: /^save$/i }).click()
     await expect(section.getByText('Strategic workforce planning')).toBeVisible()
-    await section.locator('div').filter({ hasText: 'Strategic workforce planning' }).last().getByRole('button', { name: /delete/i }).click()
+    await section
+      .locator('div')
+      .filter({ hasText: 'Strategic workforce planning' })
+      .last()
+      .getByRole('button', { name: /delete/i })
+      .click()
     await expect(section.getByText('Strategic workforce planning')).toHaveCount(0)
   })
 

@@ -16,7 +16,7 @@ let fixture: {
 async function createVacancy(
   suffix: string,
   ownerUserId = fixture.hrId,
-  options: { status?: string; openingAt?: Date; closingAt?: Date; questions?: Array<Record<string, unknown>> } = {},
+  options: { status?: string; openingAt?: Date; closingAt?: Date; questions?: Array<Record<string, unknown>> } = {}
 ) {
   return prisma.vacancy.create({
     data: {
@@ -201,9 +201,13 @@ test.describe('operational completeness acceptance', () => {
     })
 
     await login(page, 'hiring.manager@frad.org')
-    const phoneSearch = await page.request.get(`/api/recruitment/search?q=${encodeURIComponent(searchableUser.candidateProfile!.primaryPhone!)}`)
+    const phoneSearch = await page.request.get(
+      `/api/recruitment/search?q=${encodeURIComponent(searchableUser.candidateProfile!.primaryPhone!)}`
+    )
     expect(phoneSearch.status()).toBe(200)
-    expect((await phoneSearch.json()).applications.map((item: { id: string }) => item.id)).toContain(scopedApplication.id)
+    expect((await phoneSearch.json()).applications.map((item: { id: string }) => item.id)).toContain(
+      scopedApplication.id
+    )
 
     const erpSearch = await page.request.get(`/api/recruitment/search?q=${encodeURIComponent(`ERP-${runId}`)}`)
     expect(erpSearch.status()).toBe(200)
@@ -260,9 +264,12 @@ test.describe('operational completeness acceptance', () => {
       where: { applicationId: application.id, assessmentId },
     })
 
-    const missingEvidence = await page.request.post(`/api/recruitment/candidate-assessments/${candidateAssessment.id}/mark`, {
-      data: { score: 82 },
-    })
+    const missingEvidence = await page.request.post(
+      `/api/recruitment/candidate-assessments/${candidateAssessment.id}/mark`,
+      {
+        data: { score: 82 },
+      }
+    )
     expect(missingEvidence.status()).toBe(400)
 
     const mark = await page.request.post(`/api/recruitment/candidate-assessments/${candidateAssessment.id}/mark`, {
@@ -324,7 +331,11 @@ test.describe('operational completeness acceptance', () => {
     }
     const xlsx = await page.request.get('/api/recruitment/reports/export?report=candidate-stages&format=xlsx')
     expect(xlsx.status()).toBe(200)
-    expect(Buffer.from(await xlsx.body()).subarray(0, 2).toString()).toBe('PK')
+    expect(
+      Buffer.from(await xlsx.body())
+        .subarray(0, 2)
+        .toString()
+    ).toBe('PK')
     const pdf = await page.request.get('/api/recruitment/reports/export?report=candidate-stages&format=pdf')
     expect(pdf.status()).toBe(200)
     const pdfText = Buffer.from(await pdf.body()).toString()
@@ -332,11 +343,17 @@ test.describe('operational completeness acceptance', () => {
     expect(pdfText).not.toContain('undefined')
     const pack = await page.request.get('/api/recruitment/reports/export?report=all&format=zip')
     expect(pack.status()).toBe(200)
-    expect(Buffer.from(await pack.body()).subarray(0, 2).toString()).toBe('PK')
+    expect(
+      Buffer.from(await pack.body())
+        .subarray(0, 2)
+        .toString()
+    ).toBe('PK')
     expect(pack.headers()['content-disposition']).toContain('documentation-pack.zip')
     const restrictedComplaint = await page.request.get('/api/recruitment/reports/export?report=complaints&format=csv')
     expect(restrictedComplaint.status()).toBe(403)
-    const restrictedConfiguration = await page.request.get('/api/recruitment/reports/export?report=configuration-changes&format=csv')
+    const restrictedConfiguration = await page.request.get(
+      '/api/recruitment/reports/export?report=configuration-changes&format=csv'
+    )
     expect(restrictedConfiguration.status()).toBe(403)
 
     const createSchedule = await page.request.post('/api/recruitment/reports/schedules', {
@@ -355,7 +372,10 @@ test.describe('operational completeness acceptance', () => {
     expect((await schedules.json()).schedules.map((item: { id: string }) => item.id)).toContain(scheduleId)
     await logout(page)
 
-    await prisma.scheduledReport.update({ where: { id: scheduleId }, data: { nextRunAt: new Date(Date.now() - 60_000) } })
+    await prisma.scheduledReport.update({
+      where: { id: scheduleId },
+      data: { nextRunAt: new Date(Date.now() - 60_000) },
+    })
     const scheduledVacancy = await createVacancy('scheduled-opening', fixture.hrId, {
       status: 'SCHEDULED',
       openingAt: new Date(Date.now() - 60_000),
@@ -371,7 +391,9 @@ test.describe('operational completeness acceptance', () => {
     const [processedSchedule, openedVacancy, queuedDelivery] = await Promise.all([
       prisma.scheduledReport.findUniqueOrThrow({ where: { id: scheduleId } }),
       prisma.vacancy.findUniqueOrThrow({ where: { id: scheduledVacancy.id } }),
-      prisma.outboxMessage.findFirst({ where: { deduplicationKey: { startsWith: `scheduled-report:${scheduleId}:` } } }),
+      prisma.outboxMessage.findFirst({
+        where: { deduplicationKey: { startsWith: `scheduled-report:${scheduleId}:` } },
+      }),
     ])
     expect(processedSchedule.lastRunAt).not.toBeNull()
     expect(processedSchedule.nextRunAt.getTime()).toBeGreaterThan(Date.now())

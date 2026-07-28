@@ -9,7 +9,7 @@ import { getVerifiedUser } from '@/lib/auth'
 import { formatDate } from '@/lib/utils'
 
 export async function generateMetadata(props: { params: Promise<{ reference: string }> }): Promise<Metadata> {
-  const params = await props.params;
+  const params = await props.params
   const vacancy = await prisma.vacancy.findUnique({
     where: { referenceNumber: decodeURIComponent(params.reference) },
     select: { title: true, summary: true },
@@ -18,7 +18,7 @@ export async function generateMetadata(props: { params: Promise<{ reference: str
 }
 
 export default async function VacancyDetailPage(props: { params: Promise<{ reference: string }> }) {
-  const params = await props.params;
+  const params = await props.params
   const user = await getVerifiedUser()
   const vacancy = await prisma.vacancy.findUnique({
     where: { referenceNumber: decodeURIComponent(params.reference) },
@@ -72,7 +72,9 @@ export default async function VacancyDetailPage(props: { params: Promise<{ refer
                   <span>{vacancy.contractType.replaceAll('_', ' ')}</span>
                   {vacancy.contractDuration && <span>{vacancy.contractDuration}</span>}
                 </div>
-                <h1 className="editorial-title mt-4 max-w-4xl text-4xl text-[#17211c] sm:text-5xl lg:text-6xl">{vacancy.title}</h1>
+                <h1 className="editorial-title mt-4 max-w-4xl text-4xl text-[#17211c] sm:text-5xl lg:text-6xl">
+                  {vacancy.title}
+                </h1>
               </div>
               <p className="border-l-2 border-[#d4875f] pl-4 text-sm leading-6 text-[#526158]">
                 Applications close <strong className="text-[#8e4728]">{formatDate(vacancy.closingAt)}</strong>.
@@ -85,15 +87,23 @@ export default async function VacancyDetailPage(props: { params: Promise<{ refer
           <article className="min-w-0">
             <dl className="grid gap-px border border-[#d9d4ca] bg-[#d9d4ca] sm:grid-cols-3">
               <div className="bg-[#fbfaf7] p-5">
-                <dt className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.13em] text-[#6b776f]"><Building2 className="h-3.5 w-3.5" /> Team</dt>
+                <dt className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.13em] text-[#6b776f]">
+                  <Building2 className="h-3.5 w-3.5" /> Team
+                </dt>
                 <dd className="mt-2 text-sm font-bold text-[#26352d]">{vacancy.department.name}</dd>
               </div>
               <div className="bg-[#fbfaf7] p-5">
-                <dt className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.13em] text-[#6b776f]"><MapPin className="h-3.5 w-3.5" /> Duty station</dt>
-                <dd className="mt-2 text-sm font-bold text-[#26352d]">{vacancy.dutyStation.name}, {vacancy.dutyStation.state}</dd>
+                <dt className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.13em] text-[#6b776f]">
+                  <MapPin className="h-3.5 w-3.5" /> Duty station
+                </dt>
+                <dd className="mt-2 text-sm font-bold text-[#26352d]">
+                  {vacancy.dutyStation.name}, {vacancy.dutyStation.state}
+                </dd>
               </div>
               <div className="bg-[#fbfaf7] p-5">
-                <dt className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.13em] text-[#6b776f]"><CalendarDays className="h-3.5 w-3.5" /> Published</dt>
+                <dt className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.13em] text-[#6b776f]">
+                  <CalendarDays className="h-3.5 w-3.5" /> Published
+                </dt>
                 <dd className="mt-2 text-sm font-bold text-[#26352d]">{formatDate(vacancy.openingAt)}</dd>
               </div>
             </dl>
@@ -105,30 +115,51 @@ export default async function VacancyDetailPage(props: { params: Promise<{ refer
 
             <section className="border-b border-[#d9d4ca] py-9">
               <h2 className="font-display text-3xl text-[#17211c]">Responsibilities</h2>
-              <div className="mt-5 whitespace-pre-line text-[15px] leading-7 text-[#46544c]">{vacancy.responsibilities}</div>
+              <div className="mt-5 whitespace-pre-line text-[15px] leading-7 text-[#46544c]">
+                {vacancy.responsibilities}
+              </div>
             </section>
 
             <section className="border-b border-[#d9d4ca] py-9">
               <h2 className="font-display text-3xl text-[#17211c]">What you will need</h2>
               <div className="mt-6 grid gap-7 md:grid-cols-2">
                 <div>
-                  <h3 className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#68756d]">Essential qualifications</h3>
-                  <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#46544c]">{vacancy.essentialQualifications}</p>
+                  <h3 className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#68756d]">
+                    Essential qualifications
+                  </h3>
+                  <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#46544c]">
+                    {vacancy.essentialQualifications}
+                  </p>
                   {vacancy.desirableQualifications && (
                     <>
-                      <h3 className="mt-6 text-[10px] font-bold uppercase tracking-[0.14em] text-[#68756d]">Desirable</h3>
-                      <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#46544c]">{vacancy.desirableQualifications}</p>
+                      <h3 className="mt-6 text-[10px] font-bold uppercase tracking-[0.14em] text-[#68756d]">
+                        Desirable
+                      </h3>
+                      <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#46544c]">
+                        {vacancy.desirableQualifications}
+                      </p>
                     </>
                   )}
                 </div>
                 <div>
                   <h3 className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#68756d]">Experience</h3>
-                  <p className="mt-3 text-sm leading-6 text-[#46544c]">At least {vacancy.minimumExperienceYears} {vacancy.minimumExperienceYears === 1 ? 'year' : 'years'} of relevant experience.</p>
-                  {vacancy.desiredExperience && <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#46544c]">{vacancy.desiredExperience}</p>}
+                  <p className="mt-3 text-sm leading-6 text-[#46544c]">
+                    At least {vacancy.minimumExperienceYears} {vacancy.minimumExperienceYears === 1 ? 'year' : 'years'}{' '}
+                    of relevant experience.
+                  </p>
+                  {vacancy.desiredExperience && (
+                    <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#46544c]">
+                      {vacancy.desiredExperience}
+                    </p>
+                  )}
                   {vacancy.technicalSkills && (
                     <>
-                      <h3 className="mt-6 text-[10px] font-bold uppercase tracking-[0.14em] text-[#68756d]">Technical skills</h3>
-                      <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#46544c]">{vacancy.technicalSkills}</p>
+                      <h3 className="mt-6 text-[10px] font-bold uppercase tracking-[0.14em] text-[#68756d]">
+                        Technical skills
+                      </h3>
+                      <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#46544c]">
+                        {vacancy.technicalSkills}
+                      </p>
                     </>
                   )}
                 </div>
@@ -140,9 +171,15 @@ export default async function VacancyDetailPage(props: { params: Promise<{ refer
                 <h2 className="font-display text-3xl text-[#17211c]">Documents</h2>
                 <ul className="mt-5 grid gap-3 sm:grid-cols-2">
                   {vacancy.requiredDocuments.map((document) => (
-                    <li key={document.id} className="flex items-start gap-3 border border-[#d9d4ca] bg-[#fbfaf7] p-4 text-sm text-[#46544c]">
+                    <li
+                      key={document.id}
+                      className="flex items-start gap-3 border border-[#d9d4ca] bg-[#fbfaf7] p-4 text-sm text-[#46544c]"
+                    >
                       <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-700" />
-                      <span>{document.documentType.replaceAll('_', ' ')}{document.required ? ' — required' : ' — optional'}</span>
+                      <span>
+                        {document.documentType.replaceAll('_', ' ')}
+                        {document.required ? ' — required' : ' — optional'}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -165,7 +202,10 @@ export default async function VacancyDetailPage(props: { params: Promise<{ refer
                         : 'Your saved profile will be used to start the application.'}
               </p>
               {(!user || isCandidate) && (
-                <Link href={applyHref} className="mt-6 flex items-center justify-between bg-brand-800 px-4 py-3.5 text-sm font-bold text-white hover:bg-brand-950">
+                <Link
+                  href={applyHref}
+                  className="mt-6 flex items-center justify-between bg-brand-800 px-4 py-3.5 text-sm font-bold text-white hover:bg-brand-950"
+                >
                   {applyLabel} <ArrowRight className="h-4 w-4" />
                 </Link>
               )}

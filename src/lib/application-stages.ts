@@ -40,7 +40,17 @@ export type ApplicationStage = (typeof APPLICATION_STAGES)[number]
 
 /** Guard against this list drifting away from the state machine. */
 export function unknownStages(): string[] {
-  return APPLICATION_STAGES.filter((stage) => allowedApplicationTransitions(stage).length === 0 && ![
-    'TRANSFERRED_TO_ERP', 'NOT_SELECTED', 'INELIGIBLE', 'WITHDRAWN', 'CANCELLED', 'OFFER_DECLINED', 'OFFER_EXPIRED',
-  ].includes(stage))
+  return APPLICATION_STAGES.filter(
+    (stage) =>
+      allowedApplicationTransitions(stage).length === 0 &&
+      ![
+        'TRANSFERRED_TO_ERP',
+        'NOT_SELECTED',
+        'INELIGIBLE',
+        'WITHDRAWN',
+        'CANCELLED',
+        'OFFER_DECLINED',
+        'OFFER_EXPIRED',
+      ].includes(stage)
+  )
 }

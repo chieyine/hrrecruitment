@@ -33,11 +33,17 @@ export default function LegalDocument({
           <article className="divide-y divide-stone-200">
             {sections.map((section, index) => (
               <section key={section.title} className="grid gap-3 py-7 sm:grid-cols-[48px_1fr]">
-                <p aria-hidden="true" className="font-mono text-xs font-bold text-brand-700">{String(index + 1).padStart(2, '0')}</p>
+                <p aria-hidden="true" className="font-mono text-xs font-bold text-brand-700">
+                  {String(index + 1).padStart(2, '0')}
+                </p>
                 <div>
                   <h2 className="text-lg font-bold text-stone-900">{section.title}</h2>
                   <div className="mt-3 space-y-3">
-                    {section.paragraphs.map((paragraph) => <p key={paragraph} className="text-sm leading-7 text-stone-600">{paragraph}</p>)}
+                    {section.paragraphs.map((paragraph) => (
+                      <p key={paragraph} className="text-sm leading-7 text-stone-600">
+                        {paragraph}
+                      </p>
+                    ))}
                   </div>
                 </div>
               </section>
