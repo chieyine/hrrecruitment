@@ -71,7 +71,7 @@ test.describe('Assessments and Interviews', () => {
     })
 
     await login(page, 'candidate@example.com')
-    await page.goto('/candidate/assessments')
+    await page.goto('/candidate/tasks')
 
     const startButton = page.getByRole('link', { name: /start assessment/i }).first()
     await expect(startButton).toBeVisible()

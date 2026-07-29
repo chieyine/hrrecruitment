@@ -6,7 +6,7 @@ import { logAudit } from '@/lib/audit'
 export async function POST(request: Request, context: { params: Promise<{ id: string; memberId: string }> }) {
   const params = await context.params
   try {
-    const user = await requireRole('HR_MANAGER', 'SYSTEM_ADMIN')
+    const user = await requireRole('HR_MANAGER')
     const { resolution } = await parseBody(request, z.object({ resolution: z.string().trim().min(10).max(2000) }))
     const member = await prisma.interviewPanelMember.findFirst({
       where: { id: params.memberId, interviewId: params.id },

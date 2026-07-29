@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermission, authzResponse } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
+import { recalculateApplicationReferenceStatus } from '@/lib/references'
 
 const schema = z
   .object({
@@ -17,7 +18,7 @@ const schema = z
     contactStatus: z.enum(['READY', 'UNABLE_TO_CONTACT', 'WAIVED']).default('READY'),
     waiverReason: z.string().trim().max(2000).optional(),
     periodKnown: z.string().optional(),
-    permissionToContact: z.boolean().default(true),
+    permissionToContact: z.literal(true),
     manualOutcome: z.enum(['SATISFACTORY', 'SATISFACTORY_WITH_CONCERNS', 'UNSATISFACTORY']).optional(),
     manualComment: z.string().trim().max(3000).optional(),
   })
@@ -47,55 +48,70 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const user = await requirePermission('reference.manage')
     const input = await parseBody(request, schema)
-    if (input.contactStatus === 'WAIVED' && !user.roles.some((role) => ['HR_MANAGER', 'SYSTEM_ADMIN'].includes(role)))
+    if (input.contactStatus === 'WAIVED' && !user.roles.includes('HR_MANAGER'))
       return NextResponse.json({ error: 'Only an HR manager may approve a reference waiver' }, { status: 403 })
     const application = await prisma.application.findUnique({ where: { id: params.id } })
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
-    const referee = await prisma.referee.create({
-      data: {
-        applicationId: application.id,
-        name: input.name,
-        organization: input.organization,
-        position: input.position,
-        relationship: input.relationship,
-        email: input.email,
-        phone: input.phone || null,
-        preferredContactMethod: input.preferredContactMethod,
-        contactStatus: input.contactStatus,
-        waiverReason: input.contactStatus === 'WAIVED' ? input.waiverReason : null,
-        periodKnown: input.periodKnown || null,
-        permissionToContact: input.permissionToContact,
-      },
+    const referee = await prisma.$transaction(async (tx) => {
+      const created = await tx.referee.create({
+        data: {
+          applicationId: application.id,
+          name: input.name,
+          organization: input.organization,
+          position: input.position,
+          relationship: input.relationship,
+          email: input.email,
+          phone: input.phone || null,
+          preferredContactMethod: input.preferredContactMethod,
+          contactStatus: input.contactStatus,
+          waiverReason: input.contactStatus === 'WAIVED' ? input.waiverReason : null,
+          periodKnown: input.periodKnown || null,
+          permissionToContact: input.permissionToContact,
+        },
+      })
+      if (input.manualOutcome) {
+        const requestRecord = await tx.referenceRequest.create({
+          data: {
+            refereeId: created.id,
+            secureTokenHash: `manual:${crypto.randomUUID()}`,
+            expiresAt: new Date(),
+            status: 'COMPLETED',
+            responseReceivedAt: new Date(),
+          },
+        })
+        await tx.referenceResponse.create({
+          data: {
+            referenceRequestId: requestRecord.id,
+            answersJson: '{}',
+            outcome: input.manualOutcome,
+            confidentialComment: input.manualComment || null,
+            verifiedBy: user.userId,
+            verifiedAt: new Date(),
+          },
+        })
+      }
+      await recalculateApplicationReferenceStatus(tx, application.id)
+      if (
+        !input.manualOutcome &&
+        input.contactStatus !== 'WAIVED' &&
+        application.internalStatus === 'INTERVIEW_COMPLETED'
+      ) {
+        await tx.application.update({
+          where: { id: application.id },
+          data: { internalStatus: 'REFERENCE_CHECK', candidateVisibleStatus: 'REFERENCE_CHECK' },
+        })
+        await tx.applicationStageHistory.create({
+          data: {
+            applicationId: application.id,
+            fromStatus: application.internalStatus,
+            toStatus: 'REFERENCE_CHECK',
+            changedBy: user.userId,
+            reason: 'Reference checking started',
+          },
+        })
+      }
+      return created
     })
-    if (input.manualOutcome) {
-      const requestRecord = await prisma.referenceRequest.create({
-        data: {
-          refereeId: referee.id,
-          secureTokenHash: `manual:${crypto.randomUUID()}`,
-          expiresAt: new Date(),
-          status: 'COMPLETED',
-          responseReceivedAt: new Date(),
-        },
-      })
-      await prisma.referenceResponse.create({
-        data: {
-          referenceRequestId: requestRecord.id,
-          answersJson: '{}',
-          outcome: input.manualOutcome,
-          confidentialComment: input.manualComment || null,
-          verifiedBy: user.userId,
-          verifiedAt: new Date(),
-        },
-      })
-      await prisma.application.update({ where: { id: application.id }, data: { referenceStatus: input.manualOutcome } })
-    } else if (input.contactStatus === 'WAIVED') {
-      await prisma.application.update({ where: { id: application.id }, data: { referenceStatus: 'WAIVED' } })
-    } else if (application.internalStatus === 'INTERVIEW_COMPLETED') {
-      await prisma.application.update({
-        where: { id: application.id },
-        data: { internalStatus: 'REFERENCE_CHECK', candidateVisibleStatus: 'REFERENCE_CHECK' },
-      })
-    }
     await logAudit({
       actorUserId: user.userId,
       action: input.manualOutcome

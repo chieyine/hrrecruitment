@@ -5,16 +5,26 @@ import { useRouter } from 'next/navigation'
 import { Send, Loader2 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toaster'
 
-export default function MessageComposer({ applicationId, threadId }: { applicationId?: string; threadId?: string }) {
+export default function MessageComposer({
+  applicationId,
+  threadId,
+  applications,
+}: {
+  applicationId?: string
+  threadId?: string
+  applications?: Array<{ id: string; label: string }>
+}) {
   const router = useRouter()
   const { toast } = useToast()
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
+  const [selectedApplicationId, setSelectedApplicationId] = useState(applicationId || applications?.[0]?.id || '')
   const [templates, setTemplates] = useState<Array<{ id: string; code: string; subject: string; body: string }>>([])
 
   useEffect(() => {
-    const query = applicationId
-      ? `applicationId=${encodeURIComponent(applicationId)}`
+    const targetApplicationId = applicationId || selectedApplicationId
+    const query = targetApplicationId
+      ? `applicationId=${encodeURIComponent(targetApplicationId)}`
       : `threadId=${encodeURIComponent(threadId || '')}`
     fetch(`/api/messages?${query}`)
       .then(async (response) => {
@@ -23,9 +33,10 @@ export default function MessageComposer({ applicationId, threadId }: { applicati
         setTemplates(data.templates || [])
       })
       .catch(() => undefined)
-  }, [applicationId, threadId])
+  }, [applicationId, selectedApplicationId, threadId])
 
-  if (!applicationId && !threadId) {
+  const targetApplicationId = applicationId || selectedApplicationId
+  if (!targetApplicationId && !threadId) {
     return <p className="text-xs text-slate-400">You can message HR once you have an active application.</p>
   }
 
@@ -37,15 +48,15 @@ export default function MessageComposer({ applicationId, threadId }: { applicati
       const res = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ applicationId, threadId, body }),
+        body: JSON.stringify({ applicationId: targetApplicationId || undefined, threadId, body }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to send')
       setBody('')
       toast('success', 'Message sent.')
       router.refresh() // re-render the server component with the new message
-    } catch (e: any) {
-      toast('error', e.message)
+    } catch (error: unknown) {
+      toast('error', error instanceof Error ? error.message : 'The message could not be sent.')
     } finally {
       setSending(false)
     }
@@ -53,6 +64,27 @@ export default function MessageComposer({ applicationId, threadId }: { applicati
 
   return (
     <form onSubmit={send} className="space-y-2">
+      {!threadId && applications && applications.length > 1 && (
+        <label className="block">
+          <span className="field-label">Application</span>
+          <select
+            value={selectedApplicationId}
+            onChange={(event) => setSelectedApplicationId(event.target.value)}
+            className="field-control"
+          >
+            {applications.map((application) => (
+              <option key={application.id} value={application.id}>
+                {application.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {!threadId && applications?.length === 1 && (
+        <p className="text-xs text-stone-600">
+          <span className="font-semibold text-stone-800">Application:</span> {applications[0].label}
+        </p>
+      )}
       {templates.length > 0 && (
         <label className="block">
           <span className="field-label">Start from an approved template</span>
@@ -83,11 +115,7 @@ export default function MessageComposer({ applicationId, threadId }: { applicati
         className="field-control"
       />
       <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={sending}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow hover:bg-brand-700 disabled:opacity-60"
-        >
+        <button type="submit" disabled={sending} className="btn-primary min-h-10 px-4 py-2 text-xs">
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send
         </button>
       </div>

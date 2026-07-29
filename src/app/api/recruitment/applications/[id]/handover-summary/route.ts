@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
   try {
-    await requirePermission('erp.transfer')
+    const user = await requirePermission('erp.transfer')
 
     const application = await prisma.application.findUnique({
       where: { id: params.id },
@@ -13,16 +13,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         candidate: {
           include: {
             user: { select: { email: true } },
-            education: true,
-            employment: true,
-            licences: true,
             documents: { include: { fileAsset: true } },
           },
         },
         vacancy: {
           include: { department: true, dutyStation: true },
         },
-        offers: true,
+        offers: { where: { status: 'ACCEPTED' }, orderBy: { acceptedAt: 'desc' }, take: 1 },
         preboardings: {
           include: {
             forms: true,
@@ -42,6 +39,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     })
 
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    if (!['READY_TO_RESUME', 'RESUMED', 'TRANSFERRED_TO_ERP'].includes(application.internalStatus)) {
+      return NextResponse.json({ error: 'Joining handover is not available at this stage' }, { status: 409 })
+    }
 
     const handoverSummary = {
       recruitmentRecordId: application.id,
@@ -49,32 +49,23 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         `${application.candidate.legalFirstName} ${application.candidate.middleName || ''} ${application.candidate.lastName}`.trim(),
       email: application.candidate.user?.email || null,
       primaryPhone: application.candidate.primaryPhone,
-      address: application.candidate.address,
-      state: application.candidate.state,
-      lga: application.candidate.lga,
       jobTitle: application.vacancy.title,
       department: application.vacancy.department.name,
       dutyStation: application.vacancy.dutyStation.name,
       contractType: application.vacancy.contractType,
       salary: application.offers[0]?.salary || null,
-      plannedStartDate: application.offers[0]?.startDate || application.resumptionRecord?.plannedStartDate,
+      plannedStartDate: application.resumptionRecord?.plannedStartDate || application.offers[0]?.startDate,
       actualResumptionDate: application.resumptionRecord?.actualStartDate,
       resumptionOutcome: application.resumptionRecord?.outcome || null,
       applicationStatus: application.internalStatus,
       preboardingReadinessStatus: application.preboardings[0]?.readinessStatus || 'PENDING',
       erpPersonnelNumber: application.erpTransferRecord?.erpPersonnelNumber || null,
       transferredAt: application.erpTransferRecord?.createdInErpAt || null,
-      verifiedDocuments: application.candidate.documents
-        .filter((document) => document.status === 'APPROVED')
-        .map((document) => ({
-          id: document.fileAssetId,
-          type: document.documentType,
-          name: document.fileAsset.originalName,
-        })),
-      educationRecords: application.candidate.education.length,
-      employmentRecords: application.candidate.employment.length,
-      verifiedLicences: application.candidate.licences.filter((licence) => licence.verificationStatus === 'VERIFIED')
+      verifiedDocumentCount: application.candidate.documents.filter((document) => document.status === 'APPROVED')
         .length,
+      capabilities: {
+        recordAdverseOutcome: user.roles.includes('HR_MANAGER'),
+      },
       preboarding: application.preboardings[0]
         ? {
             forms: application.preboardings[0].forms.map((item) => item.status),

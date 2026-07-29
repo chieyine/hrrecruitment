@@ -3,11 +3,12 @@ export default function Page() {
   return (
     <AdminCrud
       entity="contract-types"
-      title="Contract Types"
-      subtitle="Employment and engagement categories."
+      title="Contract types"
+      subtitle="Options available when a vacancy is created."
       columns={[
         { name: 'code', label: 'Code' },
         { name: 'name', label: 'Name' },
+        { name: 'description', label: 'Description' },
         { name: 'active', label: 'Active' },
       ]}
       fields={[

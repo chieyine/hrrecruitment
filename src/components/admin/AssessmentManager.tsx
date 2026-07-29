@@ -26,6 +26,7 @@ type AssessmentSummary = {
   randomizeQuestions: boolean
   autoSubmit: boolean
   candidateCount: number
+  questionCount: number
 }
 
 const EMPTY_QUESTION: Question = {
@@ -66,7 +67,13 @@ export default function AssessmentManager({
   vacancies: Array<{ id: string; title: string }>
   eligible: Array<{ id: string; name: string; vacancyId: string }>
   assessments: AssessmentSummary[]
-  candidateAssessments: Array<{ id: string; assessmentId: string; candidateName: string; status: string }>
+  candidateAssessments: Array<{
+    id: string
+    assessmentId: string
+    candidateName: string
+    status: string
+    assessmentType: string
+  }>
 }) {
   const router = useRouter()
   const [message, setMessage] = useState('')
@@ -113,14 +120,22 @@ export default function AssessmentManager({
   const [editQuestions, setEditQuestions] = useState<Question[]>([])
 
   const selectedAssessment = assessments.find((a) => a.id === assessmentId)
-  const resultRecords = useMemo(
-    () =>
-      candidateAssessments.filter((record) =>
-        ['SUBMITTED', 'AUTO_SUBMITTED', 'INVITED', 'NOT_STARTED', 'IN_PROGRESS'].includes(record.status)
-      ),
-    [candidateAssessments]
-  )
+  const resultRecords = useMemo(() => {
+    const offlineTypes = new Set(['OFFLINE_WRITTEN', 'PRACTICAL', 'PRESENTATION', 'DRIVING_TEST', 'SIMULATION'])
+    return candidateAssessments.filter((record) =>
+      offlineTypes.has(record.assessmentType)
+        ? ['INVITED', 'NOT_STARTED', 'IN_PROGRESS', 'SUBMITTED', 'AUTO_SUBMITTED'].includes(record.status)
+        : ['SUBMITTED', 'AUTO_SUBMITTED'].includes(record.status)
+    )
+  }, [candidateAssessments])
   const offline = ['OFFLINE_WRITTEN', 'PRACTICAL', 'PRESENTATION', 'DRIVING_TEST', 'SIMULATION'].includes(type)
+  const selectedResult = candidateAssessments.find((record) => record.id === resultId)
+  const selectedResultIsOffline = Boolean(
+    selectedResult &&
+    ['OFFLINE_WRITTEN', 'PRACTICAL', 'PRESENTATION', 'DRIVING_TEST', 'SIMULATION'].includes(
+      selectedResult.assessmentType
+    )
+  )
 
   const create = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -323,394 +338,404 @@ export default function AssessmentManager({
   }
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-2xl border bg-white p-5 space-y-3" aria-labelledby="assessment-edit-heading">
-        <div>
-          <h2 id="assessment-edit-heading" className="font-bold">
-            Edit an assessment
-          </h2>
-          <p className="text-xs text-slate-500">
-            Timing, instructions and delivery settings remain editable. Questions lock after the first candidate is
-            invited so submitted attempts keep their original meaning.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {assessments.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => void editAssessment(item.id)}
-              className={`rounded border px-3 py-2 text-left text-xs font-bold ${editingId === item.id ? 'border-brand-600 bg-brand-50 text-brand-900' : 'border-slate-300 bg-white text-slate-800'}`}
-            >
-              {item.title}
-            </button>
-          ))}
-        </div>
-        {editBusy && !editingId && (
-          <p role="status" className="text-xs text-slate-500">
-            Loading assessment…
-          </p>
-        )}
-        {editingId && (
-          <form onSubmit={saveAssessment} className="space-y-3 border-t pt-4">
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="text-xs font-bold">
-                Title
-                <input
-                  required
-                  value={editForm.title}
-                  onChange={(event) => setEditForm({ ...editForm, title: event.target.value })}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                />
-              </label>
-              <label className="text-xs font-bold">
-                Instructions
-                <input
-                  value={editForm.description}
-                  onChange={(event) => setEditForm({ ...editForm, description: event.target.value })}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                />
-              </label>
-              <label className="text-xs font-bold">
-                Duration (minutes)
-                <input
-                  type="number"
-                  min={1}
-                  max={480}
-                  value={editForm.durationMinutes}
-                  onChange={(event) => setEditForm({ ...editForm, durationMinutes: Number(event.target.value) })}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                />
-              </label>
-              <label className="text-xs font-bold">
-                Pass mark (%)
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={editForm.passMark}
-                  onChange={(event) => setEditForm({ ...editForm, passMark: Number(event.target.value) })}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                />
-              </label>
-              <label className="text-xs font-bold">
-                Opens at
-                <input
-                  type="datetime-local"
-                  value={editForm.opensAt}
-                  onChange={(event) => setEditForm({ ...editForm, opensAt: event.target.value })}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                />
-              </label>
-              <label className="text-xs font-bold">
-                Closes at
-                <input
-                  type="datetime-local"
-                  value={editForm.closesAt}
-                  onChange={(event) => setEditForm({ ...editForm, closesAt: event.target.value })}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                />
-              </label>
-              <label className="text-xs font-bold">
-                Maximum attempts
-                <input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={editForm.maximumAttempts}
-                  onChange={(event) => setEditForm({ ...editForm, maximumAttempts: Number(event.target.value) })}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                />
-              </label>
-              <div className="flex items-center gap-6 text-xs font-bold">
-                <label>
+    <div className="flex flex-col gap-5">
+      <details className="order-3 rounded-2xl border border-stone-200 bg-white shadow-sm">
+        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-stone-950">
+          Manage assessment settings
+        </summary>
+        <section className="space-y-3 border-t border-stone-100 p-5" aria-labelledby="assessment-edit-heading">
+          <div>
+            <h2 id="assessment-edit-heading" className="font-bold">
+              Edit an assessment
+            </h2>
+            <p className="text-xs text-slate-500">
+              Timing, instructions and delivery settings remain editable. Questions lock after the first candidate is
+              invited so submitted attempts keep their original meaning.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {assessments.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => void editAssessment(item.id)}
+                className={`rounded border px-3 py-2 text-left text-xs font-bold ${editingId === item.id ? 'border-brand-600 bg-brand-50 text-brand-900' : 'border-slate-300 bg-white text-slate-800'}`}
+              >
+                {item.title}
+              </button>
+            ))}
+          </div>
+          {editBusy && !editingId && (
+            <p role="status" className="text-xs text-slate-500">
+              Loading assessment…
+            </p>
+          )}
+          {editingId && (
+            <form onSubmit={saveAssessment} className="space-y-3 border-t pt-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="text-xs font-bold">
+                  Title
                   <input
-                    type="checkbox"
-                    checked={editForm.randomizeQuestions}
-                    onChange={(event) => setEditForm({ ...editForm, randomizeQuestions: event.target.checked })}
-                    className="mr-2"
+                    required
+                    value={editForm.title}
+                    onChange={(event) => setEditForm({ ...editForm, title: event.target.value })}
+                    className="mt-1 w-full rounded border p-2 text-sm"
                   />
-                  Randomize questions
                 </label>
-                <label>
+                <label className="text-xs font-bold">
+                  Instructions
                   <input
-                    type="checkbox"
-                    checked={editForm.autoSubmit}
-                    onChange={(event) => setEditForm({ ...editForm, autoSubmit: event.target.checked })}
-                    className="mr-2"
+                    value={editForm.description}
+                    onChange={(event) => setEditForm({ ...editForm, description: event.target.value })}
+                    className="mt-1 w-full rounded border p-2 text-sm"
                   />
-                  Auto-submit
                 </label>
-              </div>
-            </div>
-            {assessments.find((item) => item.id === editingId)?.candidateCount === 0 ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold">Questions</h3>
-                  <button
-                    type="button"
-                    onClick={() => setEditQuestions((current) => [...current, { ...EMPTY_QUESTION }])}
-                    className="rounded border px-3 py-1 text-xs font-bold"
-                  >
-                    Add question
-                  </button>
-                </div>
-                {editQuestions.map((question, index) => (
-                  <div key={index} className="grid gap-2 rounded-xl border bg-slate-50 p-3 md:grid-cols-2">
-                    <select
-                      value={question.questionType}
-                      onChange={(event) =>
-                        updateEditQuestion(index, { questionType: event.target.value as Question['questionType'] })
-                      }
-                      className="rounded border p-2 text-sm"
-                    >
-                      {['MCQ', 'MULTISELECT', 'TRUEFALSE', 'SHORTTEXT', 'LONGTEXT', 'NUMBER', 'FILE'].map((value) => (
-                        <option key={value}>{value}</option>
-                      ))}
-                    </select>
+                <label className="text-xs font-bold">
+                  Duration (minutes)
+                  <input
+                    type="number"
+                    min={1}
+                    max={480}
+                    value={editForm.durationMinutes}
+                    onChange={(event) => setEditForm({ ...editForm, durationMinutes: Number(event.target.value) })}
+                    className="mt-1 w-full rounded border p-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs font-bold">
+                  Pass mark (%)
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={editForm.passMark}
+                    onChange={(event) => setEditForm({ ...editForm, passMark: Number(event.target.value) })}
+                    className="mt-1 w-full rounded border p-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs font-bold">
+                  Opens at
+                  <input
+                    type="datetime-local"
+                    value={editForm.opensAt}
+                    onChange={(event) => setEditForm({ ...editForm, opensAt: event.target.value })}
+                    className="mt-1 w-full rounded border p-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs font-bold">
+                  Closes at
+                  <input
+                    type="datetime-local"
+                    value={editForm.closesAt}
+                    onChange={(event) => setEditForm({ ...editForm, closesAt: event.target.value })}
+                    className="mt-1 w-full rounded border p-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs font-bold">
+                  Maximum attempts
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={editForm.maximumAttempts}
+                    onChange={(event) => setEditForm({ ...editForm, maximumAttempts: Number(event.target.value) })}
+                    className="mt-1 w-full rounded border p-2 text-sm"
+                  />
+                </label>
+                <div className="flex items-center gap-6 text-xs font-bold">
+                  <label>
                     <input
-                      aria-label={`Question ${index + 1} maximum score`}
-                      type="number"
-                      min={0.1}
-                      value={question.maximumScore}
-                      onChange={(event) => updateEditQuestion(index, { maximumScore: Number(event.target.value) })}
-                      className="rounded border p-2 text-sm"
+                      type="checkbox"
+                      checked={editForm.randomizeQuestions}
+                      onChange={(event) => setEditForm({ ...editForm, randomizeQuestions: event.target.checked })}
+                      className="mr-2"
                     />
-                    <textarea
-                      value={question.prompt}
-                      onChange={(event) => updateEditQuestion(index, { prompt: event.target.value })}
-                      placeholder="Question prompt"
-                      className="rounded border p-2 text-sm md:col-span-2"
+                    Randomize questions
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={editForm.autoSubmit}
+                      onChange={(event) => setEditForm({ ...editForm, autoSubmit: event.target.checked })}
+                      className="mr-2"
                     />
-                    {['MCQ', 'MULTISELECT'].includes(question.questionType) && (
-                      <textarea
-                        value={question.optionsText}
-                        onChange={(event) => updateEditQuestion(index, { optionsText: event.target.value })}
-                        placeholder="Options, one per line"
-                        className="rounded border p-2 text-sm"
-                      />
-                    )}
-                    {['MCQ', 'MULTISELECT', 'TRUEFALSE', 'SHORTTEXT', 'NUMBER'].includes(question.questionType) && (
-                      <input
-                        value={question.correctAnswer}
-                        onChange={(event) => updateEditQuestion(index, { correctAnswer: event.target.value })}
-                        placeholder="Correct answer"
-                        className="rounded border p-2 text-sm"
-                      />
-                    )}
+                    Auto-submit
+                  </label>
+                </div>
+              </div>
+              {assessments.find((item) => item.id === editingId)?.candidateCount === 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold">Questions</h3>
                     <button
                       type="button"
-                      onClick={() => setEditQuestions((current) => current.filter((_, i) => i !== index))}
-                      className="justify-self-start text-xs font-bold text-rose-700"
+                      onClick={() => setEditQuestions((current) => [...current, { ...EMPTY_QUESTION }])}
+                      className="rounded border px-3 py-1 text-xs font-bold"
                     >
-                      Remove
+                      Add question
                     </button>
                   </div>
-                ))}
+                  {editQuestions.map((question, index) => (
+                    <div key={index} className="grid gap-2 rounded-xl border bg-slate-50 p-3 md:grid-cols-2">
+                      <select
+                        value={question.questionType}
+                        onChange={(event) =>
+                          updateEditQuestion(index, { questionType: event.target.value as Question['questionType'] })
+                        }
+                        className="rounded border p-2 text-sm"
+                      >
+                        {['MCQ', 'MULTISELECT', 'TRUEFALSE', 'SHORTTEXT', 'LONGTEXT', 'NUMBER', 'FILE'].map((value) => (
+                          <option key={value}>{value}</option>
+                        ))}
+                      </select>
+                      <input
+                        aria-label={`Question ${index + 1} maximum score`}
+                        type="number"
+                        min={0.1}
+                        value={question.maximumScore}
+                        onChange={(event) => updateEditQuestion(index, { maximumScore: Number(event.target.value) })}
+                        className="rounded border p-2 text-sm"
+                      />
+                      <textarea
+                        value={question.prompt}
+                        onChange={(event) => updateEditQuestion(index, { prompt: event.target.value })}
+                        placeholder="Question prompt"
+                        className="rounded border p-2 text-sm md:col-span-2"
+                      />
+                      {['MCQ', 'MULTISELECT'].includes(question.questionType) && (
+                        <textarea
+                          value={question.optionsText}
+                          onChange={(event) => updateEditQuestion(index, { optionsText: event.target.value })}
+                          placeholder="Options, one per line"
+                          className="rounded border p-2 text-sm"
+                        />
+                      )}
+                      {['MCQ', 'MULTISELECT', 'TRUEFALSE', 'SHORTTEXT', 'NUMBER'].includes(question.questionType) && (
+                        <input
+                          value={question.correctAnswer}
+                          onChange={(event) => updateEditQuestion(index, { correctAnswer: event.target.value })}
+                          placeholder="Correct answer"
+                          className="rounded border p-2 text-sm"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setEditQuestions((current) => current.filter((_, i) => i !== index))}
+                        className="justify-self-start text-xs font-bold text-rose-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  Questions are locked because candidates have already been invited. Create a new assessment version if
+                  the questions must change.
+                </p>
+              )}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingId('')}
+                  className="rounded border px-4 py-2 text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={editBusy}
+                  className="rounded bg-brand-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+                >
+                  {editBusy ? 'Saving…' : 'Save changes'}
+                </button>
               </div>
-            ) : (
-              <p className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                Questions are locked because candidates have already been invited. Create a new assessment version if
-                the questions must change.
-              </p>
-            )}
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setEditingId('')}
-                className="rounded border px-4 py-2 text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={editBusy}
-                className="rounded bg-brand-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
-              >
-                {editBusy ? 'Saving…' : 'Save changes'}
-              </button>
-            </div>
-          </form>
-        )}
-      </section>
-      <form onSubmit={create} className="rounded-2xl border bg-white p-5 space-y-3">
-        <h2 className="font-bold">Create assessment</h2>
-        <div className="grid gap-3 md:grid-cols-2">
-          <select
-            required
-            value={vacancyId}
-            onChange={(event) => setVacancyId(event.target.value)}
-            className="w-full rounded border p-2 text-sm"
-          >
-            <option value="">Vacancy</option>
-            {vacancies.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.title}
-              </option>
-            ))}
-          </select>
-          <select
-            value={type}
-            onChange={(event) => setType(event.target.value)}
-            className="w-full rounded border p-2 text-sm"
-          >
-            {ASSESSMENT_TYPES.map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-          <input
-            required
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Assessment title"
-            className="w-full rounded border p-2 text-sm"
-          />
-          <input
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="Instructions / description"
-            className="w-full rounded border p-2 text-sm"
-          />
-          <label className="text-xs font-bold">
-            Duration (minutes)
-            <input
-              type="number"
-              min={1}
-              max={480}
-              value={durationMinutes}
-              onChange={(event) => setDurationMinutes(Number(event.target.value))}
-              className="mt-1 w-full rounded border p-2 text-sm"
-            />
-          </label>
-          <label className="text-xs font-bold">
-            Pass mark (%)
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={passMark}
-              onChange={(event) => setPassMark(Number(event.target.value))}
-              className="mt-1 w-full rounded border p-2 text-sm"
-            />
-          </label>
-          <label className="text-xs font-bold">
-            Opens at
-            <input
-              type="datetime-local"
-              value={opensAt}
-              onChange={(event) => setOpensAt(event.target.value)}
-              className="mt-1 w-full rounded border p-2 text-sm"
-            />
-          </label>
-          <label className="text-xs font-bold">
-            Closes at
-            <input
-              type="datetime-local"
-              value={closesAt}
-              onChange={(event) => setClosesAt(event.target.value)}
-              className="mt-1 w-full rounded border p-2 text-sm"
-            />
-          </label>
-          <label className="text-xs font-bold">
-            Maximum attempts
-            <input
-              type="number"
-              min={1}
-              max={10}
-              value={maximumAttempts}
-              onChange={(event) => setMaximumAttempts(Number(event.target.value))}
-              className="mt-1 w-full rounded border p-2 text-sm"
-            />
-          </label>
-          <div className="flex items-center gap-6 text-xs font-bold">
-            <label>
-              <input
-                type="checkbox"
-                checked={randomizeQuestions}
-                onChange={(event) => setRandomizeQuestions(event.target.checked)}
-                className="mr-2"
-              />
-              Randomize questions
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={autoSubmit}
-                onChange={(event) => setAutoSubmit(event.target.checked)}
-                className="mr-2"
-              />
-              Auto-submit
-            </label>
-          </div>
-        </div>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold">Questions / marking criteria</h3>
-            <button
-              type="button"
-              onClick={() => setQuestions((current) => [...current, { ...EMPTY_QUESTION }])}
-              className="rounded border px-3 py-1 text-xs font-bold"
+            </form>
+          )}
+        </section>
+      </details>
+      <details className="order-4 rounded-2xl border border-stone-200 bg-white shadow-sm">
+        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-stone-950">
+          Create an assessment
+        </summary>
+        <form onSubmit={create} className="space-y-3 border-t border-stone-100 p-5">
+          <h2 className="font-bold">Create assessment</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            <select
+              required
+              value={vacancyId}
+              onChange={(event) => setVacancyId(event.target.value)}
+              className="w-full rounded border p-2 text-sm"
             >
-              Add question
-            </button>
-          </div>
-          {questions.map((question, index) => (
-            <div key={index} className="grid gap-2 rounded-xl border bg-slate-50 p-3 md:grid-cols-2">
-              <select
-                value={question.questionType}
-                onChange={(event) =>
-                  updateQuestion(index, { questionType: event.target.value as Question['questionType'] })
-                }
-                className="rounded border p-2 text-sm"
-              >
-                {['MCQ', 'MULTISELECT', 'TRUEFALSE', 'SHORTTEXT', 'LONGTEXT', 'NUMBER', 'FILE'].map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
+              <option value="">Vacancy</option>
+              {vacancies.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.title}
+                </option>
+              ))}
+            </select>
+            <select
+              value={type}
+              onChange={(event) => setType(event.target.value)}
+              className="w-full rounded border p-2 text-sm"
+            >
+              {ASSESSMENT_TYPES.map((value) => (
+                <option key={value}>{value}</option>
+              ))}
+            </select>
+            <input
+              required
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Assessment title"
+              className="w-full rounded border p-2 text-sm"
+            />
+            <input
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Instructions / description"
+              className="w-full rounded border p-2 text-sm"
+            />
+            <label className="text-xs font-bold">
+              Duration (minutes)
               <input
                 type="number"
-                min={0.1}
-                value={question.maximumScore}
-                onChange={(event) => updateQuestion(index, { maximumScore: Number(event.target.value) })}
-                aria-label="Maximum score"
-                className="rounded border p-2 text-sm"
+                min={1}
+                max={480}
+                value={durationMinutes}
+                onChange={(event) => setDurationMinutes(Number(event.target.value))}
+                className="mt-1 w-full rounded border p-2 text-sm"
               />
-              <textarea
-                value={question.prompt}
-                onChange={(event) => updateQuestion(index, { prompt: event.target.value })}
-                placeholder={offline ? 'Criterion / activity to assess' : 'Question prompt'}
-                className="rounded border p-2 text-sm md:col-span-2"
+            </label>
+            <label className="text-xs font-bold">
+              Pass mark (%)
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={passMark}
+                onChange={(event) => setPassMark(Number(event.target.value))}
+                className="mt-1 w-full rounded border p-2 text-sm"
               />
-              {['MCQ', 'MULTISELECT'].includes(question.questionType) && (
-                <textarea
-                  value={question.optionsText}
-                  onChange={(event) => updateQuestion(index, { optionsText: event.target.value })}
-                  placeholder="Options, one per line"
-                  className="rounded border p-2 text-sm"
-                />
-              )}
-              {['MCQ', 'MULTISELECT', 'TRUEFALSE', 'SHORTTEXT', 'NUMBER'].includes(question.questionType) && (
+            </label>
+            <label className="text-xs font-bold">
+              Opens at
+              <input
+                type="datetime-local"
+                value={opensAt}
+                onChange={(event) => setOpensAt(event.target.value)}
+                className="mt-1 w-full rounded border p-2 text-sm"
+              />
+            </label>
+            <label className="text-xs font-bold">
+              Closes at
+              <input
+                type="datetime-local"
+                value={closesAt}
+                onChange={(event) => setClosesAt(event.target.value)}
+                className="mt-1 w-full rounded border p-2 text-sm"
+              />
+            </label>
+            <label className="text-xs font-bold">
+              Maximum attempts
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={maximumAttempts}
+                onChange={(event) => setMaximumAttempts(Number(event.target.value))}
+                className="mt-1 w-full rounded border p-2 text-sm"
+              />
+            </label>
+            <div className="flex items-center gap-6 text-xs font-bold">
+              <label>
                 <input
-                  value={question.correctAnswer}
-                  onChange={(event) => updateQuestion(index, { correctAnswer: event.target.value })}
-                  placeholder={
-                    question.questionType === 'MULTISELECT' ? 'Correct answers separated by |' : 'Correct answer'
-                  }
-                  className="rounded border p-2 text-sm"
+                  type="checkbox"
+                  checked={randomizeQuestions}
+                  onChange={(event) => setRandomizeQuestions(event.target.checked)}
+                  className="mr-2"
                 />
-              )}
+                Randomize questions
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={autoSubmit}
+                  onChange={(event) => setAutoSubmit(event.target.checked)}
+                  className="mr-2"
+                />
+                Auto-submit
+              </label>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold">Questions / marking criteria</h3>
               <button
                 type="button"
-                onClick={() => setQuestions((current) => current.filter((_, i) => i !== index))}
-                className="justify-self-start text-xs font-bold text-rose-700"
+                onClick={() => setQuestions((current) => [...current, { ...EMPTY_QUESTION }])}
+                className="rounded border px-3 py-1 text-xs font-bold"
               >
-                Remove
+                Add question
               </button>
             </div>
-          ))}
-        </div>
-        <button className="rounded bg-brand-600 px-4 py-2 text-xs font-bold text-white">Create assessment</button>
-      </form>
-      <div className="grid gap-4 lg:grid-cols-2">
+            {questions.map((question, index) => (
+              <div key={index} className="grid gap-2 rounded-xl border bg-slate-50 p-3 md:grid-cols-2">
+                <select
+                  value={question.questionType}
+                  onChange={(event) =>
+                    updateQuestion(index, { questionType: event.target.value as Question['questionType'] })
+                  }
+                  className="rounded border p-2 text-sm"
+                >
+                  {['MCQ', 'MULTISELECT', 'TRUEFALSE', 'SHORTTEXT', 'LONGTEXT', 'NUMBER', 'FILE'].map((value) => (
+                    <option key={value}>{value}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min={0.1}
+                  value={question.maximumScore}
+                  onChange={(event) => updateQuestion(index, { maximumScore: Number(event.target.value) })}
+                  aria-label="Maximum score"
+                  className="rounded border p-2 text-sm"
+                />
+                <textarea
+                  value={question.prompt}
+                  onChange={(event) => updateQuestion(index, { prompt: event.target.value })}
+                  placeholder={offline ? 'Criterion / activity to assess' : 'Question prompt'}
+                  className="rounded border p-2 text-sm md:col-span-2"
+                />
+                {['MCQ', 'MULTISELECT'].includes(question.questionType) && (
+                  <textarea
+                    value={question.optionsText}
+                    onChange={(event) => updateQuestion(index, { optionsText: event.target.value })}
+                    placeholder="Options, one per line"
+                    className="rounded border p-2 text-sm"
+                  />
+                )}
+                {['MCQ', 'MULTISELECT', 'TRUEFALSE', 'SHORTTEXT', 'NUMBER'].includes(question.questionType) && (
+                  <input
+                    value={question.correctAnswer}
+                    onChange={(event) => updateQuestion(index, { correctAnswer: event.target.value })}
+                    placeholder={
+                      question.questionType === 'MULTISELECT' ? 'Correct answers separated by |' : 'Correct answer'
+                    }
+                    className="rounded border p-2 text-sm"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => setQuestions((current) => current.filter((_, i) => i !== index))}
+                  className="justify-self-start text-xs font-bold text-rose-700"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+          <button className="rounded bg-brand-600 px-4 py-2 text-xs font-bold text-white">Create assessment</button>
+        </form>
+      </details>
+      <div className="order-1 grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border bg-white p-5 space-y-3">
           <h2 className="font-bold">Invite candidate</h2>
           <select
@@ -752,7 +777,7 @@ export default function AssessmentManager({
           </button>
         </div>
         <div className="rounded-2xl border bg-white p-5 space-y-3">
-          <h2 className="font-bold">Record manual / offline outcome</h2>
+          <h2 className="font-bold">Mark an assessment</h2>
           <select
             value={resultId}
             onChange={(event) => setResultId(event.target.value)}
@@ -771,7 +796,8 @@ export default function AssessmentManager({
             max={100}
             value={resultScore}
             onChange={(event) => setResultScore(event.target.value)}
-            placeholder="Score (%)"
+            readOnly={Boolean(selectedResult && !selectedResultIsOffline)}
+            placeholder={selectedResultIsOffline ? 'Score (%)' : 'Save all question marks to calculate the score'}
             className="w-full rounded border p-2 text-sm"
           />
           <textarea
@@ -780,49 +806,51 @@ export default function AssessmentManager({
             placeholder="Marker evidence and comments"
             className="w-full rounded border p-2 text-sm"
           />
-          <div className="grid gap-2 md:grid-cols-2">
-            <input
-              value={offlineRecord.venue}
-              onChange={(event) => setOfflineRecord({ ...offlineRecord, venue: event.target.value })}
-              placeholder="Venue"
-              className="rounded border p-2 text-sm"
-            />
-            <input
-              type="datetime-local"
-              value={offlineRecord.assessedAt}
-              onChange={(event) => setOfflineRecord({ ...offlineRecord, assessedAt: event.target.value })}
-              className="rounded border p-2 text-sm"
-            />
-            <select
-              value={offlineRecord.attendance}
-              onChange={(event) => setOfflineRecord({ ...offlineRecord, attendance: event.target.value })}
-              className="rounded border p-2 text-sm"
-            >
-              <option>ATTENDED</option>
-              <option>LATE</option>
-              <option>ABSENT</option>
-            </select>
-            <input
-              value={offlineRecord.invigilator}
-              onChange={(event) => setOfflineRecord({ ...offlineRecord, invigilator: event.target.value })}
-              placeholder="Invigilator / assessor"
-              className="rounded border p-2 text-sm"
-            />
-            <input
-              value={offlineRecord.scriptReference}
-              onChange={(event) => setOfflineRecord({ ...offlineRecord, scriptReference: event.target.value })}
-              placeholder="Script reference"
-              className="rounded border p-2 text-sm"
-            />
-            <label className="text-xs font-bold">
-              Score sheet
+          {selectedResultIsOffline && (
+            <div className="grid gap-2 md:grid-cols-2">
               <input
-                type="file"
-                onChange={(event) => setScoreSheet(event.target.files?.[0] || null)}
-                className="mt-1 block w-full"
+                value={offlineRecord.venue}
+                onChange={(event) => setOfflineRecord({ ...offlineRecord, venue: event.target.value })}
+                placeholder="Venue"
+                className="rounded border p-2 text-sm"
               />
-            </label>
-          </div>
+              <input
+                type="datetime-local"
+                value={offlineRecord.assessedAt}
+                onChange={(event) => setOfflineRecord({ ...offlineRecord, assessedAt: event.target.value })}
+                className="rounded border p-2 text-sm"
+              />
+              <select
+                value={offlineRecord.attendance}
+                onChange={(event) => setOfflineRecord({ ...offlineRecord, attendance: event.target.value })}
+                className="rounded border p-2 text-sm"
+              >
+                <option>ATTENDED</option>
+                <option>LATE</option>
+                <option>ABSENT</option>
+              </select>
+              <input
+                value={offlineRecord.invigilator}
+                onChange={(event) => setOfflineRecord({ ...offlineRecord, invigilator: event.target.value })}
+                placeholder="Invigilator / assessor"
+                className="rounded border p-2 text-sm"
+              />
+              <input
+                value={offlineRecord.scriptReference}
+                onChange={(event) => setOfflineRecord({ ...offlineRecord, scriptReference: event.target.value })}
+                placeholder="Script reference"
+                className="rounded border p-2 text-sm"
+              />
+              <label className="text-xs font-bold">
+                Score sheet
+                <input
+                  type="file"
+                  onChange={(event) => setScoreSheet(event.target.files?.[0] || null)}
+                  className="mt-1 block w-full"
+                />
+              </label>
+            </div>
+          )}
           {resultId &&
             ['SUBMITTED', 'AUTO_SUBMITTED'].includes(
               candidateAssessments.find((record) => record.id === resultId)?.status || ''
@@ -830,6 +858,7 @@ export default function AssessmentManager({
               <AssessmentAnswerReview
                 candidateAssessmentId={resultId}
                 candidateName={candidateAssessments.find((record) => record.id === resultId)?.candidateName || ''}
+                onMarksSaved={(percentage) => setResultScore(String(percentage))}
               />
             )}
           <button
@@ -842,7 +871,7 @@ export default function AssessmentManager({
           </button>
         </div>
       </div>
-      <div className="rounded-2xl border bg-white p-5 space-y-3">
+      <div className="order-2 rounded-2xl border bg-white p-5 space-y-3">
         <h2 className="font-bold">Authorise another attempt</h2>
         <select
           value={resetId}
@@ -874,7 +903,10 @@ export default function AssessmentManager({
         </button>
       </div>
       {message && (
-        <p role="status" className="text-xs font-bold text-slate-700">
+        <p
+          role="status"
+          className="order-first rounded-lg border border-stone-200 bg-white p-3 text-sm font-medium text-stone-800"
+        >
           {message}
         </p>
       )}

@@ -83,11 +83,18 @@ export default function SecuritySettings() {
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState('')
 
   const load = useCallback(async () => {
-    const [mfaResponse, sessionResponse] = await Promise.all([fetch('/api/auth/mfa'), fetch('/api/auth/sessions')])
-    if (mfaResponse.ok) setStatus(await mfaResponse.json())
-    if (sessionResponse.ok) setSessions((await sessionResponse.json()).sessions ?? [])
+    setLoadError('')
+    try {
+      const [mfaResponse, sessionResponse] = await Promise.all([fetch('/api/auth/mfa'), fetch('/api/auth/sessions')])
+      if (!mfaResponse.ok || !sessionResponse.ok) throw new Error('Account security details could not be loaded.')
+      setStatus(await mfaResponse.json())
+      setSessions((await sessionResponse.json()).sessions ?? [])
+    } catch (cause) {
+      setLoadError(cause instanceof Error ? cause.message : 'Account security details could not be loaded.')
+    }
   }, [])
 
   useEffect(() => {
@@ -107,6 +114,9 @@ export default function SecuritySettings() {
         return null
       }
       return data
+    } catch {
+      toast('error', 'The security service is unavailable. Please try again.')
+      return null
     } finally {
       setBusy(null)
     }
@@ -195,8 +205,7 @@ export default function SecuritySettings() {
               Two-factor authentication
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              A code from your phone in addition to your password. Strongly recommended, and required for staff accounts
-              with access to candidate records.
+              Use a code from an authenticator app in addition to your password.
             </p>
           </div>
           <span
@@ -206,7 +215,21 @@ export default function SecuritySettings() {
           </span>
         </div>
 
-        {status?.enabled && (
+        <div className="px-5 py-6 sm:px-6">
+        {loadError && (
+          <div className="flex items-start justify-between gap-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+            <p role="alert" className="text-sm text-rose-800">{loadError}</p>
+            <button type="button" onClick={() => void load()} className="text-sm font-semibold text-rose-800 underline">
+              Try again
+            </button>
+          </div>
+        )}
+
+        {status === null && !loadError && (
+          <p className="text-sm font-medium text-stone-600">Checking two-factor status…</p>
+        )}
+
+        {status?.enabled && !loadError && (
           <div className="space-y-4 text-sm">
             <p className="text-slate-700">
               Active since {status.enabledAt ? formatWhen(status.enabledAt) : 'recently'}.{' '}
@@ -288,7 +311,7 @@ export default function SecuritySettings() {
           </div>
         )}
 
-        {!status?.enabled && !enrolment && (
+        {status !== null && !status.enabled && !enrolment && !loadError && (
           <button
             type="button"
             onClick={begin}
@@ -300,7 +323,7 @@ export default function SecuritySettings() {
           </button>
         )}
 
-        {enrolment && (
+        {enrolment && !loadError && (
           <div className="space-y-4">
             <ol className="space-y-3 text-sm text-slate-700">
               <li>
@@ -396,6 +419,7 @@ export default function SecuritySettings() {
             </div>
           </div>
         )}
+        </div>
       </section>
 
       <section className="section-panel" aria-labelledby="sessions-heading">
@@ -420,10 +444,12 @@ export default function SecuritySettings() {
           )}
         </div>
 
-        {sessions.length === 0 ? (
-          <p className="text-sm text-slate-600">No active sessions found.</p>
+        {loadError ? null : sessions.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-stone-600 sm:px-6">
+            {status === null ? 'Checking signed-in devices…' : 'No active sessions found.'}
+          </p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-stone-200 px-5 sm:px-6">
             {sessions.map((session) => (
               <li key={session.tokenId} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div className="text-sm">

@@ -17,6 +17,7 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
         description: record.assessment.description,
         status: record.status,
         durationMinutes: record.assessment.durationMinutes,
+        autoSubmit: record.assessment.autoSubmit,
         opensAt: record.assessment.opensAt,
         closesAt: record.assessment.closesAt,
         startedAt: record.startedAt,

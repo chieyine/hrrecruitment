@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { BriefcaseBusiness, Plus } from 'lucide-react'
+import { BriefcaseBusiness, Plus, Search } from 'lucide-react'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import { EmptyState, PageIntro } from '@/components/ui/PageElements'
@@ -10,7 +10,24 @@ import { formatDate, getStatusBadgeClass } from '@/lib/utils'
 import { hasPermission } from '@/lib/rbac'
 import { hasStaffRole } from '@/lib/roles'
 
-export default async function RecruitmentVacanciesPage() {
+const vacancyStatuses = [
+  'DRAFT',
+  'PENDING_APPROVAL',
+  'SCHEDULED',
+  'OPEN',
+  'PAUSED',
+  'CLOSED',
+  'CANCELLED',
+  'COMPLETED',
+  'ARCHIVED',
+]
+
+export default async function RecruitmentVacanciesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string }>
+}) {
+  const query = await searchParams
   const user = await getVerifiedUser()
   if (!user || !hasStaffRole(user.roles)) redirect('/auth/login')
 
@@ -21,20 +38,45 @@ export default async function RecruitmentVacanciesPage() {
   ])
   if (!readAll && !readAssigned) redirect('/recruitment/dashboard')
 
-  const vacancies = await prisma.vacancy.findMany({
-    where: readAll ? {} : { ownerUserId: user.userId },
-    include: {
-      department: true,
-      dutyStation: true,
-      _count: { select: { applications: true } },
-    },
-    orderBy: [{ status: 'asc' }, { closingAt: 'asc' }],
-    take: 500,
-  })
-
-  const open = vacancies.filter((vacancy) => vacancy.status === 'OPEN').length
-  const draft = vacancies.filter((vacancy) => vacancy.status === 'DRAFT').length
-  const applicants = vacancies.reduce((sum, vacancy) => sum + vacancy._count.applications, 0)
+  const scopeWhere = readAll ? {} : { ownerUserId: user.userId }
+  const search = (query.q || '').trim().slice(0, 100)
+  const status = vacancyStatuses.includes(query.status || '') ? query.status : ''
+  const filteredWhere = {
+    AND: [
+      scopeWhere,
+      ...(status ? [{ status }] : []),
+      ...(search
+        ? [
+            {
+              OR: [
+                { title: { contains: search, mode: 'insensitive' as const } },
+                { referenceNumber: { contains: search, mode: 'insensitive' as const } },
+                { department: { name: { contains: search, mode: 'insensitive' as const } } },
+              ],
+            },
+          ]
+        : []),
+    ],
+  }
+  const [vacancies, groupedStatuses, applicants] = await Promise.all([
+    prisma.vacancy.findMany({
+      where: filteredWhere,
+      include: {
+        department: true,
+        dutyStation: true,
+        _count: { select: { applications: { where: { internalStatus: { not: 'DRAFT' } } } } },
+      },
+      orderBy: [{ status: 'asc' }, { closingAt: 'asc' }],
+      take: 500,
+    }),
+    prisma.vacancy.groupBy({ by: ['status'], where: scopeWhere, _count: true }),
+    prisma.application.count({
+      where: { internalStatus: { not: 'DRAFT' }, vacancy: scopeWhere },
+    }),
+  ])
+  const statusCounts = Object.fromEntries(groupedStatuses.map((item) => [item.status, item._count]))
+  const open = statusCounts.OPEN || 0
+  const draft = statusCounts.DRAFT || 0
 
   return (
     <div className="flex min-h-screen flex-col bg-surface-50">
@@ -45,7 +87,7 @@ export default async function RecruitmentVacanciesPage() {
           <PageIntro
             eyebrow="Recruitment"
             title="Vacancies"
-            description="Build, approve and publish roles, then follow application volumes through closing."
+            description="Create and track roles from draft through closing."
             actions={
               canCreate ? (
                 <Link href="/recruitment/vacancies/new" className="btn-primary">
@@ -55,6 +97,32 @@ export default async function RecruitmentVacanciesPage() {
               ) : undefined
             }
           />
+
+          <form method="get" className="section-panel grid gap-3 sm:grid-cols-[1fr_220px_auto] sm:items-end">
+            <label className="field-label">
+              Find a vacancy
+              <input
+                name="q"
+                defaultValue={search}
+                placeholder="Title, reference or department"
+                className="field-control"
+              />
+            </label>
+            <label className="field-label">
+              Status
+              <select name="status" defaultValue={status} className="field-control">
+                <option value="">All statuses</option>
+                {vacancyStatuses.map((value) => (
+                  <option key={value} value={value}>
+                    {value.replaceAll('_', ' ').toLowerCase()}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="btn-secondary">
+              <Search className="h-4 w-4" /> Apply
+            </button>
+          </form>
 
           <div className="grid gap-3 sm:grid-cols-3">
             {[
@@ -75,7 +143,7 @@ export default async function RecruitmentVacanciesPage() {
               <div>
                 <h2 className="text-lg font-semibold text-navy-900">Vacancy register</h2>
                 <p className="mt-1 text-sm text-stone-600">
-                  {vacancies.length} record{vacancies.length === 1 ? '' : 's'} in your scope
+                  {vacancies.length} matching record{vacancies.length === 1 ? '' : 's'}
                 </p>
               </div>
             </div>

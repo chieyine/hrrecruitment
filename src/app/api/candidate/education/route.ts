@@ -22,15 +22,28 @@ export async function POST(request: Request) {
           fieldOfStudy: z.string().trim().min(1).max(200),
           country: z.string().trim().min(1).max(100),
           startYear: z.coerce.number().int().min(1900).max(2100),
-          completionYear: z.coerce.number().int().min(1900).max(2100),
+          completionYear: z.preprocess(
+            (value) => (value === '' || value === undefined ? null : value),
+            z.coerce.number().int().min(1900).max(2100).nullable()
+          ),
+          isCurrent: z.boolean().default(false),
           grade: z.string().max(100).optional(),
           certificateFileId: z.string().optional(),
         })
-        .refine((v) => v.completionYear >= v.startYear, {
-          message: 'Completion year must not precede start year',
-          path: ['completionYear'],
+        .superRefine((value, context) => {
+          if (!value.isCurrent && !value.completionYear) {
+            context.addIssue({ code: 'custom', path: ['completionYear'], message: 'Completion year is required' })
+          }
+          if (value.completionYear && value.completionYear < value.startYear) {
+            context.addIssue({
+              code: 'custom',
+              path: ['completionYear'],
+              message: 'Completion year must not precede start year',
+            })
+          }
         })
     )
+    const completionYear = body.completionYear === null ? null : Number(body.completionYear)
     if (
       body.certificateFileId &&
       !(await prisma.fileAsset.findFirst({
@@ -46,7 +59,8 @@ export async function POST(request: Request) {
         fieldOfStudy: body.fieldOfStudy,
         country: body.country,
         startYear: body.startYear,
-        completionYear: body.completionYear,
+        completionYear,
+        isCurrent: body.isCurrent,
         grade: body.grade,
         certificateFileId: body.certificateFileId,
       },

@@ -8,17 +8,29 @@ import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import CandidateMergeManager from '@/components/admin/CandidateMergeManager'
 import { PageIntro } from '@/components/ui/PageElements'
+import { canMakeHrManagerDecision, canRunRecruitmentOperations } from '@/lib/recruitment-role-policy'
 
-export default async function RecruitmentQualityPage() {
+const VIEWS = [
+  ['checks', 'Record checks'],
+  ['scoring', 'Scoring and overrides'],
+  ['duplicates', 'Duplicate records'],
+] as const
+
+export default async function RecruitmentQualityPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const query = searchParams ? await searchParams : {}
   const user = await getVerifiedUser()
   if (!user) redirect('/auth/login')
-  if (!(await hasPermission(user.userId, 'report.export'))) redirect('/recruitment/dashboard')
+  const isRecruitmentHr = canRunRecruitmentOperations(user.roles)
+  if (!isRecruitmentHr && !(await hasPermission(user.userId, 'report.export'))) redirect('/recruitment/dashboard')
   const now = new Date()
   const [
     scorecards,
     submissions,
     overrides,
-    reopenedScorecards,
     candidates,
     missingContacts,
     unassignedApplications,
@@ -30,26 +42,37 @@ export default async function RecruitmentQualityPage() {
     erpMissing,
   ] = await Promise.all([
     prisma.candidateScorecard.findMany({
-      where: { status: 'SUBMITTED' },
-      select: {
-        reviewerUserId: true,
-        totalScore: true,
-        scorecardTemplate: { select: { criteria: { select: { maximumScore: true, weight: true } } } },
-        reviewer: { select: { email: true } },
+      where: {
+        status: 'SUBMITTED',
+        application: {
+          internalStatus: { notIn: ['NOT_SELECTED', 'WITHDRAWN', 'CANCELLED', 'TRANSFERRED_TO_ERP'] },
+        },
       },
+      select: {
+        applicationId: true,
+        totalScore: true,
+        application: {
+          select: {
+            candidate: { select: { legalFirstName: true, lastName: true } },
+            vacancy: { select: { title: true } },
+          },
+        },
+      },
+      take: 5000,
     }),
     prisma.interviewPanelSubmission.findMany({
+      where: { interview: { status: 'PANEL_REVIEW' } },
       include: {
-        panelMember: { include: { user: { select: { email: true } } } },
         interview: { select: { id: true, title: true } },
       },
+      take: 5000,
     }),
     prisma.selectionDecision.findMany({
       where: { overrideFlag: true },
       include: { application: { include: { vacancy: true } } },
       orderBy: { approvedAt: 'desc' },
+      take: 100,
     }),
-    prisma.candidateScorecard.count({ where: { reopenedAt: { not: null } } }),
     prisma.candidateProfile.findMany({
       select: {
         id: true,
@@ -86,7 +109,7 @@ export default async function RecruitmentQualityPage() {
       },
     }),
     prisma.offer.findMany({
-      where: { status: { in: ['DRAFT', 'PENDING_APPROVAL'] } },
+      where: { status: 'PENDING_APPROVAL' },
       select: { id: true },
       take: 5000,
     }),
@@ -131,16 +154,27 @@ export default async function RecruitmentQualityPage() {
     ['ERP transfers missing a personnel number', erpMissing, '/recruitment/preboarding'],
   ] as const
 
-  const reviewers = new Map<string, { email: string; count: number; totalPct: number }>()
+  const scorecardGroups = new Map<string, typeof scorecards>()
   for (const item of scorecards) {
-    const maximum =
-      item.scorecardTemplate.criteria.reduce((sum, criterion) => sum + criterion.maximumScore * criterion.weight, 0) ||
-      1
-    const current = reviewers.get(item.reviewerUserId) || { email: item.reviewer.email, count: 0, totalPct: 0 }
-    current.count++
-    current.totalPct += (item.totalScore / maximum) * 100
-    reviewers.set(item.reviewerUserId, current)
+    const group = scorecardGroups.get(item.applicationId) || []
+    group.push(item)
+    scorecardGroups.set(item.applicationId, group)
   }
+  const scorecardVariances = [...scorecardGroups.values()]
+    .filter((items) => items.length > 1)
+    .map((items) => {
+      const values = items.map((item) => item.totalScore)
+      return {
+        applicationId: items[0].applicationId,
+        candidate: `${items[0].application.candidate.legalFirstName} ${items[0].application.candidate.lastName}`,
+        vacancy: items[0].application.vacancy.title,
+        reviewers: items.length,
+        minimum: Math.min(...values),
+        maximum: Math.max(...values),
+        spread: Math.max(...values) - Math.min(...values),
+      }
+    })
+    .sort((a, b) => b.spread - a.spread)
   const interviewGroups = new Map<string, typeof submissions>()
   for (const item of submissions) {
     const group = interviewGroups.get(item.interviewId) || []
@@ -173,6 +207,9 @@ export default async function RecruitmentQualityPage() {
     duplicateKeys.set(key, group)
   }
   const potentialDuplicates = [...duplicateKeys.entries()].filter(([, group]) => group.length > 1)
+  const requestedView = typeof query.view === 'string' ? query.view : 'checks'
+  const view = VIEWS.some(([value]) => value === requestedView) ? requestedView : 'checks'
+  const openRecordChecks = operationalChecks.reduce((sum, [, count]) => sum + count, 0)
 
   return (
     <div className="flex min-h-screen flex-col bg-[#f4f1ea]">
@@ -180,242 +217,287 @@ export default async function RecruitmentQualityPage() {
       <main id="main-content" className="flex-1 py-8 sm:py-10">
         <div className="page-shell space-y-8">
           <PageIntro
-            title="Decision quality"
-            description="Review missing data, scoring differences and recorded exceptions before a recruitment decision is approved."
+            title="Decision review"
+            description="Resolve incomplete records and inspect scoring differences or ranking exceptions before a decision moves forward."
           />
 
-          <section aria-label="Decision review summary" className="border-y border-stone-300">
-            <div className="grid divide-y divide-stone-300 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
-              {[
-                ['Reviews submitted', scorecards.length],
-                ['Scorecards reopened', reopenedScorecards],
-                ['Overrides recorded', overrides.length],
-                ['Duplicate groups', potentialDuplicates.length],
-              ].map(([label, value]) => (
-                <div key={String(label)} className="flex items-end justify-between gap-4 px-5 py-4">
-                  <p className="text-sm font-medium text-stone-600">{label}</p>
-                  <p className="font-display text-4xl leading-none text-navy-950">{value}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section aria-labelledby="record-checks-heading" className="section-panel">
-            <div className="section-heading">
-              <div>
-                <h2 id="record-checks-heading" className="text-lg font-semibold text-navy-950">
-                  Records to check
-                </h2>
-                <p className="mt-1 text-sm text-stone-600">Open a row to correct the source record.</p>
-              </div>
-            </div>
-            <div className="divide-y divide-stone-200">
-              {operationalChecks.map(([label, count, href]) => (
+          <nav aria-label="Decision review views" className="flex gap-7 border-b border-stone-300">
+            {VIEWS.map(([value, label]) => {
+              const count =
+                value === 'checks'
+                  ? openRecordChecks
+                  : value === 'scoring'
+                    ? scorecardVariances.length + variances.length + overrides.length
+                    : potentialDuplicates.length
+              return (
                 <Link
-                  key={label}
-                  href={href}
-                  className="group grid gap-3 px-5 py-4 transition hover:bg-stone-50 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6"
+                  key={value}
+                  href={`/recruitment/quality?view=${value}`}
+                  aria-current={view === value ? 'page' : undefined}
+                  className={`border-b-2 pb-3 text-sm font-semibold ${
+                    view === value
+                      ? 'border-brand-700 text-navy-950'
+                      : 'border-transparent text-stone-500 hover:text-navy-900'
+                  }`}
                 >
-                  <div className="flex items-center gap-3">
-                    {count ? (
-                      <CircleAlert aria-hidden className="h-4 w-4 shrink-0 text-amber-700" />
-                    ) : (
-                      <CheckCircle2 aria-hidden className="h-4 w-4 shrink-0 text-emerald-700" />
-                    )}
-                    <span className="text-sm font-medium text-stone-800">{label}</span>
-                  </div>
-                  <span className="flex items-center gap-3 pl-7 sm:pl-0">
-                    <span
-                      className={`min-w-16 text-right text-sm font-semibold ${count ? 'text-amber-800' : 'text-emerald-700'}`}
-                    >
-                      {count ? `${count} open` : 'Clear'}
-                    </span>
-                    <ArrowUpRight
-                      aria-hidden
-                      className="h-4 w-4 text-stone-400 transition group-hover:text-brand-700"
-                    />
-                  </span>
+                  {label} <span className="ml-1 text-xs font-normal">{count}</span>
                 </Link>
-              ))}
-            </div>
-          </section>
+              )
+            })}
+          </nav>
 
-          <section aria-labelledby="duplicate-heading" className="section-panel">
-            <div className="section-heading">
-              <div>
-                <h2 id="duplicate-heading" className="text-lg font-semibold text-navy-950">
-                  Possible duplicate candidates
-                </h2>
-                <p className="mt-1 max-w-3xl text-sm leading-6 text-stone-600">
-                  Matching details are a prompt to compare the records, not proof that they belong to the same person.
-                </p>
-              </div>
-              <span className="shrink-0 text-sm font-semibold text-stone-500">
-                {potentialDuplicates.length} {potentialDuplicates.length === 1 ? 'group' : 'groups'}
-              </span>
-            </div>
-            <div className="divide-y divide-stone-200">
-              {potentialDuplicates.map(([key, group]) => (
-                <div key={key} className="grid gap-3 px-5 py-4 md:grid-cols-[12rem_minmax(0,1fr)] sm:px-6">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-                    {key.startsWith('phone:') ? 'Same phone number' : 'Same name'}
-                  </p>
-                  <div className="space-y-2">
-                    {group.slice(0, 3).map((candidate) => (
-                      <p key={candidate.id} className="text-sm">
-                        <Link
-                          href={
-                            candidate.applications[0]
-                              ? `/recruitment/applications/${candidate.applications[0].id}`
-                              : `/recruitment/search?q=${encodeURIComponent(candidate.user.email)}`
-                          }
-                          className="font-semibold text-brand-800 underline decoration-brand-200 underline-offset-4 hover:decoration-brand-700"
-                        >
-                          {candidate.legalFirstName} {candidate.lastName}
-                        </Link>{' '}
-                        <span className="text-stone-500">· {candidate.user.email}</span>
-                      </p>
-                    ))}
-                    {group.length > 3 && (
-                      <details className="pt-1">
-                        <summary className="cursor-pointer text-sm font-semibold text-brand-800 hover:underline">
-                          Show {group.length - 3} more
-                        </summary>
-                        <div className="mt-3 space-y-2 border-l border-stone-200 pl-4">
-                          {group.slice(3).map((candidate) => (
-                            <p key={candidate.id} className="text-sm">
-                              <Link
-                                href={
-                                  candidate.applications[0]
-                                    ? `/recruitment/applications/${candidate.applications[0].id}`
-                                    : `/recruitment/search?q=${encodeURIComponent(candidate.user.email)}`
-                                }
-                                className="font-semibold text-brand-800 underline decoration-brand-200 underline-offset-4 hover:decoration-brand-700"
-                              >
-                                {candidate.legalFirstName} {candidate.lastName}
-                              </Link>{' '}
-                              <span className="text-stone-500">· {candidate.user.email}</span>
-                            </p>
-                          ))}
-                        </div>
-                      </details>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {!potentialDuplicates.length && (
-                <div className="flex items-center gap-3 px-5 py-6 text-sm text-stone-600 sm:px-6">
-                  <CheckCircle2 aria-hidden className="h-5 w-5 text-emerald-700" />
-                  No likely duplicates were found in the current review set.
-                </div>
-              )}
-            </div>
-          </section>
-
-          <CandidateMergeManager
-            userId={user.userId}
-            candidates={candidates.map((candidate) => ({
-              id: candidate.id,
-              name: `${candidate.legalFirstName} ${candidate.lastName}`,
-              email: candidate.user.email,
-            }))}
-          />
-
-          <div className="grid gap-6 xl:grid-cols-2">
-            <section aria-labelledby="reviewer-heading" className="section-panel">
+          {view === 'checks' && (
+            <section aria-labelledby="record-checks-heading" className="section-panel">
               <div className="section-heading">
                 <div>
-                  <h2 id="reviewer-heading" className="text-lg font-semibold text-navy-950">
-                    Reviewer scoring
+                  <h2 id="record-checks-heading" className="text-lg font-semibold text-navy-950">
+                    Records to check
                   </h2>
-                  <p className="mt-1 text-sm text-stone-600">Average submitted score by reviewer.</p>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="data-table min-w-[520px]">
-                  <thead>
-                    <tr>
-                      <th>Reviewer</th>
-                      <th>Reviews</th>
-                      <th>Average score</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...reviewers.values()].map((item) => (
-                      <tr key={item.email}>
-                        <td className="font-medium text-stone-900">{item.email}</td>
-                        <td>{item.count}</td>
-                        <td>{(item.totalPct / item.count).toFixed(1)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="border-t border-stone-200 px-5 py-4 text-xs leading-5 text-stone-500 sm:px-6">
-                Compare the underlying applications before drawing a conclusion; reviewers may have different candidate
-                pools.
-              </p>
-            </section>
-
-            <section aria-labelledby="panel-variance-heading" className="section-panel">
-              <div className="section-heading">
-                <div>
-                  <h2 id="panel-variance-heading" className="text-lg font-semibold text-navy-950">
-                    Panel score differences
-                  </h2>
-                  <p className="mt-1 text-sm text-stone-600">Interviews scored by more than one panel member.</p>
+                  <p className="mt-1 text-sm text-stone-600">Open a row to correct the source record.</p>
                 </div>
               </div>
               <div className="divide-y divide-stone-200">
-                {variances.map((item) => (
+                {operationalChecks.map(([label, count, href]) => (
                   <Link
-                    key={item.id}
-                    href={`/recruitment/interviews#interview-${item.id}`}
-                    className="group grid gap-2 px-5 py-4 hover:bg-stone-50 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6"
+                    key={label}
+                    href={href}
+                    className="group grid gap-3 px-5 py-4 transition hover:bg-stone-50 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6"
                   >
-                    <span className="text-sm font-medium text-stone-800">{item.title}</span>
-                    <span
-                      className={item.spread >= 20 ? 'text-sm font-semibold text-amber-800' : 'text-sm text-stone-600'}
-                    >
-                      {item.min.toFixed(1)}–{item.max.toFixed(1)} · {item.spread.toFixed(1)} difference
+                    <div className="flex items-center gap-3">
+                      {count ? (
+                        <CircleAlert aria-hidden className="h-4 w-4 shrink-0 text-amber-700" />
+                      ) : (
+                        <CheckCircle2 aria-hidden className="h-4 w-4 shrink-0 text-emerald-700" />
+                      )}
+                      <span className="text-sm font-medium text-stone-800">{label}</span>
+                    </div>
+                    <span className="flex items-center gap-3 pl-7 sm:pl-0">
+                      <span
+                        className={`min-w-16 text-right text-sm font-semibold ${count ? 'text-amber-800' : 'text-emerald-700'}`}
+                      >
+                        {count ? `${count} open` : 'Clear'}
+                      </span>
+                      <ArrowUpRight
+                        aria-hidden
+                        className="h-4 w-4 text-stone-400 transition group-hover:text-brand-700"
+                      />
                     </span>
                   </Link>
                 ))}
-                {!variances.length && <p className="px-5 py-6 text-sm text-stone-600 sm:px-6">No comparisons yet.</p>}
               </div>
             </section>
-          </div>
+          )}
 
-          <section aria-labelledby="overrides-heading" className="section-panel">
-            <div className="section-heading">
-              <div>
-                <h2 id="overrides-heading" className="text-lg font-semibold text-navy-950">
-                  Recorded ranking overrides
-                </h2>
-                <p className="mt-1 text-sm text-stone-600">Decisions that did not follow the recorded ranking.</p>
-              </div>
-              <span className="text-sm font-semibold text-stone-500">{overrides.length} recorded</span>
-            </div>
-            <div className="divide-y divide-stone-200">
-              {overrides.map((item) => (
-                <div
-                  key={item.id}
-                  className="grid gap-2 px-5 py-4 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] sm:px-6"
-                >
-                  <Link
-                    href={`/recruitment/applications/${item.applicationId}`}
-                    className="font-semibold text-brand-800 hover:underline"
-                  >
-                    {item.application.vacancy.title}
-                  </Link>
-                  <p className="text-sm leading-6 text-stone-600">
-                    <span className="font-medium text-stone-800">{item.outcome}:</span> {item.justification}
+          {view === 'duplicates' && (
+            <section aria-labelledby="duplicate-heading" className="section-panel">
+              <div className="section-heading">
+                <div>
+                  <h2 id="duplicate-heading" className="text-lg font-semibold text-navy-950">
+                    Possible duplicate candidates
+                  </h2>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-stone-600">
+                    Matching details are a prompt to compare the records, not proof that they belong to the same person.
                   </p>
                 </div>
-              ))}
-              {!overrides.length && <p className="px-5 py-6 text-sm text-stone-600 sm:px-6">No overrides recorded.</p>}
-            </div>
-          </section>
+                <span className="shrink-0 text-sm font-semibold text-stone-500">
+                  {potentialDuplicates.length} {potentialDuplicates.length === 1 ? 'group' : 'groups'}
+                </span>
+              </div>
+              <div className="divide-y divide-stone-200">
+                {potentialDuplicates.map(([key, group]) => (
+                  <div key={key} className="grid gap-3 px-5 py-4 md:grid-cols-[12rem_minmax(0,1fr)] sm:px-6">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                      {key.startsWith('phone:') ? 'Same phone number' : 'Same name'}
+                    </p>
+                    <div className="space-y-2">
+                      {group.slice(0, 3).map((candidate) => (
+                        <p key={candidate.id} className="text-sm">
+                          <Link
+                            href={
+                              candidate.applications[0]
+                                ? `/recruitment/applications/${candidate.applications[0].id}`
+                                : `/recruitment/search?q=${encodeURIComponent(candidate.user.email)}`
+                            }
+                            className="font-semibold text-brand-800 underline decoration-brand-200 underline-offset-4 hover:decoration-brand-700"
+                          >
+                            {candidate.legalFirstName} {candidate.lastName}
+                          </Link>{' '}
+                          <span className="text-stone-500">· {candidate.user.email}</span>
+                        </p>
+                      ))}
+                      {group.length > 3 && (
+                        <details className="pt-1">
+                          <summary className="cursor-pointer text-sm font-semibold text-brand-800 hover:underline">
+                            Show {group.length - 3} more
+                          </summary>
+                          <div className="mt-3 space-y-2 border-l border-stone-200 pl-4">
+                            {group.slice(3).map((candidate) => (
+                              <p key={candidate.id} className="text-sm">
+                                <Link
+                                  href={
+                                    candidate.applications[0]
+                                      ? `/recruitment/applications/${candidate.applications[0].id}`
+                                      : `/recruitment/search?q=${encodeURIComponent(candidate.user.email)}`
+                                  }
+                                  className="font-semibold text-brand-800 underline decoration-brand-200 underline-offset-4 hover:decoration-brand-700"
+                                >
+                                  {candidate.legalFirstName} {candidate.lastName}
+                                </Link>{' '}
+                                <span className="text-stone-500">· {candidate.user.email}</span>
+                              </p>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {!potentialDuplicates.length && (
+                  <div className="flex items-center gap-3 px-5 py-6 text-sm text-stone-600 sm:px-6">
+                    <CheckCircle2 aria-hidden className="h-5 w-5 text-emerald-700" />
+                    No likely duplicates were found in the current review set.
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {view === 'duplicates' && isRecruitmentHr && (
+            <CandidateMergeManager
+              userId={user.userId}
+              canApprove={canMakeHrManagerDecision(user.roles)}
+              candidates={candidates.map((candidate) => ({
+                id: candidate.id,
+                name: `${candidate.legalFirstName} ${candidate.lastName}`,
+                email: candidate.user.email,
+              }))}
+            />
+          )}
+
+          {view === 'scoring' && (
+            <>
+              <div className="grid gap-6 xl:grid-cols-2">
+                <section aria-labelledby="reviewer-heading" className="section-panel">
+                  <div className="section-heading">
+                    <div>
+                      <h2 id="reviewer-heading" className="text-lg font-semibold text-navy-950">
+                        Screening score differences
+                      </h2>
+                      <p className="mt-1 text-sm text-stone-600">
+                        Candidates scored independently by more than one reviewer.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="data-table min-w-[520px]">
+                      <thead>
+                        <tr>
+                          <th>Candidate</th>
+                          <th>Reviewers</th>
+                          <th>Score range</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scorecardVariances.map((item) => (
+                          <tr key={item.applicationId}>
+                            <td>
+                              <Link
+                                href={`/recruitment/applications/${item.applicationId}`}
+                                className="font-medium text-brand-800 hover:underline"
+                              >
+                                {item.candidate}
+                              </Link>
+                              <span className="mt-0.5 block text-xs text-stone-500">{item.vacancy}</span>
+                            </td>
+                            <td>{item.reviewers}</td>
+                            <td className={item.spread >= 20 ? 'font-semibold text-amber-800' : ''}>
+                              {item.minimum.toFixed(1)}-{item.maximum.toFixed(1)} ({item.spread.toFixed(1)} difference)
+                            </td>
+                          </tr>
+                        ))}
+                        {!scorecardVariances.length && (
+                          <tr>
+                            <td colSpan={3} className="py-8 text-center text-stone-500">
+                              No comparable screening scorecards yet.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="border-t border-stone-200 px-5 py-4 text-xs leading-5 text-stone-500 sm:px-6">
+                    A large difference is a prompt to compare the evidence. It is not, by itself, proof that either
+                    review is wrong.
+                  </p>
+                </section>
+
+                <section aria-labelledby="panel-variance-heading" className="section-panel">
+                  <div className="section-heading">
+                    <div>
+                      <h2 id="panel-variance-heading" className="text-lg font-semibold text-navy-950">
+                        Panel score differences
+                      </h2>
+                      <p className="mt-1 text-sm text-stone-600">Interviews scored by more than one panel member.</p>
+                    </div>
+                  </div>
+                  <div className="divide-y divide-stone-200">
+                    {variances.map((item) => (
+                      <Link
+                        key={item.id}
+                        href={`/recruitment/interviews#interview-${item.id}`}
+                        className="group grid gap-2 px-5 py-4 hover:bg-stone-50 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6"
+                      >
+                        <span className="text-sm font-medium text-stone-800">{item.title}</span>
+                        <span
+                          className={
+                            item.spread >= 20 ? 'text-sm font-semibold text-amber-800' : 'text-sm text-stone-600'
+                          }
+                        >
+                          {item.min.toFixed(1)}–{item.max.toFixed(1)} · {item.spread.toFixed(1)} difference
+                        </span>
+                      </Link>
+                    ))}
+                    {!variances.length && (
+                      <p className="px-5 py-6 text-sm text-stone-600 sm:px-6">No comparisons yet.</p>
+                    )}
+                  </div>
+                </section>
+              </div>
+
+              <section aria-labelledby="overrides-heading" className="section-panel">
+                <div className="section-heading">
+                  <div>
+                    <h2 id="overrides-heading" className="text-lg font-semibold text-navy-950">
+                      Recorded ranking overrides
+                    </h2>
+                    <p className="mt-1 text-sm text-stone-600">Decisions that did not follow the recorded ranking.</p>
+                  </div>
+                  <span className="text-sm font-semibold text-stone-500">{overrides.length} recorded</span>
+                </div>
+                <div className="divide-y divide-stone-200">
+                  {overrides.map((item) => (
+                    <div
+                      key={item.id}
+                      className="grid gap-2 px-5 py-4 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] sm:px-6"
+                    >
+                      <Link
+                        href={`/recruitment/applications/${item.applicationId}`}
+                        className="font-semibold text-brand-800 hover:underline"
+                      >
+                        {item.application.vacancy.title}
+                      </Link>
+                      <p className="text-sm leading-6 text-stone-600">
+                        <span className="font-medium text-stone-800">{item.outcome}:</span> {item.justification}
+                      </p>
+                    </div>
+                  ))}
+                  {!overrides.length && (
+                    <p className="px-5 py-6 text-sm text-stone-600 sm:px-6">No overrides recorded.</p>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
         </div>
       </main>
       <Footer />

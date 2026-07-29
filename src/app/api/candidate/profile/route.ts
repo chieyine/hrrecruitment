@@ -3,7 +3,7 @@ import { requireUser, authzResponse } from '@/lib/authz'
 import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit'
 import { profileCompletion } from '@/lib/profile-completion'
-import { parseBody } from '@/lib/validation'
+import { parseBody, phoneSchema } from '@/lib/validation'
 import { z } from 'zod'
 
 export async function GET() {
@@ -80,8 +80,8 @@ export async function PATCH(request: Request) {
         lga: z.string().trim().max(100).nullable().optional(),
         city: z.string().trim().max(100).nullable().optional(),
         address: z.string().trim().max(500).nullable().optional(),
-        primaryPhone: z.string().trim().max(30).nullable().optional(),
-        alternatePhone: z.string().trim().max(30).nullable().optional(),
+        primaryPhone: phoneSchema.nullable().optional(),
+        alternatePhone: phoneSchema.nullable().optional(),
         preferredContactMethod: z.enum(['EMAIL', 'PHONE', 'SMS']).nullable().optional(),
         willingnessToRelocate: z.boolean().optional(),
         earliestStartDate: z.coerce.date().nullable().optional(),

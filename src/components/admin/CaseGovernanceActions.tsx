@@ -32,11 +32,13 @@ export default function CaseGovernanceActions({
   applicationId,
   assignedReviewerId,
   scorecards = [],
+  canReopenScorecard = false,
   onChanged,
 }: {
   applicationId: string
   assignedReviewerId?: string | null
   scorecards?: Scorecard[]
+  canReopenScorecard?: boolean
   onChanged?: () => void
 }) {
   const [reviewers, setReviewers] = useState<Array<{ id: string; email: string }>>([])
@@ -170,47 +172,49 @@ export default function CaseGovernanceActions({
 
       <div className="space-y-4">
         {/* ---- reviewer assignment ---- */}
-        <div className="rounded-xl border border-slate-200 p-4">
-          <h4 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-            <UserCheck className="h-4 w-4 text-emerald-700" aria-hidden /> Assigned reviewer
-          </h4>
-          <p className="mt-1 text-xs text-slate-600">
-            The reviewer gains scoped access to this case. Only staff configured to review appear here.
-          </p>
+        {canReopenScorecard && (
+          <div className="rounded-xl border border-slate-200 p-4">
+            <h4 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+              <UserCheck className="h-4 w-4 text-emerald-700" aria-hidden /> Assigned reviewer
+            </h4>
+            <p className="mt-1 text-xs text-slate-600">
+              The reviewer gains scoped access to this case. Only staff configured to review appear here.
+            </p>
 
-          <label htmlFor="reviewer-select" className="sr-only">
-            Reviewer
-          </label>
-          <select
-            id="reviewer-select"
-            value={reviewerId}
-            onChange={(event) => setReviewerId(event.target.value)}
-            className="mt-3 w-full rounded-lg border border-slate-300 p-2 text-sm"
-          >
-            <option value="">Not assigned</option>
-            {reviewers.map((reviewer) => (
-              <option key={reviewer.id} value={reviewer.id}>
-                {reviewer.email}
-              </option>
-            ))}
-          </select>
+            <label htmlFor="reviewer-select" className="sr-only">
+              Reviewer
+            </label>
+            <select
+              id="reviewer-select"
+              value={reviewerId}
+              onChange={(event) => setReviewerId(event.target.value)}
+              className="mt-3 w-full rounded-lg border border-slate-300 p-2 text-sm"
+            >
+              <option value="">Not assigned</option>
+              {reviewers.map((reviewer) => (
+                <option key={reviewer.id} value={reviewer.id}>
+                  {reviewer.email}
+                </option>
+              ))}
+            </select>
 
-          <button
-            type="button"
-            onClick={() =>
-              post(
-                `/api/recruitment/applications/${applicationId}/assign-reviewer`,
-                { reviewerUserId: reviewerId },
-                'reviewer',
-                'Reviewer assigned'
-              )
-            }
-            disabled={!reviewerId || reviewerId === assignedReviewerId || busy !== null}
-            className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
-          >
-            {spinner('reviewer')}Assign
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() =>
+                post(
+                  `/api/recruitment/applications/${applicationId}/assign-reviewer`,
+                  { reviewerUserId: reviewerId },
+                  'reviewer',
+                  'Reviewer assigned'
+                )
+              }
+              disabled={!reviewerId || reviewerId === assignedReviewerId || busy !== null}
+              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+            >
+              {spinner('reviewer')}Assign
+            </button>
+          </div>
+        )}
 
         {/* ---- scorecard reopen ---- */}
         <div className="rounded-xl border border-slate-200 p-4">

@@ -7,6 +7,7 @@ import { instantiatePreboardingPackage, refreshPreboardingProgress } from '@/lib
 import { logAudit } from '@/lib/audit'
 import { hasPermission } from '@/lib/rbac'
 import { expectedVersion, staleRecord } from '@/lib/concurrency'
+import { canMakeHrManagerDecision } from '@/lib/recruitment-role-policy'
 
 const schema = z.object({
   action: z.enum([
@@ -42,6 +43,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const user = await requirePermission('preboarding.manage')
     const input = await parseBody(request, schema)
+    const managerWaiver =
+      (input.action === 'REVIEW_COURSE' || input.action === 'UPDATE_MEETING') && input.status === 'WAIVED'
+    if (managerWaiver && !canMakeHrManagerDecision(user.roles)) {
+      throw new AuthzError('An HR manager must approve preboarding waivers', 403)
+    }
     const data = input.data ?? {}
     const preboarding = await prisma.candidatePreboarding.findUnique({ where: { id: params.id } })
     if (!preboarding) throw new AuthzError('Preboarding record not found', 404)
@@ -221,6 +227,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           throw new AuthzError('Meeting title and valid times are required', 400)
         }
         if (end <= start) throw new AuthzError('Meeting end must follow its start', 400)
+        if (start <= new Date()) throw new AuthzError('Meeting start must be in the future', 400)
         if (title.length > 200) throw new AuthzError('Meeting title is too long', 400)
         const meetingLink = data.meetingLink ? String(data.meetingLink) : null
         if (meetingLink) {

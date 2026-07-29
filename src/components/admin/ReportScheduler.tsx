@@ -22,6 +22,7 @@ const DEFAULT_REPORTS = [
   'delivery',
   'data-quality',
 ]
+const reportLabel = (value: string) => value.replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 
 export default function ReportScheduler({
   defaultEmail,
@@ -68,14 +69,12 @@ export default function ReportScheduler({
     <section className="section-panel">
       <div className="section-heading">
         <div>
-          <h2 className="text-lg font-bold text-slate-950">Scheduled report delivery</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Send a current register to an approved mailbox on a recurring schedule.
-          </p>
+          <h2 className="text-lg font-semibold text-navy-950">Scheduled deliveries</h2>
+          <p className="mt-1 text-sm text-slate-600">Email an up-to-date report automatically.</p>
         </div>
       </div>
-      <form onSubmit={create} className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <label>
+      <form onSubmit={create} className="grid gap-5 px-5 py-6 sm:px-6 md:grid-cols-2 xl:grid-cols-3">
+        <label className="md:col-span-2 xl:col-span-1">
           <span className="field-label">Report</span>
           <select
             aria-label="Report"
@@ -84,7 +83,9 @@ export default function ReportScheduler({
             className="field-control"
           >
             {reportTypes.map((value) => (
-              <option key={value}>{value}</option>
+              <option key={value} value={value}>
+                {reportLabel(value)}
+              </option>
             ))}
           </select>
         </label>
@@ -96,9 +97,9 @@ export default function ReportScheduler({
             onChange={(event) => setFormat(event.target.value)}
             className="field-control"
           >
-            <option>csv</option>
-            <option>xlsx</option>
-            <option>pdf</option>
+            <option value="csv">CSV</option>
+            <option value="xlsx">Excel workbook</option>
+            <option value="pdf">PDF</option>
           </select>
         </label>
         <label>
@@ -109,9 +110,9 @@ export default function ReportScheduler({
             onChange={(event) => setFrequency(event.target.value)}
             className="field-control"
           >
-            <option>DAILY</option>
-            <option>WEEKLY</option>
-            <option>MONTHLY</option>
+            <option value="DAILY">Daily</option>
+            <option value="WEEKLY">Weekly</option>
+            <option value="MONTHLY">Monthly</option>
           </select>
         </label>
         <label>
@@ -136,19 +137,30 @@ export default function ReportScheduler({
             className="field-control"
           />
         </label>
-        <button className="btn-primary xl:col-start-5">Schedule delivery</button>
+        <div className="flex items-end md:col-span-2 xl:col-span-3">
+          <button className="btn-primary">Schedule delivery</button>
+        </div>
       </form>
       {message && (
-        <p role="status" className="mt-3 text-sm">
+        <p role="status" className="border-t border-stone-200 bg-brand-50 px-5 py-3 text-sm text-brand-900 sm:px-6">
           {message}
         </p>
       )}
-      <div className="mt-5 space-y-2">
+      <div className="divide-y divide-stone-200 border-t border-stone-200">
+        {schedules.length === 0 && (
+          <div className="px-5 py-8 text-center sm:px-6">
+            <p className="text-sm font-semibold text-stone-800">No scheduled deliveries</p>
+            <p className="mt-1 text-sm text-stone-500">Use the form above to create the first one.</p>
+          </div>
+        )}
         {schedules.map((schedule) => (
-          <div key={schedule.id} className="flex justify-between border border-slate-200 p-3 text-sm">
+          <div key={schedule.id} className="flex justify-between gap-5 px-5 py-4 text-sm sm:px-6">
             <span>
-              {schedule.reportType} · {schedule.frequency} · next {new Date(schedule.nextRunAt).toLocaleString()} ·{' '}
-              {schedule.active ? 'active' : 'disabled'}
+              <strong className="text-navy-950">{reportLabel(schedule.reportType)}</strong>
+              <span className="mt-1 block text-xs text-stone-500">
+                {reportLabel(schedule.frequency)} · next {new Date(schedule.nextRunAt).toLocaleString()} ·{' '}
+                {schedule.active ? 'Active' : 'Disabled'}
+              </span>
             </span>
             {schedule.active && (
               <button onClick={() => void disable(schedule.id)} className="font-semibold text-rose-700">

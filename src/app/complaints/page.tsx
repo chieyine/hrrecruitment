@@ -10,7 +10,6 @@ const categoryHelp: Record<string, string> = {
   COMPLAINT: 'A concern about how your recruitment process was handled.',
   APPEAL: 'A request to review a recruitment decision where an appeal is permitted.',
   SAFEGUARDING: 'A concern about harm, exploitation, abuse or the safety of a child or adult.',
-  FRAUD: 'Impersonation, a request for money or another dishonest recruitment approach.',
   ACCOMMODATION: 'A concern about a requested reasonable adjustment.',
   PRIVACY: 'A question or concern about the use of your personal information.',
   OTHER: 'A recruitment concern that does not fit the categories above.',
@@ -29,18 +28,23 @@ export default function ComplaintIntakePage() {
     event.preventDefault()
     setBusy(true)
     setMessage('')
-    const response = await fetch('/api/complaints', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category, subject, description, reporterEmail: email || undefined }),
-    })
-    const body = await response.json()
-    setBusy(false)
-    if (response.ok) {
-      setReference(body.referenceNumber)
-      setSubject('')
-      setDescription('')
-    } else setMessage(body.error || 'We could not submit your concern. Check the form and try again.')
+    try {
+      const response = await fetch('/api/complaints', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category, subject, description, reporterEmail: email || undefined }),
+      })
+      const body = await response.json()
+      if (response.ok) {
+        setReference(body.referenceNumber)
+        setSubject('')
+        setDescription('')
+      } else setMessage(body.error || 'We could not submit your concern. Check the form and try again.')
+    } catch {
+      setMessage('We could not connect to FRAD. Your concern was not submitted. Please try again.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -77,7 +81,7 @@ export default function ComplaintIntakePage() {
                 <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-700" />
                 <h2 className="mt-4 text-2xl font-bold text-stone-950">Your concern has been received.</h2>
                 <p className="mt-2 text-sm leading-6 text-stone-600">
-                  Keep this reference if you need to contact FRAD about the report.
+                  Keep this reference. If you provided an email address, FRAD will also send it to you.
                 </p>
                 <p className="mx-auto mt-5 w-fit border border-stone-300 bg-stone-50 px-4 py-3 font-mono text-sm font-bold text-stone-900">
                   {reference}
@@ -101,7 +105,6 @@ export default function ComplaintIntakePage() {
                     <option value="COMPLAINT">Complaint about the process</option>
                     <option value="APPEAL">Appeal</option>
                     <option value="SAFEGUARDING">Safeguarding concern</option>
-                    <option value="FRAUD">Suspected fraud</option>
                     <option value="ACCOMMODATION">Reasonable adjustment</option>
                     <option value="PRIVACY">Privacy or personal information</option>
                     <option value="OTHER">Something else</option>
@@ -120,7 +123,10 @@ export default function ComplaintIntakePage() {
                     onChange={(event) => setEmail(event.target.value)}
                     className="field-control"
                   />
-                  <p className="field-help">Provide this only if you want the review team to contact you.</p>
+                  <p className="field-help">
+                    Leave this blank to report anonymously. Without an email address, FRAD cannot send updates or ask
+                    you for more information.
+                  </p>
                 </div>
                 <div>
                   <label htmlFor="concern-subject" className="field-label">

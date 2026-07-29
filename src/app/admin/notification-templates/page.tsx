@@ -4,24 +4,24 @@ export default function AdminNotificationTemplatesPage() {
   return (
     <AdminCrud
       entity="notification-templates"
-      title="Notification Templates"
-      subtitle="Versioned email and in-app notification copy with supported variables."
+      title="Message templates"
+      subtitle="Approved starting points for application-linked messages to candidates."
       columns={[
-        { name: 'code', label: 'Code' },
         { name: 'subject', label: 'Subject' },
+        { name: 'code', label: 'Code' },
+        { name: 'version', label: 'Version' },
         { name: 'active', label: 'Active' },
       ]}
       fields={[
-        { name: 'code', label: 'Unique Code', required: true, placeholder: 'APPLICATION_RECEIVED' },
-        { name: 'subject', label: 'Email Subject', required: true },
+        { name: 'code', label: 'Stable code', required: true, placeholder: 'APPLICATION_RECEIVED' },
+        { name: 'subject', label: 'Subject', required: true, placeholder: 'We received your application for {{vacancy_title}}' },
         {
           name: 'bodyTemplate',
-          label: 'Body Template',
-          type: 'textarea',
+          label: 'Message',
+          type: 'message-body',
           required: true,
-          placeholder: 'Dear {{candidate_name}}, ...',
         },
-        { name: 'active', label: 'Active', type: 'checkbox' },
+        { name: 'active', label: 'Active', type: 'checkbox', defaultValue: false },
       ]}
     />
   )

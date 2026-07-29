@@ -7,6 +7,7 @@ import { hasStaffRole, isCandidateOnly } from './roles'
  */
 export function homeRouteForRoles(roles: readonly string[]): string {
   if (isCandidateOnly(roles)) return '/candidate/dashboard'
+  if (roles.includes('SYSTEM_ADMIN')) return '/admin/system-settings'
   if (!hasStaffRole(roles)) return '/careers'
   if (roles.length === 1 && roles[0] === 'PANEL_MEMBER') return '/recruitment/interviews'
   if (roles.length === 1 && roles[0] === 'APPROVER') return '/recruitment/approvals'

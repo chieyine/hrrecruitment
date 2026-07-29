@@ -14,20 +14,31 @@ export async function GET(request: Request) {
           contents: { orderBy: { displayOrder: 'asc' } },
           quizQuestions: { orderBy: { displayOrder: 'asc' } },
           candidateCourses: {
-            include: {
+            select: {
+              id: true,
+              status: true,
+              attempts: true,
+              score: true,
               candidatePreboarding: {
-                include: { application: { include: { candidate: true, vacancy: { select: { title: true } } } } },
+                select: {
+                  application: {
+                    select: {
+                      candidate: { select: { legalFirstName: true, lastName: true } },
+                      vacancy: { select: { title: true } },
+                    },
+                  },
+                },
               },
-              courseAttempts: { orderBy: { attemptNumber: 'desc' } },
             },
             orderBy: { assignedAt: 'desc' },
+            take: 100,
           },
         },
         orderBy: { title: 'asc' },
       })
       return Response.json({ scorecards: [], packages: [], courses, forms: [], documents: [], policies: [], tasks: [] })
     }
-    await requireRole('SYSTEM_ADMIN')
+    await requireRole('HR_MANAGER')
     const [scorecards, packages, courses, forms, documents, policies, tasks] = await Promise.all([
       prisma.scorecardTemplate.findMany({
         include: { criteria: { orderBy: { displayOrder: 'asc' } } },
@@ -44,6 +55,7 @@ export async function GET(request: Request) {
         orderBy: { name: 'asc' },
       }),
       prisma.course.findMany({
+        where: { active: true },
         include: {
           contents: { orderBy: { displayOrder: 'asc' } },
           quizQuestions: { orderBy: { displayOrder: 'asc' } },
@@ -66,9 +78,9 @@ const schema = z.discriminatedUnion('action', [
     action: z.literal('ADD_CRITERION'),
     templateId: z.string().min(1),
     name: z.string().trim().min(2),
-    maximumScore: z.coerce.number().positive(),
-    weight: z.coerce.number().positive(),
-    guidance: z.string().max(1000).optional(),
+    maximumScore: z.coerce.number().positive().max(100),
+    weight: z.coerce.number().positive().max(10),
+    guidance: z.string().trim().min(10).max(1000),
     required: z.boolean().default(true),
     commentRequired: z.boolean().default(false),
   }),
@@ -118,9 +130,56 @@ export async function POST(request: Request) {
     const input = await parseBody(request, schema)
     const user = input.action.includes('COURSE')
       ? await requirePermission('course.manage')
-      : await requireRole('SYSTEM_ADMIN')
+      : await requireRole('HR_MANAGER')
     let result: any
+    if (
+      ['ADD_COURSE_CONTENT', 'ADD_COURSE_QUESTION'].includes(input.action) &&
+      (await prisma.course.findUnique({
+        where: { id: 'courseId' in input ? input.courseId : '' },
+        select: { active: true },
+      }))?.active
+    ) {
+      throw new AuthzError('Create a new inactive course version before changing published learning content', 409)
+    }
+    if (input.action === 'REMOVE_COURSE_CONTENT' || input.action === 'REMOVE_COURSE_QUESTION') {
+      const courseId =
+        input.action === 'REMOVE_COURSE_CONTENT'
+          ? (
+              await prisma.courseContent.findUnique({
+                where: { id: input.id },
+                select: { courseId: true },
+              })
+            )?.courseId
+          : (
+              await prisma.courseQuizQuestion.findUnique({
+                where: { id: input.id },
+                select: { courseId: true },
+              })
+            )?.courseId
+      if (
+        courseId &&
+        (
+          await prisma.course.findUnique({
+            where: { id: courseId },
+            select: { active: true },
+          })
+        )?.active
+      ) {
+        throw new AuthzError('Create a new inactive course version before changing published learning content', 409)
+      }
+    }
     if (input.action === 'ADD_CRITERION') {
+      const template = await prisma.scorecardTemplate.findUnique({
+        where: { id: input.templateId },
+        include: { criteria: { select: { maximumScore: true } } },
+      })
+      if (!template) throw new AuthzError('Scorecard not found', 404)
+      if (template.active) throw new AuthzError('Copy this active scorecard before changing its criteria', 409)
+      if (
+        template.scorecardType === 'SCREENING' &&
+        template.criteria.reduce((sum, criterion) => sum + criterion.maximumScore, 0) + input.maximumScore > 100
+      )
+        throw new AuthzError('Screening criteria cannot total more than 100 points', 422)
       const displayOrder = await prisma.scorecardCriterion.count({ where: { scorecardTemplateId: input.templateId } })
       result = await prisma.scorecardCriterion.create({
         data: {
@@ -135,10 +194,45 @@ export async function POST(request: Request) {
         },
       })
     } else if (input.action === 'REMOVE_CRITERION') {
+      const criterion = await prisma.scorecardCriterion.findUnique({
+        where: { id: input.id },
+        select: { scorecardTemplate: { select: { active: true } } },
+      })
+      if (!criterion) throw new AuthzError('Scorecard criterion not found', 404)
+      if (criterion.scorecardTemplate.active)
+        throw new AuthzError('Copy this active scorecard before changing its criteria', 409)
       if (await prisma.candidateCriterionScore.count({ where: { criterionId: input.id } }))
         throw new AuthzError('A criterion used in submitted scoring cannot be deleted', 409)
       result = await prisma.scorecardCriterion.delete({ where: { id: input.id } })
     } else if (input.action === 'ADD_PACKAGE_ITEM') {
+      const pkg = await prisma.preboardingPackage.findUnique({
+        where: { id: input.packageId },
+        select: { active: true },
+      })
+      if (!pkg) throw new AuthzError('Preboarding package not found', 404)
+      if (pkg.active) throw new AuthzError('Copy this published package before changing its requirements', 409)
+      const resourceActive =
+        input.itemType === 'FORM'
+          ? await prisma.preboardingFormTemplate.findFirst({ where: { id: input.resourceId, active: true } })
+          : input.itemType === 'DOCUMENT'
+            ? await prisma.documentRequirement.findFirst({ where: { id: input.resourceId, active: true } })
+            : input.itemType === 'POLICY'
+              ? await prisma.policyDocument.findFirst({ where: { id: input.resourceId, active: true } })
+              : input.itemType === 'COURSE'
+                ? await prisma.course.findFirst({ where: { id: input.resourceId, active: true } })
+                : await prisma.preboardingTaskTemplate.findFirst({ where: { id: input.resourceId, active: true } })
+      if (!resourceActive) throw new AuthzError('Choose an active requirement', 422)
+      const duplicate =
+        input.itemType === 'FORM'
+          ? await prisma.packageForm.findFirst({ where: { preboardingPackageId: input.packageId, formTemplateId: input.resourceId } })
+          : input.itemType === 'DOCUMENT'
+            ? await prisma.packageDocumentRequirement.findFirst({ where: { preboardingPackageId: input.packageId, documentRequirementId: input.resourceId } })
+            : input.itemType === 'POLICY'
+              ? await prisma.packagePolicy.findFirst({ where: { preboardingPackageId: input.packageId, policyDocumentId: input.resourceId } })
+              : input.itemType === 'COURSE'
+                ? await prisma.packageCourse.findFirst({ where: { preboardingPackageId: input.packageId, courseId: input.resourceId } })
+                : await prisma.packageTask.findFirst({ where: { preboardingPackageId: input.packageId, taskTemplateId: input.resourceId } })
+      if (duplicate) throw new AuthzError('This requirement is already in the package', 409)
       const common = {
         preboardingPackageId: input.packageId,
         required: input.required,
@@ -158,6 +252,19 @@ export async function POST(request: Request) {
         })
       else result = await prisma.packageTask.create({ data: { ...common, taskTemplateId: input.resourceId } })
     } else if (input.action === 'REMOVE_PACKAGE_ITEM') {
+      const packageId =
+        input.itemType === 'FORM'
+          ? (await prisma.packageForm.findUnique({ where: { id: input.id }, select: { preboardingPackageId: true } }))?.preboardingPackageId
+          : input.itemType === 'DOCUMENT'
+            ? (await prisma.packageDocumentRequirement.findUnique({ where: { id: input.id }, select: { preboardingPackageId: true } }))?.preboardingPackageId
+            : input.itemType === 'POLICY'
+              ? (await prisma.packagePolicy.findUnique({ where: { id: input.id }, select: { preboardingPackageId: true } }))?.preboardingPackageId
+              : input.itemType === 'COURSE'
+                ? (await prisma.packageCourse.findUnique({ where: { id: input.id }, select: { preboardingPackageId: true } }))?.preboardingPackageId
+                : (await prisma.packageTask.findUnique({ where: { id: input.id }, select: { preboardingPackageId: true } }))?.preboardingPackageId
+      if (!packageId) throw new AuthzError('Package requirement not found', 404)
+      const pkg = await prisma.preboardingPackage.findUnique({ where: { id: packageId }, select: { active: true } })
+      if (pkg?.active) throw new AuthzError('Copy this published package before changing its requirements', 409)
       if (input.itemType === 'FORM') result = await prisma.packageForm.delete({ where: { id: input.id } })
       else if (input.itemType === 'DOCUMENT')
         result = await prisma.packageDocumentRequirement.delete({ where: { id: input.id } })
@@ -165,6 +272,16 @@ export async function POST(request: Request) {
       else if (input.itemType === 'COURSE') result = await prisma.packageCourse.delete({ where: { id: input.id } })
       else result = await prisma.packageTask.delete({ where: { id: input.id } })
     } else if (input.action === 'ADD_COURSE_CONTENT') {
+      if (input.contentType === 'VIDEO') {
+        try {
+          const url = new URL(input.content || '')
+          if (url.protocol !== 'https:') throw new Error('HTTPS required')
+        } catch {
+          throw new AuthzError('Video content requires a valid HTTPS URL', 422)
+        }
+      }
+      if (!input.content?.trim() && !input.fileAssetId)
+        throw new AuthzError('Add text, a URL or a supporting file for this module', 422)
       if (
         input.fileAssetId &&
         !(await prisma.fileAsset.findFirst({
@@ -186,6 +303,22 @@ export async function POST(request: Request) {
     } else if (input.action === 'ADD_COURSE_QUESTION') {
       if (input.questionType !== 'SHORTTEXT' && input.options.length < 2)
         throw new AuthzError('At least two answer options are required', 400)
+      if (input.questionType === 'MULTISELECT') {
+        if (
+          !Array.isArray(input.correctAnswer) ||
+          !input.correctAnswer.length ||
+          input.correctAnswer.some((answer) => !input.options.includes(String(answer)))
+        )
+          throw new AuthzError('Every correct answer must match one of the supplied options', 422)
+      } else if (input.questionType === 'SHORTTEXT') {
+        if (typeof input.correctAnswer !== 'string' || input.correctAnswer.trim().length < 1)
+          throw new AuthzError('A correct short-text answer is required', 422)
+      } else if (
+        typeof input.correctAnswer !== 'string' ||
+        !input.options.includes(input.correctAnswer)
+      ) {
+        throw new AuthzError('The correct answer must match one of the supplied options', 422)
+      }
       const displayOrder = await prisma.courseQuizQuestion.count({ where: { courseId: input.courseId } })
       result = await prisma.courseQuizQuestion.create({
         data: {
@@ -198,9 +331,17 @@ export async function POST(request: Request) {
           displayOrder,
         },
       })
-    } else if (input.action === 'REMOVE_COURSE_CONTENT')
+    } else if (input.action === 'REMOVE_COURSE_CONTENT') {
+      const content = await prisma.courseContent.findUnique({ where: { id: input.id }, select: { courseId: true } })
+      if (!content) throw new AuthzError('Course content not found', 404)
+      if (await prisma.candidateCourse.count({ where: { courseId: content.courseId } })) {
+        throw new AuthzError(
+          'Content assigned to candidates cannot be removed; create a new course version instead',
+          409
+        )
+      }
       result = await prisma.courseContent.delete({ where: { id: input.id } })
-    else if (input.action === 'REMOVE_COURSE_QUESTION')
+    } else if (input.action === 'REMOVE_COURSE_QUESTION')
       result = await prisma.courseQuizQuestion.delete({ where: { id: input.id } })
     else {
       result = await prisma.$transaction(async (tx) => {

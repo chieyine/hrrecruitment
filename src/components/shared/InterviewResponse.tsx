@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { ConfirmDialog } from '@/components/ui/Dialog'
 
 export default function InterviewResponse({ id, current }: { id: string; current: string | null }) {
   const router = useRouter()
@@ -9,6 +10,7 @@ export default function InterviewResponse({ id, current }: { id: string; current
   const [comment, setComment] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [confirmingDecline, setConfirmingDecline] = useState(false)
 
   const respond = async (response: 'CONFIRMED' | 'RESCHEDULE_REQUESTED' | 'DECLINED') => {
     if (response === 'RESCHEDULE_REQUESTED' && !comment.trim()) {
@@ -31,6 +33,7 @@ export default function InterviewResponse({ id, current }: { id: string; current
       }
       setMessage('Response saved.')
       setRescheduling(false)
+      setConfirmingDecline(false)
       setComment('')
       router.refresh()
     } catch {
@@ -47,7 +50,7 @@ export default function InterviewResponse({ id, current }: { id: string; current
           type="button"
           disabled={busy}
           onClick={() => void respond('CONFIRMED')}
-          className="rounded bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+          className="btn-primary min-h-10 px-4 py-2 text-xs"
         >
           Confirm
         </button>
@@ -55,22 +58,22 @@ export default function InterviewResponse({ id, current }: { id: string; current
           type="button"
           disabled={busy}
           onClick={() => setRescheduling(true)}
-          className="rounded border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold text-amber-800 disabled:opacity-50"
+          className="btn-secondary min-h-10 px-4 py-2 text-xs"
         >
           Request another time
         </button>
         <button
           type="button"
           disabled={busy}
-          onClick={() => void respond('DECLINED')}
-          className="rounded border border-rose-400 bg-white px-3 py-1.5 text-xs font-bold text-rose-800 disabled:opacity-50"
+          onClick={() => setConfirmingDecline(true)}
+          className="min-h-10 rounded-lg border border-rose-300 bg-white px-4 py-2 text-xs font-bold text-rose-800 disabled:opacity-50"
         >
           Decline
         </button>
       </div>
 
       {rescheduling && (
-        <div className="max-w-xl space-y-2 border-l-2 border-amber-400 pl-3">
+        <div className="max-w-xl space-y-3 border-l-2 border-amber-400 pl-4">
           <label htmlFor={`reschedule-${id}`} className="block text-xs font-bold text-slate-800">
             Why do you need another time?
           </label>
@@ -79,14 +82,14 @@ export default function InterviewResponse({ id, current }: { id: string; current
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             rows={3}
-            className="w-full rounded border border-slate-300 p-2 text-sm"
+            className="field-control"
           />
           <div className="flex gap-2">
             <button
               type="button"
               disabled={busy}
               onClick={() => void respond('RESCHEDULE_REQUESTED')}
-              className="rounded bg-amber-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+              className="btn-primary min-h-10 px-4 py-2 text-xs"
             >
               Send request
             </button>
@@ -97,7 +100,7 @@ export default function InterviewResponse({ id, current }: { id: string; current
                 setRescheduling(false)
                 setComment('')
               }}
-              className="rounded border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+              className="btn-secondary min-h-10 px-4 py-2 text-xs"
             >
               Cancel
             </button>
@@ -105,12 +108,32 @@ export default function InterviewResponse({ id, current }: { id: string; current
         </div>
       )}
 
-      {current && <p className="text-xs text-slate-500">Your response: {current.replaceAll('_', ' ').toLowerCase()}</p>}
+      {current && (
+        <p className="text-xs text-slate-500">
+          Your response:{' '}
+          {current
+            .replaceAll('_', ' ')
+            .toLowerCase()
+            .replace(/^./, (letter) => letter.toUpperCase())}
+        </p>
+      )}
       {message && (
         <p role="status" className="text-xs text-slate-600">
           {message}
         </p>
       )}
+      <ConfirmDialog
+        open={confirmingDecline}
+        onClose={() => {
+          if (!busy) setConfirmingDecline(false)
+        }}
+        onConfirm={() => respond('DECLINED')}
+        title="Decline this interview?"
+        description="FRAD will record that you will not attend. You can message the recruitment team if you need to explain."
+        confirmLabel="Decline interview"
+        tone="danger"
+        busy={busy}
+      />
     </div>
   )
 }

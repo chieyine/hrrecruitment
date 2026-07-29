@@ -13,39 +13,47 @@ export default function AccommodationRequestForm({
   const [requestType, setRequestType] = useState('ASSESSMENT')
   const [details, setDetails] = useState('')
   const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
   async function submit(event: React.FormEvent) {
     event.preventDefault()
-    const response = await fetch('/api/candidate/accommodations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ applicationId, requestType, details }),
-    })
-    const data = await response.json()
-    setMessage(
-      response.ok
-        ? 'Your confidential request has been sent to the authorized HR team.'
-        : data.error || 'Request failed'
-    )
-    if (response.ok) {
+    setBusy(true)
+    setMessage('')
+    setError('')
+    try {
+      const response = await fetch('/api/candidate/accommodations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicationId, requestType, details }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        setError(data.error || 'The request could not be sent.')
+        return
+      }
+      setMessage('Request sent. HR will reply on this page.')
       setDetails('')
       router.refresh()
+    } catch {
+      setError('The request could not be sent. Check your connection and try again.')
+    } finally {
+      setBusy(false)
     }
   }
   return (
-    <form onSubmit={submit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+    <form onSubmit={submit} className="space-y-5">
       <div>
-        <h2 className="font-bold text-slate-900">Request an adjustment</h2>
-        <p className="mt-1 text-xs text-slate-500">
-          You do not need to disclose a diagnosis. Explain the practical adjustment that would let you participate
-          fairly.
+        <h2 className="text-lg font-semibold text-navy-900">What would help?</h2>
+        <p className="mt-1 text-sm leading-6 text-stone-600">
+          Describe the change you need. You do not have to share a diagnosis or medical history.
         </p>
       </div>
-      <label className="block text-xs font-bold text-slate-700">
+      <label className="field-label">
         Application
         <select
           value={applicationId}
           onChange={(event) => setApplicationId(event.target.value)}
-          className="mt-1 block w-full rounded-lg border border-slate-300 p-2.5 text-sm"
+          className="field-control mt-1.5"
         >
           {applications.map((application) => (
             <option key={application.id} value={application.id}>
@@ -54,12 +62,12 @@ export default function AccommodationRequestForm({
           ))}
         </select>
       </label>
-      <label className="block text-xs font-bold text-slate-700">
-        Adjustment area
+      <label className="field-label">
+        What is the adjustment for?
         <select
           value={requestType}
           onChange={(event) => setRequestType(event.target.value)}
-          className="mt-1 block w-full rounded-lg border border-slate-300 p-2.5 text-sm"
+          className="field-control mt-1.5"
         >
           <option value="ASSESSMENT">Assessment</option>
           <option value="INTERVIEW">Interview</option>
@@ -68,25 +76,29 @@ export default function AccommodationRequestForm({
           <option value="OTHER">Other</option>
         </select>
       </label>
-      <label className="block text-xs font-bold text-slate-700">
-        What adjustment do you need?
+      <label className="field-label">
+        Tell us what you need
         <textarea
           value={details}
           onChange={(event) => setDetails(event.target.value)}
           rows={5}
-          className="mt-1 block w-full rounded-lg border border-slate-300 p-2.5 text-sm"
+          className="field-control mt-1.5 resize-y"
+          placeholder="For example: I need extra time for the written assessment."
         />
+        <span className="field-help">Include any timing or access details that will help us arrange it.</span>
       </label>
       {message && (
-        <p role="status" className="text-xs font-semibold text-brand-700">
+        <p role="status" className="text-xs font-semibold text-emerald-700">
           {message}
         </p>
       )}
-      <button
-        disabled={!applicationId || details.trim().length < 10}
-        className="rounded-lg bg-brand-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40"
-      >
-        Send confidential request
+      {error && (
+        <p role="alert" className="text-xs font-semibold text-rose-700">
+          {error}
+        </p>
+      )}
+      <button disabled={busy || !applicationId || details.trim().length < 10} className="btn-primary">
+        {busy ? 'Sending…' : 'Send request'}
       </button>
     </form>
   )

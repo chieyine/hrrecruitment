@@ -9,11 +9,15 @@ import { enqueueEmail } from '@/lib/outbox'
 
 export async function GET() {
   try {
-    await requireRole('SYSTEM_ADMIN')
+    const user = await requireRole('SYSTEM_ADMIN')
     const requests = await prisma.dataDeletionRequest.findMany({
       include: {
         candidate: {
-          include: {
+          select: {
+            id: true,
+            legalFirstName: true,
+            lastName: true,
+            userId: true,
             user: { select: { email: true, accountStatus: true } },
             applications: { select: { id: true, internalStatus: true } },
           },
@@ -21,7 +25,48 @@ export async function GET() {
       },
       orderBy: { requestedAt: 'desc' },
     })
-    return Response.json({ requests })
+    const applicationIds = requests.flatMap((item) => item.candidate.applications.map((application) => application.id))
+    const holds = await prisma.legalHold.findMany({
+      where: {
+        status: 'ACTIVE',
+        OR: [
+          { resourceType: 'USER', resourceId: { in: requests.map((item) => item.candidate.userId) } },
+          { resourceType: 'CANDIDATE', resourceId: { in: requests.map((item) => item.candidateId) } },
+          { resourceType: 'APPLICATION', resourceId: { in: applicationIds } },
+        ],
+      },
+      select: { resourceType: true, resourceId: true },
+    })
+    const heldResources = new Set(holds.map((hold) => `${hold.resourceType}:${hold.resourceId}`))
+    const successfulStatuses = new Set(['OFFER_ACCEPTED', 'PREBOARDING', 'READY_TO_RESUME', 'RESUMED', 'TRANSFERRED_TO_ERP'])
+
+    return Response.json({
+      requests: requests.map((item) => {
+        const reasonParts = (item.reason || '').split(/\n(?=Decision:|Legal override requested:)/)
+        const decisionPart = [...reasonParts].reverse().find((part) => part.startsWith('Decision:'))
+        return {
+          id: item.id,
+          status: item.status,
+          requestedAt: item.requestedAt,
+          decidedAt: item.decidedAt,
+          candidateName:
+            item.candidate.legalFirstName === 'Deleted'
+              ? 'Deleted candidate'
+              : `${item.candidate.legalFirstName} ${item.candidate.lastName}`.trim(),
+          email: item.candidate.user.email,
+          accountStatus: item.candidate.user.accountStatus,
+          candidateReason: reasonParts[0] || null,
+          reviewNote: decisionPart?.replace(/^Decision:\s*/, '') || null,
+          applicationCount: item.candidate.applications.length,
+          successfulRecord: item.candidate.applications.some((application) => successfulStatuses.has(application.internalStatus)),
+          activeLegalHold:
+            heldResources.has(`USER:${item.candidate.userId}`) ||
+            heldResources.has(`CANDIDATE:${item.candidateId}`) ||
+            item.candidate.applications.some((application) => heldResources.has(`APPLICATION:${application.id}`)),
+          requiresDifferentReviewer: item.status === 'LEGAL_REVIEW' && item.legalOverrideRequestedBy === user.userId,
+        }
+      }),
+    })
   } catch (error) {
     return authzResponse(error)
   }
@@ -76,8 +121,6 @@ export async function PATCH(request: Request) {
         application.internalStatus
       )
     )
-    if (protectedRecord && !legalOverride)
-      throw new AuthzError('Successful recruitment records require explicit legal-retention override approval', 409)
     if (protectedRecord && item.status === 'PENDING') {
       await prisma.dataDeletionRequest.update({
         where: { id },
@@ -99,7 +142,7 @@ export async function PATCH(request: Request) {
     if (item.status === 'LEGAL_REVIEW') {
       if (item.legalOverrideRequestedBy === user.userId)
         throw new AuthzError('A different system administrator must approve the legal-retention override', 409)
-      if (!legalOverride) throw new AuthzError('Confirm the independently reviewed legal-retention override', 409)
+      if (!legalOverride) throw new AuthzError('Confirm the independent retention review', 409)
       await prisma.dataDeletionRequest.update({ where: { id }, data: { legalOverrideApprovedBy: user.userId } })
     }
     const applicationIds = item.candidate.applications.map((application) => application.id)

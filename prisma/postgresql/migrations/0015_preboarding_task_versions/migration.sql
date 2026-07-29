@@ -1,0 +1,2 @@
+ALTER TABLE "PreboardingTaskTemplate"
+ADD COLUMN "version" INTEGER NOT NULL DEFAULT 1;

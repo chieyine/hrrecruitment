@@ -20,12 +20,19 @@ interface PanelMember {
   hasSubmitted: boolean
 }
 
+function localDateTimeValue(value: string) {
+  const date = new Date(value)
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+}
+
 export default function InterviewCoordinationActions({
   interviewId,
   status,
   applicationStatus,
   scheduledStart,
   scheduledEnd,
+  canResolveExceptions,
+  canReopenScores,
   panelMembers,
 }: {
   interviewId: string
@@ -33,14 +40,16 @@ export default function InterviewCoordinationActions({
   applicationStatus: string
   scheduledStart: string
   scheduledEnd: string
+  canResolveExceptions: boolean
+  canReopenScores: boolean
   panelMembers: PanelMember[]
 }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [inviteMessage, setInviteMessage] = useState('')
-  const [newStart, setNewStart] = useState(scheduledStart.slice(0, 16))
-  const [newEnd, setNewEnd] = useState(scheduledEnd.slice(0, 16))
+  const [newStart, setNewStart] = useState(localDateTimeValue(scheduledStart))
+  const [newEnd, setNewEnd] = useState(localDateTimeValue(scheduledEnd))
   const [reasons, setReasons] = useState<Record<string, string>>({})
 
   const send = async (url: string, method: 'POST' | 'PATCH', body: unknown, label: string, success: string) => {
@@ -146,6 +155,7 @@ export default function InterviewCoordinationActions({
         <h5 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
           <CalendarClock className="h-3.5 w-3.5 text-emerald-700" aria-hidden /> Reschedule
         </h5>
+        <p className="mt-1 text-xs text-slate-500">Times below use your device’s timezone.</p>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <label className="text-xs font-semibold text-slate-700">
             New start
@@ -185,7 +195,7 @@ export default function InterviewCoordinationActions({
       </div>
 
       {/* ---- conflicts ---- */}
-      {declaredConflicts.length > 0 && (
+      {declaredConflicts.length > 0 && canResolveExceptions && (
         <div className="rounded-xl border border-rose-200 bg-white p-3">
           <h5 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
             <ShieldCheck className="h-3.5 w-3.5 text-rose-700" aria-hidden /> Declared conflicts of interest
@@ -234,7 +244,7 @@ export default function InterviewCoordinationActions({
       )}
 
       {/* ---- reopen a panel score ---- */}
-      {submitted.length > 0 && (
+      {submitted.length > 0 && canReopenScores && (
         <div className="rounded-xl border border-amber-200 bg-white p-3">
           <h5 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
             <RotateCcw className="h-3.5 w-3.5 text-amber-700" aria-hidden /> Reopen a submitted panel score

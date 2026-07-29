@@ -226,6 +226,15 @@ test.describe('candidate offer, policy, and course completion', () => {
         },
       }),
     ])
+    const courseContent = await prisma.courseContent.create({
+      data: {
+        courseId: course.id,
+        contentType: 'READING',
+        title: 'Read the safeguarding briefing',
+        content: 'Required module completion evidence',
+        displayOrder: 0,
+      },
+    })
     const candidateCourse = await prisma.candidateCourse.create({
       data: {
         candidatePreboardingId: preboardingId,
@@ -239,6 +248,29 @@ test.describe('candidate offer, policy, and course completion', () => {
         }),
       },
     })
+    const lockedAssessment = await page.request.post('/api/candidate/preboarding/actions', {
+      data: {
+        action: 'COURSE_SUBMIT',
+        resourceId: candidateCourse.id,
+        data: { answers: {} },
+      },
+    })
+    expect(lockedAssessment.status(), await lockedAssessment.text()).toBe(409)
+
+    const moduleCompletion = await page.request.post('/api/candidate/preboarding/actions', {
+      data: {
+        action: 'COURSE_CONTENT_COMPLETE',
+        resourceId: candidateCourse.id,
+        data: { contentId: courseContent.id, completionMethod: 'DOCUMENT_VIEWED' },
+      },
+    })
+    expect(moduleCompletion.status(), await moduleCompletion.text()).toBe(200)
+    expect(
+      await prisma.candidateCourseContentProgress.count({
+        where: { candidateCourseId: candidateCourse.id, courseContentId: courseContent.id },
+      })
+    ).toBe(1)
+
     const courseSubmit = await page.request.post('/api/candidate/preboarding/actions', {
       data: {
         action: 'COURSE_SUBMIT',

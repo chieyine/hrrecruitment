@@ -36,6 +36,7 @@ export async function GET(request: Request) {
       ...(status ? { internalStatus: status } : {}),
       ...(vacancyId ? { vacancyId } : {}),
       AND: [
+        { internalStatus: { not: 'DRAFT' } },
         ...(mayReadAll ? [] : [assignedApplicationWhere(user.userId)]),
         ...(search
           ? [

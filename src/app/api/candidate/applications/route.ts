@@ -8,6 +8,7 @@ import { createNotification } from '@/lib/notifications'
 import { claimIdempotency, completeIdempotency, abandonIdempotency, type IdempotencyClaim } from '@/lib/idempotency'
 import { evaluateApplicationEligibility } from '@/lib/eligibility'
 import { logger } from '@/lib/logger'
+import { createApplicationReference } from '@/lib/application-reference'
 
 const schema = z
   .object({
@@ -251,6 +252,7 @@ export async function POST(request: Request) {
       mode === 'SUBMIT'
         ? await prisma.eligibilityRule.findMany({ where: { vacancyId, active: true }, orderBy: { createdAt: 'asc' } })
         : []
+    const submissionReference = mode === 'SUBMIT' ? existing?.referenceNumber || createApplicationReference() : null
     const application = await prisma.$transaction(async (tx) => {
       let saved
       if (existing) {
@@ -262,6 +264,7 @@ export async function POST(request: Request) {
                   internalStatus: 'SUBMITTED',
                   candidateVisibleStatus: 'APPLICATION_RECEIVED',
                   submittedAt: new Date(),
+                  referenceNumber: submissionReference,
                   lockVersion: { increment: 1 },
                 }
               : { lockVersion: { increment: 1 } },
@@ -273,6 +276,7 @@ export async function POST(request: Request) {
           data: {
             candidateId: profile.id,
             vacancyId,
+            referenceNumber: submissionReference,
             internalStatus: mode === 'SUBMIT' ? 'SUBMITTED' : 'DRAFT',
             candidateVisibleStatus: mode === 'DRAFT' ? 'APPLICATION_DRAFT' : 'APPLICATION_RECEIVED',
             submittedAt: mode === 'SUBMIT' ? new Date() : null,

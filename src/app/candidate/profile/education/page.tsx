@@ -14,18 +14,20 @@ type Education = {
   fieldOfStudy: string
   country: string
   startYear: number
-  completionYear: number
+  completionYear: number | null
+  isCurrent: boolean
   grade: string | null
   certificateFileId: string | null
 }
 
 const emptyForm = {
   institution: '',
-  qualification: 'Bachelor Degree',
+  qualification: '',
   fieldOfStudy: '',
-  country: 'Nigeria',
-  startYear: '2018',
-  completionYear: '2022',
+  country: '',
+  startYear: '',
+  completionYear: '',
+  isCurrent: false,
   grade: '',
   certificateFileId: '',
 }
@@ -40,6 +42,7 @@ export default function CandidateEducationPage() {
   const [error, setError] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<Education | null>(null)
   const [certificate, setCertificate] = useState<File | null>(null)
+  const [removeCertificate, setRemoveCertificate] = useState(false)
 
   const loadData = useCallback(async () => {
     const response = await fetch('/api/candidate/profile')
@@ -60,6 +63,8 @@ export default function CandidateEducationPage() {
     setError('')
     setMessage('')
     setShowForm(true)
+    setCertificate(null)
+    setRemoveCertificate(false)
   }
 
   const openEdit = (education: Education) => {
@@ -70,13 +75,16 @@ export default function CandidateEducationPage() {
       fieldOfStudy: education.fieldOfStudy,
       country: education.country,
       startYear: String(education.startYear),
-      completionYear: String(education.completionYear),
+      completionYear: education.completionYear ? String(education.completionYear) : '',
+      isCurrent: education.isCurrent,
       grade: education.grade ?? '',
       certificateFileId: education.certificateFileId ?? '',
     })
     setError('')
     setMessage('')
     setShowForm(true)
+    setCertificate(null)
+    setRemoveCertificate(false)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -85,7 +93,9 @@ export default function CandidateEducationPage() {
     setBusy(true)
     setError('')
     try {
-      let certificateFileId = formData.certificateFileId || undefined
+      let certificateFileId: string | null | undefined = removeCertificate
+        ? null
+        : formData.certificateFileId || undefined
       if (certificate) {
         const uploadData = new FormData()
         uploadData.append('file', certificate)
@@ -107,6 +117,7 @@ export default function CandidateEducationPage() {
       setEditingId(null)
       setFormData(emptyForm)
       setCertificate(null)
+      setRemoveCertificate(false)
       await loadData()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to save education record')
@@ -118,15 +129,18 @@ export default function CandidateEducationPage() {
   const deleteEducation = async (education: Education) => {
     setBusy(true)
     setError('')
-    const response = await fetch(`/api/candidate/education/${education.id}`, { method: 'DELETE' })
-    const body = await response.json()
-    if (!response.ok) setError(body.error || 'Unable to delete education record')
-    else {
+    try {
+      const response = await fetch(`/api/candidate/education/${education.id}`, { method: 'DELETE' })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error || 'Unable to delete education record')
       setMessage('Education record deleted.')
       await loadData()
       setDeleteTarget(null)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to delete education record')
+    } finally {
+      setBusy(false)
     }
-    setBusy(false)
   }
 
   return (
@@ -191,23 +205,26 @@ export default function CandidateEducationPage() {
               </label>
               <label className="text-sm font-medium text-slate-700">
                 Qualification *
-                <select
+                <input
                   aria-label="Qualification"
+                  required
+                  list="qualification-examples"
                   value={formData.qualification}
                   onChange={(e) => setFormData({ ...formData, qualification: e.target.value })}
                   className="mt-1 w-full rounded-lg border border-slate-300 px-4 py-2"
-                >
+                />
+                <datalist id="qualification-examples">
                   {[
                     'Doctorate (PhD)',
-                    'Master Degree',
-                    'Bachelor Degree',
+                    'Master degree',
+                    'Bachelor degree',
                     'Higher National Diploma (HND)',
                     'Ordinary National Diploma (OND)',
+                    'Professional certificate',
+                    'Vocational qualification',
                     'SSCE / O-Level',
-                  ].map((value) => (
-                    <option key={value}>{value}</option>
-                  ))}
-                </select>
+                  ].map((value) => <option key={value} value={value} />)}
+                </datalist>
               </label>
               <label className="text-sm font-medium text-slate-700">
                 Field of Study *
@@ -243,10 +260,10 @@ export default function CandidateEducationPage() {
                 />
               </label>
               <label className="text-sm font-medium text-slate-700">
-                Completion Year *
+                {formData.isCurrent ? 'Expected completion year (optional)' : 'Completion year *'}
                 <input
                   aria-label="Education Completion Year"
-                  required
+                  required={!formData.isCurrent}
                   type="number"
                   min="1900"
                   max="2100"
@@ -254,6 +271,15 @@ export default function CandidateEducationPage() {
                   onChange={(e) => setFormData({ ...formData, completionYear: e.target.value })}
                   className="mt-1 w-full rounded-lg border border-slate-300 px-4 py-2"
                 />
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-700 md:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={formData.isCurrent}
+                  onChange={(event) => setFormData({ ...formData, isCurrent: event.target.checked })}
+                  className="h-4 w-4 accent-brand-700"
+                />
+                I am currently studying for this qualification
               </label>
               <label className="text-sm font-medium text-slate-700 md:col-span-2">
                 Grade
@@ -269,12 +295,32 @@ export default function CandidateEducationPage() {
                 <input
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-                  onChange={(event) => setCertificate(event.target.files?.[0] || null)}
+                  onChange={(event) => {
+                    setCertificate(event.target.files?.[0] || null)
+                    if (event.target.files?.[0]) setRemoveCertificate(false)
+                  }}
                   className="mt-1 block w-full text-sm"
                 />
-                {formData.certificateFileId && !certificate && (
-                  <span className="mt-1 block text-xs font-normal text-emerald-700">
-                    Certificate already attached. Choose a file only to replace it.
+                {formData.certificateFileId && !certificate && !removeCertificate && (
+                  <span className="mt-2 flex flex-wrap items-center gap-3 text-xs font-normal">
+                    <a
+                      href={`/api/assets/download/${formData.certificateFileId}`}
+                      className="font-semibold text-brand-800 underline"
+                    >
+                      View attached certificate
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setRemoveCertificate(true)}
+                      className="font-semibold text-rose-700 underline"
+                    >
+                      Remove certificate
+                    </button>
+                  </span>
+                )}
+                {removeCertificate && (
+                  <span className="mt-1 block text-xs font-semibold text-rose-700">
+                    The current certificate will be removed when you save.
                   </span>
                 )}
               </label>
@@ -315,9 +361,17 @@ export default function CandidateEducationPage() {
                   {education.institution} • {education.country}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {education.startYear} – {education.completionYear}
+                  {education.startYear} – {education.isCurrent ? 'Present' : education.completionYear}
                   {education.grade ? ` • Grade: ${education.grade}` : ''}
                 </p>
+                {education.certificateFileId && (
+                  <a
+                    href={`/api/assets/download/${education.certificateFileId}`}
+                    className="mt-2 inline-flex text-xs font-semibold text-brand-800 underline"
+                  >
+                    View certificate
+                  </a>
+                )}
               </div>
               <div className="flex gap-2">
                 <button

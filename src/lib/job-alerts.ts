@@ -13,6 +13,7 @@ import { logger } from './logger'
 interface Criteria {
   search?: string
   departmentId?: string
+  categoryId?: string
   dutyStationId?: string
   contractType?: string
 }
@@ -69,6 +70,7 @@ export async function sendJobAlerts(now = new Date()) {
         openingAt: { lte: now, gte: since },
         closingAt: { gte: now },
         ...(criteria.departmentId ? { departmentId: criteria.departmentId } : {}),
+        ...(criteria.categoryId ? { categoryId: criteria.categoryId } : {}),
         ...(criteria.dutyStationId ? { dutyStationId: criteria.dutyStationId } : {}),
         ...(criteria.contractType ? { contractType: criteria.contractType } : {}),
         ...(criteria.search

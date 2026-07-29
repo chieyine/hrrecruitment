@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { requireRole, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
+import { canMakeHrManagerDecision } from '@/lib/recruitment-role-policy'
 
 /**
  * Reading and triaging public fraud reports.
@@ -12,8 +13,8 @@ import { logAudit } from '@/lib/audit'
  * notified about them, but nothing ever read them back — the reports
  * accumulated unread and the notification named an id nobody could open.
  *
- * Restricted to HR_MANAGER and SYSTEM_ADMIN: reports name third parties and
- * often contain a reporter's contact details.
+ * Recruitment officers triage incoming reports; HR managers make closure
+ * decisions. Platform administrators receive neither authority.
  */
 
 const STATUSES = ['RECEIVED', 'UNDER_REVIEW', 'ACTIONED', 'DISMISSED'] as const
@@ -21,7 +22,7 @@ const PAGE_SIZE = 50
 
 export async function GET(request: Request) {
   try {
-    await requireRole('HR_MANAGER')
+    await requireRole('RECRUITMENT_OFFICER', 'HR_MANAGER')
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
@@ -68,23 +69,30 @@ export async function GET(request: Request) {
 const patchSchema = z.object({
   id: z.string().uuid(),
   status: z.enum(STATUSES),
-  triageNote: z.string().trim().max(4000).optional(),
+  triageNote: z.string().trim().min(10).max(4000),
 })
 
 export async function PATCH(request: Request) {
   try {
-    const user = await requireRole('HR_MANAGER')
+    const user = await requireRole('RECRUITMENT_OFFICER', 'HR_MANAGER')
     const input = await parseBody(request, patchSchema)
 
     const existing = await prisma.fraudReport.findUnique({ where: { id: input.id } })
     if (!existing) throw new AuthzError('Fraud report not found', 404)
+    const closing = input.status === 'ACTIONED' || input.status === 'DISMISSED'
+    if (closing && !canMakeHrManagerDecision(user.roles)) {
+      throw new AuthzError('An HR manager must close or dismiss a fraud report', 403)
+    }
+    if (['ACTIONED', 'DISMISSED'].includes(existing.status) && !canMakeHrManagerDecision(user.roles)) {
+      throw new AuthzError('Only an HR manager may change a closed fraud report', 403)
+    }
+    if (['ACTIONED', 'DISMISSED'].includes(existing.status)) {
+      throw new AuthzError('Closed fraud reports cannot be changed from this queue', 409)
+    }
+    if (input.status === 'RECEIVED') throw new AuthzError('A report cannot return to New after review has started', 409)
 
     // Closing a report has to say why: this is the accountability record for a
     // confidential channel.
-    if ((input.status === 'ACTIONED' || input.status === 'DISMISSED') && !input.triageNote) {
-      throw new AuthzError('Record what was decided before closing a report', 400)
-    }
-
     const updated = await prisma.fraudReport.update({
       where: { id: input.id },
       data: {

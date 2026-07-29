@@ -44,18 +44,27 @@ export async function GET(request: Request) {
     let applicationWhere: Record<string, unknown> | null = null
     if (applicationScope) {
       if (ranked) {
-        const [candidateHits, skillHits] = await Promise.all([
+        const [candidateHits, skillHits, vacancyHits] = await Promise.all([
           searchCandidates(query, { limit: 100 }),
           searchCandidatesBySkill(query, { limit: 100 }),
+          searchVacancies(query, { limit: 100 }),
         ])
         const candidateIds = [...new Set([...candidateHits.map((hit) => hit.id), ...skillHits.map((hit) => hit.id)])]
+        const vacancyIds = vacancyHits.map((hit) => hit.id)
         applicationWhere = {
           AND: [
             applicationScope,
             {
               OR: [
                 ...(candidateIds.length ? [{ candidateId: { in: candidateIds } }] : []),
+                ...(vacancyIds.length ? [{ vacancyId: { in: vacancyIds } }] : []),
+                { candidate: { primaryPhone: { contains: query } } },
+                { candidate: { alternatePhone: { contains: query } } },
+                { candidate: { user: { email: { contains: query, mode: 'insensitive' } } } },
                 { vacancy: { referenceNumber: { contains: query, mode: 'insensitive' } } },
+                { vacancy: { project: { name: { contains: query, mode: 'insensitive' } } } },
+                { vacancy: { department: { name: { contains: query, mode: 'insensitive' } } } },
+                { vacancy: { dutyStation: { name: { contains: query, mode: 'insensitive' } } } },
                 { erpTransferRecord: { erpPersonnelNumber: { contains: query, mode: 'insensitive' } } },
               ],
             },
@@ -107,7 +116,20 @@ export async function GET(request: Request) {
       vacancyScope
         ? prisma.vacancy.findMany({
             where: ranked
-              ? { AND: [vacancyScope, { id: { in: vacancyIdsByRank } }] }
+              ? {
+                  AND: [
+                    vacancyScope,
+                    {
+                      OR: [
+                        ...(vacancyIdsByRank.length ? [{ id: { in: vacancyIdsByRank } }] : []),
+                        { referenceNumber: { contains: query, mode: 'insensitive' } },
+                        { project: { name: { contains: query, mode: 'insensitive' } } },
+                        { department: { name: { contains: query, mode: 'insensitive' } } },
+                        { dutyStation: { name: { contains: query, mode: 'insensitive' } } },
+                      ],
+                    },
+                  ],
+                }
               : {
                   AND: [
                     vacancyScope,
@@ -132,7 +154,12 @@ export async function GET(request: Request) {
     // Restore relevance order, which the Prisma `in` lookup does not preserve.
     const rankPosition = new Map(vacancyIdsByRank.map((id, index) => [id, index]))
     const orderedVacancies = ranked
-      ? [...vacancies].sort((a, b) => (rankPosition.get(a.id) ?? 999) - (rankPosition.get(b.id) ?? 999))
+      ? [...vacancies].sort(
+          (a, b) =>
+            (rankPosition.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+              (rankPosition.get(b.id) ?? Number.MAX_SAFE_INTEGER) ||
+            a.referenceNumber.localeCompare(b.referenceNumber)
+        )
       : vacancies
 
     const maySeeContact = readAllApplications && !user.roles.includes('AUDITOR')

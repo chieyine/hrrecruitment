@@ -6,22 +6,22 @@ import { z } from 'zod'
 import { parseBody } from '@/lib/validation'
 import { AuthzError } from '@/lib/authz'
 import { findIndependentApprover } from '@/lib/approvals'
-
-const APPROVER_ROLES = ['HR_MANAGER', 'APPROVER', 'SYSTEM_ADMIN']
+import { canApproveRecruitmentResource } from '@/lib/recruitment-role-policy'
 
 // GET → pending approvals, enriched with the underlying selection/candidate.
 export async function GET() {
   try {
     const user = await requireUser()
+    if (user.roles.includes('SYSTEM_ADMIN')) {
+      throw new AuthzError('Recruitment approvals require a separate operational account', 403)
+    }
     const approvals = await prisma.approval.findMany({
-      where: user.roles.includes('SYSTEM_ADMIN')
-        ? { decision: { in: ['PENDING', 'CONDITIONS_PENDING'] } }
-        : {
-            OR: [
-              { decision: 'PENDING', approverUserId: user.userId },
-              { decision: 'CONDITIONS_PENDING', requestedBy: user.userId },
-            ],
-          },
+      where: {
+        OR: [
+          { decision: 'PENDING', approverUserId: user.userId },
+          { decision: 'CONDITIONS_PENDING', requestedBy: user.userId },
+        ],
+      },
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: { conditions: { orderBy: { createdAt: 'asc' } } },
@@ -35,7 +35,10 @@ export async function GET() {
             where: { id: a.resourceId },
             include: {
               application: {
-                include: { candidate: true, vacancy: { select: { title: true } } },
+                include: {
+                  candidate: true,
+                  vacancy: { select: { title: true, referenceNumber: true } },
+                },
               },
             },
           })
@@ -43,10 +46,32 @@ export async function GET() {
             detail = {
               candidate: `${sel.application.candidate.legalFirstName} ${sel.application.candidate.lastName}`,
               vacancy: sel.application.vacancy.title,
-              outcome: sel.outcome,
-              rank: sel.rank,
               overrideFlag: sel.overrideFlag,
               justification: sel.justification,
+              href: `/recruitment/applications/${sel.applicationId}`,
+              hrefLabel: 'Review application',
+              fields: [
+                { label: 'Outcome', value: sel.outcome.replaceAll('_', ' ').toLowerCase() },
+                { label: 'Rank', value: sel.rank ? String(sel.rank) : 'Not ranked' },
+                {
+                  label: 'Final score',
+                  value:
+                    sel.application.finalScore === null || sel.application.finalScore === undefined
+                      ? 'Not calculated'
+                      : `${sel.application.finalScore}%`,
+                },
+                {
+                  label: 'Interview score',
+                  value:
+                    sel.application.interviewScore === null || sel.application.interviewScore === undefined
+                      ? 'Not recorded'
+                      : `${sel.application.interviewScore}%`,
+                },
+                {
+                  label: 'References',
+                  value: sel.application.referenceStatus.replaceAll('_', ' ').toLowerCase(),
+                },
+              ],
             }
           }
         } else if (a.resourceType === 'OFFER') {
@@ -56,7 +81,7 @@ export async function GET() {
               application: {
                 include: {
                   candidate: true,
-                  vacancy: { select: { title: true } },
+                  vacancy: { select: { title: true, referenceNumber: true } },
                 },
               },
             },
@@ -65,21 +90,46 @@ export async function GET() {
             detail = {
               candidate: `${offer.application.candidate.legalFirstName} ${offer.application.candidate.lastName}`,
               vacancy: offer.application.vacancy.title,
-              outcome: `${offer.position} offer`,
-              justification: `Start ${offer.startDate.toLocaleDateString('en-GB')} · response due ${offer.acceptanceDeadline.toLocaleDateString('en-GB')}`,
+              justification: offer.conditions || null,
+              href: `/recruitment/applications/${offer.applicationId}`,
+              hrefLabel: 'Review application',
+              documentHref: `/api/recruitment/offers/${offer.id}/preview`,
+              fields: [
+                { label: 'Position', value: offer.position },
+                { label: 'Duty station', value: offer.dutyStation },
+                {
+                  label: 'Contract',
+                  value: [offer.contractType, offer.contractDuration].filter(Boolean).join(' · '),
+                },
+                { label: 'Compensation', value: offer.salary },
+                { label: 'Start date', value: offer.startDate.toLocaleDateString('en-GB') },
+                { label: 'Response due', value: offer.acceptanceDeadline.toLocaleDateString('en-GB') },
+              ],
             }
           }
         } else if (a.resourceType === 'VACANCY') {
           const vacancy = await prisma.vacancy.findUnique({
             where: { id: a.resourceId },
-            include: { department: { select: { name: true } } },
+            include: {
+              department: { select: { name: true } },
+              dutyStation: { select: { name: true } },
+            },
           })
           if (vacancy) {
             detail = {
               candidate: vacancy.referenceNumber,
               vacancy: vacancy.title,
-              outcome: 'Vacancy publication',
-              justification: `${vacancy.department.name} · closes ${vacancy.closingAt.toLocaleDateString('en-GB')}`,
+              justification: vacancy.summary,
+              href: `/recruitment/vacancies/${vacancy.id}`,
+              hrefLabel: 'Review vacancy',
+              fields: [
+                { label: 'Department', value: vacancy.department.name },
+                { label: 'Duty station', value: vacancy.dutyStation.name },
+                { label: 'Contract', value: vacancy.contractType.replaceAll('_', ' ').toLowerCase() },
+                { label: 'Positions', value: String(vacancy.numberOfPositions) },
+                { label: 'Opens', value: vacancy.openingAt.toLocaleDateString('en-GB') },
+                { label: 'Closes', value: vacancy.closingAt.toLocaleDateString('en-GB') },
+              ],
             }
           }
         }
@@ -97,6 +147,9 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const user = await requireUser()
+    if (user.roles.includes('SYSTEM_ADMIN')) {
+      throw new AuthzError('Recruitment approvals require a separate operational account', 403)
+    }
     const { approvalId, decision, comment, lockVersion, conditionDueAt, conditionOwnerUserId, evidenceFileId } =
       await parseBody(
         request,
@@ -147,12 +200,12 @@ export async function POST(request: Request) {
       })
       return NextResponse.json({ success: true, status: 'RETURNED_TO_APPROVER' })
     }
-    if (!user.roles.some((role) => APPROVER_ROLES.includes(role)))
+    if (!canApproveRecruitmentResource(user.roles, approval.resourceType))
       throw new AuthzError('Approver permission is required', 403)
     if (approval.decision !== 'PENDING') {
       return NextResponse.json({ error: 'This item has already been decided' }, { status: 409 })
     }
-    if (approval.approverUserId !== user.userId && !user.roles.includes('SYSTEM_ADMIN')) {
+    if (approval.approverUserId !== user.userId) {
       throw new AuthzError('This approval is assigned to another approver', 403)
     }
     if (approval.requestedBy === user.userId) {
@@ -169,7 +222,7 @@ export async function POST(request: Request) {
       decision === 'APPROVED' && approval.resourceType === 'SELECTION' && approval.stage === 1
         ? await findIndependentApprover(
             user.userId,
-            ['APPROVER', 'HR_MANAGER', 'SYSTEM_ADMIN'],
+            ['APPROVER', 'HR_MANAGER'],
             approval.requestedBy ? [approval.requestedBy] : []
           )
         : null

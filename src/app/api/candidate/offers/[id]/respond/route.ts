@@ -14,7 +14,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const user = await requireUser()
     const parsed = await parseBody(request, offerResponseSchema)
-    const { action, candidateComment, signatureName, signedFileId, proposedStartDate } = parsed
+    const { action, candidateComment, signatureName, signedFileId, proposedStartDate, declarationAccepted } = parsed
     if (action !== 'CLARIFY' && !request.headers.get('idempotency-key')?.trim())
       throw new AuthzError('Idempotency-Key is required for an offer decision', 400)
     claim = await claimIdempotency({
@@ -49,6 +49,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     if (offer.acceptanceDeadline <= new Date())
       throw new AuthzError('This offer has expired and can no longer be actioned', 409)
+    if (action !== 'CLARIFY' && !offer.offerFileId)
+      throw new AuthzError('The formal offer document is not available. Contact the recruitment team.', 409)
     if (proposedStartDate && proposedStartDate <= new Date())
       throw new AuthzError('Proposed start date must be in the future', 400)
     if (signedFileId) {
@@ -59,6 +61,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
 
     if (action === 'CLARIFY') {
+      const clarificationText =
+        candidateComment?.trim() ||
+        (proposedStartDate
+          ? `I would like to propose ${proposedStartDate.toLocaleDateString('en-GB')} as my start date.`
+          : '')
       const thread = await prisma.messageThread.create({
         data: {
           applicationId: offer.applicationId,
@@ -67,7 +74,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         },
       })
       await prisma.message.create({
-        data: { messageThreadId: thread.id, senderUserId: user.userId, body: candidateComment!.trim() },
+        data: { messageThreadId: thread.id, senderUserId: user.userId, body: clarificationText },
       })
       const app = await prisma.application.findUnique({
         where: { id: offer.applicationId },
@@ -167,6 +174,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         action: 'OFFER_ACCEPTED',
         resourceType: 'Offer',
         resourceId: offer.id,
+        newValue: { declarationAccepted, declarationVersion: 'offer-acceptance-v1' },
       })
 
       const responseBody = { success: true, offer: accepted.offer, preboardingId: accepted.preboarding.id }

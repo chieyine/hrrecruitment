@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    await requireRole('SYSTEM_ADMIN', 'HR_MANAGER')
+    await requireRole('RECRUITMENT_OFFICER', 'HR_MANAGER')
     const [controls, recent] = await Promise.all([
       prisma.automationControl.findMany(),
       prisma.automationActionLog.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }),
@@ -31,7 +31,7 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
-    const user = await requireRole('SYSTEM_ADMIN', 'HR_MANAGER')
+    const user = await requireRole('RECRUITMENT_OFFICER', 'HR_MANAGER')
     const body = await parseBody(
       request,
       z.object({
@@ -41,6 +41,9 @@ export async function PATCH(request: Request) {
         settingsJson: z.string().optional(),
       })
     )
+    if (body.mode === 'ACTIVE' && !user.roles.includes('HR_MANAGER')) {
+      throw new AuthzError('Only an HR manager may reactivate scheduled work', 403)
+    }
     const definition = AUTOMATIONS.find((item) => item.code === body.code)
     if (!definition) throw new AuthzError('Unknown automation', 400)
     if (body.settingsJson) {
@@ -86,7 +89,7 @@ export async function PATCH(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireRole('SYSTEM_ADMIN', 'HR_MANAGER')
+    const user = await requireRole('RECRUITMENT_OFFICER', 'HR_MANAGER')
     const body = await parseBody(
       request,
       z.object({

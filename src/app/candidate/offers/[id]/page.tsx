@@ -1,52 +1,54 @@
 'use client'
 
-import { use, useState, useEffect } from 'react'
+import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ArrowLeft, CheckCircle2, FileSignature, HelpCircle, ShieldCheck } from 'lucide-react'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
-import { formatDate } from '@/lib/utils'
-import { CheckCircle2, ArrowLeft, Download } from 'lucide-react'
+import ControlledDocumentViewer from '@/components/shared/ControlledDocumentViewer'
+import { ReasonDialog } from '@/components/ui/Dialog'
+import { PageIntro } from '@/components/ui/PageElements'
+import { formatDate, formatDateTime, getStatusBadgeClass } from '@/lib/utils'
 
 export default function CandidateOfferPage(props: { params: Promise<{ id: string }> }) {
   const params = use(props.params)
   const router = useRouter()
-
   const [offer, setOffer] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [signatureName, setSignatureName] = useState('')
+  const [acceptedDeclaration, setAcceptedDeclaration] = useState(false)
+  const [comment, setComment] = useState('')
+  const [proposedStartDate, setProposedStartDate] = useState('')
+  const [minDate] = useState(() => new Date(Date.now() + 86_400_000).toISOString().slice(0, 10))
+  const [signedCopy, setSignedCopy] = useState<File | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [declineOpen, setDeclineOpen] = useState(false)
+  const [message, setMessage] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
     let active = true
     fetch(`/api/candidate/offers/${params.id}`)
-      .then(async (res) => {
-        const json = await res.json()
-        if (!res.ok) throw new Error(json.error || 'Failed to load offer')
-        if (active) setOffer(json.offer)
+      .then(async (response) => {
+        const body = await response.json()
+        if (!response.ok) throw new Error(body.error || 'Could not load your offer.')
+        if (active) setOffer(body.offer)
       })
-      .catch((e) => active && setLoadError(e.message))
+      .catch((error) => active && setLoadError(error instanceof Error ? error.message : 'Could not load your offer.'))
       .finally(() => active && setLoading(false))
     return () => {
       active = false
     }
   }, [params.id])
 
-  const [signatureName, setSignatureName] = useState('')
-  const [comment, setComment] = useState('')
-  const [proposedStartDate, setProposedStartDate] = useState('')
-  const [minDate] = useState(() => new Date(Date.now() + 86_400_000).toISOString().slice(0, 10))
-  const [signedCopy, setSignedCopy] = useState<File | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [msg, setMsg] = useState('')
-  const [errMsg, setErrMsg] = useState('')
-
-  const handleRespond = async (action: 'ACCEPT' | 'DECLINE' | 'CLARIFY') => {
-    setErrMsg('')
-    if (action === 'ACCEPT' && !signatureName.trim()) {
-      setErrMsg('Please type your full legal name as your digital signature to accept the offer.')
+  async function respond(action: 'ACCEPT' | 'DECLINE' | 'CLARIFY', responseComment = comment) {
+    setErrorMessage('')
+    if (action === 'ACCEPT' && (!signatureName.trim() || !acceptedDeclaration)) {
+      setErrorMessage('Read the offer, confirm the declaration and type your full legal name.')
       return
     }
-
     setSubmitting(true)
     try {
       let signedFileId: string | undefined
@@ -56,10 +58,10 @@ export default function CandidateOfferPage(props: { params: Promise<{ id: string
         form.set('sensitivityClass', 'CONFIDENTIAL')
         const upload = await fetch('/api/assets/upload', { method: 'POST', body: form })
         const uploaded = await upload.json()
-        if (!upload.ok) throw new Error(uploaded.error || 'Signed-copy upload failed')
+        if (!upload.ok) throw new Error(uploaded.error || 'The signed copy could not be uploaded.')
         signedFileId = uploaded.fileAssetId
       }
-      const res = await fetch(`/api/candidate/offers/${params.id}/respond`, {
+      const response = await fetch(`/api/candidate/offers/${params.id}/respond`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -67,25 +69,30 @@ export default function CandidateOfferPage(props: { params: Promise<{ id: string
         },
         body: JSON.stringify({
           action,
-          signatureName: action === 'ACCEPT' ? signatureName : undefined,
-          candidateComment: comment,
+          signatureName: action === 'ACCEPT' ? signatureName.trim() : undefined,
+          declarationAccepted: action === 'ACCEPT' ? acceptedDeclaration : undefined,
+          candidateComment: responseComment,
           signedFileId,
           proposedStartDate: action === 'CLARIFY' && proposedStartDate ? proposedStartDate : undefined,
         }),
       })
-      const body = await res.json()
-      if (!res.ok) throw new Error(body.error || 'Offer response failed')
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error || 'Your response could not be recorded.')
 
       if (action === 'ACCEPT') {
-        setMsg('Congratulations! Offer accepted. Your preboarding package and clearance checklist have been activated.')
-        setTimeout(() => router.push('/candidate/preboarding'), 2000)
+        setMessage('Offer accepted. Your before-you-start checklist is ready.')
+        setOffer({ ...offer, status: 'ACCEPTED' })
       } else if (action === 'CLARIFY') {
-        setMsg('Your clarification or proposed start date has been sent to HR. The offer remains open.')
+        setMessage('Your question has been sent. The offer remains open while the recruitment team replies.')
+        setComment('')
+        setProposedStartDate('')
       } else {
-        setMsg('Offer response recorded. Thank you for your feedback.')
+        setMessage('Your decision has been recorded.')
+        setOffer({ ...offer, status: 'DECLINED' })
+        setDeclineOpen(false)
       }
     } catch (error) {
-      setErrMsg(error instanceof Error ? error.message : 'Offer response failed')
+      setErrorMessage(error instanceof Error ? error.message : 'Your response could not be recorded.')
     } finally {
       setSubmitting(false)
     }
@@ -93,10 +100,10 @@ export default function CandidateOfferPage(props: { params: Promise<{ id: string
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col bg-slate-50">
+      <div className="flex min-h-screen flex-col bg-stone-50">
         <Header />
-        <main id="main-content" className="flex-1 flex items-center justify-center">
-          <p className="text-xs text-slate-500 font-semibold">Loading your offer…</p>
+        <main id="main-content" className="grid flex-1 place-items-center">
+          <p className="text-sm font-medium text-stone-500">Preparing your offer…</p>
         </main>
         <Footer />
       </div>
@@ -105,16 +112,14 @@ export default function CandidateOfferPage(props: { params: Promise<{ id: string
 
   if (loadError || !offer) {
     return (
-      <div className="flex min-h-screen flex-col bg-slate-50">
+      <div className="flex min-h-screen flex-col bg-stone-50">
         <Header />
-        <main id="main-content" className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-sm font-semibold text-rose-700">{loadError || 'Offer not found.'}</p>
-            <Link
-              href="/candidate/offers"
-              className="mt-3 inline-block text-xs font-semibold text-brand-600 hover:underline"
-            >
-              Back to offers
+        <main id="main-content" className="grid flex-1 place-items-center px-4">
+          <div className="max-w-md text-center">
+            <h1 className="text-xl font-semibold text-navy-900">We could not open this offer</h1>
+            <p className="mt-2 text-sm text-stone-600">{loadError || 'The offer is unavailable.'}</p>
+            <Link href="/candidate/applications" className="btn-secondary mt-5">
+              Back to applications
             </Link>
           </div>
         </main>
@@ -123,227 +128,239 @@ export default function CandidateOfferPage(props: { params: Promise<{ id: string
     )
   }
 
-  return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
-      <Header />
+  const openForResponse =
+    ['SENT', 'VIEWED'].includes(offer.status) && new Date(offer.acceptanceDeadline).getTime() > Date.now()
+  const displayStatus = ['SENT', 'VIEWED'].includes(offer.status) && !openForResponse ? 'EXPIRED' : String(offer.status)
+  const offerReference = `FRAD-OFFER-${String(offer.id).slice(0, 8).toUpperCase()}`
+  const terms = [
+    ['Position', offer.position],
+    ['Duty station', offer.dutyStation],
+    ['Contract', [offer.contractType, offer.contractDuration].filter(Boolean).join(' · ')],
+    ['Compensation', offer.salary],
+    ['Start date', formatDate(offer.startDate)],
+    ['End date', offer.endDate ? formatDate(offer.endDate) : null],
+    ['Probation', offer.probationPeriod],
+    ['Reports to', offer.reportingLine],
+  ].filter((item) => item[1])
 
-      <main id="main-content" className="flex-1 py-10">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 space-y-8">
+  return (
+    <div className="flex min-h-screen flex-col bg-surface-50">
+      <Header />
+      <main id="main-content" className="flex-1 py-7 sm:py-9">
+        <div className="page-shell max-w-7xl space-y-6">
           <Link
-            href="/candidate/dashboard"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600 transition-colors"
+            href="/candidate/applications"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-600 hover:text-brand-800"
           >
-            <ArrowLeft className="h-4 w-4" /> Back to Dashboard
+            <ArrowLeft className="h-4 w-4" /> Applications
           </Link>
 
-          {msg && (
+          <PageIntro
+            eyebrow="Your application"
+            title="Offer"
+            description={`${offer.position} · ${offer.dutyStation}`}
+            actions={
+              <div className="text-right">
+                <span className={`status-chip ${getStatusBadgeClass(displayStatus)}`}>
+                  {displayStatus
+                    .replaceAll('_', ' ')
+                    .toLowerCase()
+                    .replace(/^./, (letter) => letter.toUpperCase())}
+                </span>
+                <p className="mt-2 text-xs font-semibold text-stone-500">
+                  Respond by {formatDateTime(offer.acceptanceDeadline)}
+                </p>
+              </div>
+            }
+          />
+
+          {message && (
             <div
               role="status"
-              className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-xs font-bold text-emerald-800 flex items-center gap-2"
+              className="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"
             >
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <span>{msg}</span>
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-700" />
+              <p className="font-semibold">{message}</p>
             </div>
           )}
-          {errMsg && (
-            <div
+          {errorMessage && (
+            <p
               role="alert"
-              className="rounded-xl bg-rose-50 border border-rose-200 p-4 text-xs font-bold text-rose-800"
+              className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800"
             >
-              {errMsg}
-            </div>
+              {errorMessage}
+            </p>
           )}
 
-          {/* Offer Letter Container */}
-          <div className="rounded-2xl bg-white p-8 border border-slate-200 shadow-xl space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-6">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                  Official Offer of Employment
-                </span>
-                <h1 className="text-2xl font-extrabold text-slate-900 mt-2">{offer.position}</h1>
-                <p className="text-xs text-slate-500">FRAD Human Resources • {offer.dutyStation}</p>
-              </div>
-
-              <div className="text-xs text-right text-slate-500">
-                <span>Acceptance Deadline:</span>
-                <span className="block font-bold text-rose-600">{formatDate(offer.acceptanceDeadline)}</span>
-                {offer.offerFileId && (
-                  <a
-                    href={`/api/assets/download/${offer.offerFileId}`}
-                    className="mt-2 inline-flex items-center gap-1 font-bold text-brand-700 hover:underline"
-                  >
-                    <Download className="h-3.5 w-3.5" /> Download offer PDF
-                  </a>
-                )}
-              </div>
-            </div>
-
-            {/* Offer Terms Breakdown */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-5 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
-              <div>
-                <span className="block text-slate-400">Position Title</span>
-                <span className="font-bold text-slate-900">{offer.position}</span>
-              </div>
-
-              <div>
-                <span className="block text-slate-400">Duty Station</span>
-                <span className="font-bold text-slate-900">{offer.dutyStation}</span>
-              </div>
-
-              <div>
-                <span className="block text-slate-400">Contract Type</span>
-                <span className="font-bold text-slate-900">{offer.contractType}</span>
-              </div>
-
-              <div>
-                <span className="block text-slate-400">Approved compensation</span>
-                <span className="font-bold text-emerald-700 font-mono text-sm">{offer.salary}</span>
-              </div>
-
-              <div>
-                <span className="block text-slate-400">Proposed Start Date</span>
-                <span className="font-bold text-slate-900">{formatDate(offer.startDate)}</span>
-              </div>
-
-              <div>
-                <span className="block text-slate-400">Probationary Period</span>
-                <span className="font-bold text-slate-900">{offer.probationPeriod || 'Not specified'}</span>
-              </div>
-              {offer.contractDuration && (
-                <div>
-                  <span className="block text-slate-400">Contract duration</span>
-                  <span className="font-bold text-slate-900">{offer.contractDuration}</span>
-                </div>
-              )}
-              {offer.endDate && (
-                <div>
-                  <span className="block text-slate-400">Contract end date</span>
-                  <span className="font-bold text-slate-900">{formatDate(offer.endDate)}</span>
-                </div>
-              )}
-              {offer.reportingLine && (
-                <div>
-                  <span className="block text-slate-400">Reports to</span>
-                  <span className="font-bold text-slate-900">{offer.reportingLine}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Offer Letter Text */}
-            <div className="space-y-3 text-xs text-slate-700 leading-relaxed bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
-              {String(offer.renderedBody || '')
-                .split('\n')
-                .filter(Boolean)
-                .map((paragraph: string, index: number) => (
-                  <p key={index}>{paragraph}</p>
-                ))}
-              {offer.conditions && (
-                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                  <strong className="block text-amber-900">Conditions of this offer</strong>
-                  <p className="mt-1 whitespace-pre-line">{offer.conditions}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Acceptance Signature Input */}
-            <div className="space-y-4 pt-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-2">
-                Digital Offer Acceptance Signature
-              </h3>
-
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="block font-bold text-slate-900 mb-1">
-                    Full Legal Name (Digital Signature) <span className="text-rose-600">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={signatureName}
-                    onChange={(e) => setSignatureName(e.target.value)}
-                    placeholder="Type your full legal name..."
-                    className="w-full rounded-xl border border-slate-300 p-2.5 font-semibold text-slate-900 focus:border-brand-600 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-900 mb-1">Comments / Counter Proposal (Optional)</label>
-                  <textarea
-                    rows={2}
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="Any notes regarding proposed start date or logistics..."
-                    className="w-full rounded-xl border border-slate-300 p-2.5 focus:border-brand-600 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="proposed-start-date" className="block font-bold text-slate-900 mb-1">
-                    Alternate proposed start date (Optional)
-                  </label>
-                  <input
-                    id="proposed-start-date"
-                    type="date"
-                    min={minDate}
-                    value={proposedStartDate}
-                    onChange={(event) => setProposedStartDate(event.target.value)}
-                    className="w-full rounded-xl border border-slate-300 p-2.5 focus:border-brand-600 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="signed-offer-copy" className="block font-bold text-slate-900 mb-1">
-                    Signed offer PDF (Optional)
-                  </label>
-                  <input
-                    id="signed-offer-copy"
-                    type="file"
-                    accept=".pdf,application/pdf"
-                    onChange={(event) => setSignedCopy(event.target.files?.[0] || null)}
-                    className="block w-full text-xs"
-                  />
-                </div>
-              </div>
-
-              {['SENT', 'VIEWED'].includes(offer.status) ? (
-                <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => handleRespond('DECLINE')}
-                    disabled={submitting}
-                    className="rounded-xl border border-rose-300 bg-rose-50 px-5 py-2.5 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors"
-                  >
-                    Decline Offer
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleRespond('CLARIFY')}
-                    disabled={submitting || (!comment.trim() && !proposedStartDate)}
-                    className="rounded-xl border border-brand-300 bg-brand-50 px-5 py-2.5 text-xs font-bold text-brand-700 disabled:opacity-50"
-                  >
-                    Request clarification / propose date
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleRespond('ACCEPT')}
-                    disabled={submitting}
-                    className="flex items-center gap-2 rounded-xl bg-emerald-600 px-8 py-3 text-sm font-bold text-white shadow-lg hover:bg-emerald-700 disabled:opacity-50 transition-all"
-                  >
-                    <CheckCircle2 className="h-5 w-5" />
-                    {submitting ? 'Processing...' : 'Accept Offer & Begin Preboarding'}
-                  </button>
-                </div>
-              ) : (
-                <p className="rounded-xl bg-slate-100 p-3 text-xs font-bold text-slate-700">
-                  This offer is {offer.status.toLowerCase().replace(/_/g, ' ')} and can no longer be changed.
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+            {offer.offerFileId ? (
+              <ControlledDocumentViewer
+                fileId={offer.offerFileId}
+                title={`Offer of employment — ${offer.position}`}
+                reference={offerReference}
+                issuedLabel={offer.sentAt ? `Issued ${formatDate(offer.sentAt)}` : undefined}
+              />
+            ) : (
+              <section className="section-panel px-6 py-14 text-center">
+                <FileSignature className="mx-auto h-8 w-8 text-brand-700" />
+                <h2 className="mt-3 text-lg font-semibold text-navy-900">Your document is being prepared</h2>
+                <p className="mx-auto mt-2 max-w-md text-sm text-stone-600">
+                  The recruitment team has not attached the final PDF yet. Contact them before recording a decision.
                 </p>
+              </section>
+            )}
+
+            <aside className="space-y-5 xl:sticky xl:top-24">
+              <section className="section-panel">
+                <div className="section-heading">
+                  <div>
+                    <h2 className="font-semibold text-navy-900">Offer at a glance</h2>
+                    <p className="mt-1 text-xs text-stone-500">The signed PDF remains the formal record.</p>
+                  </div>
+                </div>
+                <dl className="divide-y divide-stone-100 px-5">
+                  {terms.map(([label, value]) => (
+                    <div key={String(label)} className="py-3">
+                      <dt className="text-xs font-semibold text-stone-500">{label}</dt>
+                      <dd className="mt-1 text-sm font-semibold text-navy-900">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+
+              {openForResponse ? (
+                <section className="section-panel p-5">
+                  <div className="flex items-start gap-3">
+                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-brand-700" />
+                    <div>
+                      <h2 className="font-semibold text-navy-900">Record your decision</h2>
+                      <p className="mt-1 text-xs leading-5 text-stone-600">
+                        Read the full PDF before accepting. Your name, time, account and response are retained with the
+                        offer record.
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="mt-5 flex items-start gap-3 text-sm text-stone-700">
+                    <input
+                      type="checkbox"
+                      checked={acceptedDeclaration}
+                      onChange={(event) => setAcceptedDeclaration(event.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-stone-300"
+                    />
+                    <span>I have read this offer and agree to its terms.</span>
+                  </label>
+                  <label className="mt-4 block">
+                    <span className="field-label">Full legal name</span>
+                    <input
+                      value={signatureName}
+                      onChange={(event) => setSignatureName(event.target.value)}
+                      autoComplete="name"
+                      className="field-control"
+                      placeholder={offer.candidateName}
+                    />
+                  </label>
+
+                  <details className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3">
+                    <summary className="cursor-pointer text-xs font-semibold text-stone-700">
+                      Upload a separately signed copy
+                    </summary>
+                    <p className="mt-2 text-xs leading-5 text-stone-500">
+                      Only use this if FRAD asked you to sign the PDF outside the platform.
+                    </p>
+                    <input
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      onChange={(event) => setSignedCopy(event.target.files?.[0] || null)}
+                      className="mt-3 block w-full text-xs"
+                    />
+                  </details>
+
+                  <button
+                    type="button"
+                    onClick={() => void respond('ACCEPT')}
+                    disabled={submitting || !offer.offerFileId || !acceptedDeclaration || !signatureName.trim()}
+                    className="btn-primary mt-5 w-full"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    {submitting ? 'Recording…' : 'Accept offer'}
+                  </button>
+
+                  <div className="mt-5 border-t border-stone-200 pt-5">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-navy-900">
+                      <HelpCircle className="h-4 w-4 text-brand-700" /> Need clarification?
+                    </h3>
+                    <textarea
+                      rows={3}
+                      value={comment}
+                      onChange={(event) => setComment(event.target.value)}
+                      placeholder="Write your question"
+                      className="field-control mt-3"
+                    />
+                    <label className="mt-3 block">
+                      <span className="field-label">Alternative start date, if relevant</span>
+                      <input
+                        type="date"
+                        min={minDate}
+                        value={proposedStartDate}
+                        onChange={(event) => setProposedStartDate(event.target.value)}
+                        className="field-control"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void respond('CLARIFY')}
+                      disabled={submitting || (!comment.trim() && !proposedStartDate)}
+                      className="btn-secondary mt-3 w-full"
+                    >
+                      Send question
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setDeclineOpen(true)}
+                    disabled={submitting}
+                    className="mt-5 w-full text-sm font-semibold text-rose-700 underline underline-offset-4"
+                  >
+                    Decline this offer
+                  </button>
+                </section>
+              ) : (
+                <section className="section-panel p-5">
+                  <h2 className="font-semibold text-navy-900">Decision recorded</h2>
+                  <p className="mt-2 text-sm text-stone-600">
+                    This offer is {displayStatus.toLowerCase().replaceAll('_', ' ')} and can no longer be changed here.
+                  </p>
+                  {offer.status === 'ACCEPTED' && (
+                    <button
+                      type="button"
+                      onClick={() => router.push('/candidate/preboarding')}
+                      className="btn-primary mt-5 w-full"
+                    >
+                      Continue to starting steps
+                    </button>
+                  )}
+                </section>
               )}
-            </div>
+            </aside>
           </div>
         </div>
       </main>
-
       <Footer />
+
+      <ReasonDialog
+        open={declineOpen}
+        onClose={() => setDeclineOpen(false)}
+        onConfirm={(reason) => respond('DECLINE', reason)}
+        title="Decline this offer?"
+        description="This closes the offer. Share a brief reason so the recruitment team has an accurate record."
+        confirmLabel="Decline offer"
+        reasonLabel="Reason"
+        reasonRequired
+        tone="danger"
+        busy={submitting}
+      />
     </div>
   )
 }

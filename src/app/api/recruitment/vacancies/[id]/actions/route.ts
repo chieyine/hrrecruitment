@@ -6,19 +6,10 @@ import { parseBody } from '@/lib/validation'
 import { canTransitionVacancy } from '@/lib/state-machine'
 import { logAudit } from '@/lib/audit'
 import { findIndependentApprover } from '@/lib/approvals'
+import { canMakeHrManagerDecision } from '@/lib/recruitment-role-policy'
 
 const schema = z.object({
-  action: z.enum([
-    'SUBMIT_APPROVAL',
-    'APPROVE',
-    'PUBLISH',
-    'PAUSE',
-    'RESUME',
-    'EXTEND',
-    'CLOSE',
-    'CANCEL',
-    'DUPLICATE',
-  ]),
+  action: z.enum(['SUBMIT_APPROVAL', 'PUBLISH', 'PAUSE', 'RESUME', 'EXTEND', 'CLOSE', 'CANCEL', 'DUPLICATE']),
   reason: z.string().max(2000).optional(),
   closingAt: z.coerce.date().optional(),
   referenceNumber: z.string().trim().max(80).optional(),
@@ -37,9 +28,19 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     let result: unknown
     if (input.action === 'SUBMIT_APPROVAL') {
-      const approverUserId = await findIndependentApprover(user.userId)
+      if (vacancy.ownerUserId !== user.userId && !canMakeHrManagerDecision(user.roles))
+        return NextResponse.json(
+          { error: 'Only the vacancy owner or an HR manager can submit this draft' },
+          { status: 403 }
+        )
+      const approverUserId = await findIndependentApprover(user.userId, ['HR_MANAGER'])
       if (!canTransitionVacancy(vacancy.status, 'PENDING_APPROVAL'))
         return NextResponse.json({ error: `Cannot submit from ${vacancy.status}` }, { status: 422 })
+      if (!vacancy.preboardingPackageId)
+        return NextResponse.json(
+          { error: 'Choose the preboarding package candidates will receive after accepting an offer' },
+          { status: 422 }
+        )
       result = await prisma.$transaction([
         prisma.vacancy.update({ where: { id: vacancy.id }, data: { status: 'PENDING_APPROVAL' } }),
         prisma.approval.create({
@@ -53,34 +54,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           },
         }),
       ])
-    } else if (input.action === 'APPROVE') {
-      await requireRole('HR_MANAGER', 'APPROVER', 'SYSTEM_ADMIN')
-      if (vacancy.ownerUserId === user.userId)
-        return NextResponse.json({ error: 'The vacancy owner cannot approve their own vacancy' }, { status: 409 })
-      const approval = await prisma.approval.findFirst({
-        where: { resourceType: 'VACANCY', resourceId: vacancy.id, decision: 'PENDING' },
-        orderBy: { id: 'desc' },
-      })
-      if (!approval) return NextResponse.json({ error: 'No pending vacancy approval exists' }, { status: 409 })
-      if (approval.requestedBy === user.userId)
-        return NextResponse.json(
-          { error: 'The person who submitted the approval request cannot approve it' },
-          { status: 409 }
-        )
-      if (approval.approverUserId !== user.userId && !user.roles.includes('SYSTEM_ADMIN'))
-        return NextResponse.json({ error: 'This approval is assigned to another approver' }, { status: 403 })
-      const approvalResult = await prisma.approval.updateMany({
-        where: { id: approval.id, decision: 'PENDING', lockVersion: approval.lockVersion },
-        data: {
-          decision: 'APPROVED',
-          decidedAt: new Date(),
-          comment: input.reason || null,
-          lockVersion: { increment: 1 },
-        },
-      })
-      if (approvalResult.count !== 1)
-        return NextResponse.json({ error: 'This approval changed; refresh and try again' }, { status: 409 })
-      result = approvalResult
     } else if (input.action === 'PUBLISH') {
       const approval = await prisma.approval.findFirst({
         where: {
@@ -183,10 +156,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     } else {
       const target: Record<string, string> = { PAUSE: 'PAUSED', RESUME: 'OPEN', CLOSE: 'CLOSED', CANCEL: 'CANCELLED' }
       const status = target[input.action]
+      if (input.action === 'CANCEL') await requireRole('HR_MANAGER')
       if (!canTransitionVacancy(vacancy.status, status))
         return NextResponse.json({ error: `Cannot transition ${vacancy.status} to ${status}` }, { status: 422 })
       if (input.action === 'CANCEL' && !input.reason?.trim())
         return NextResponse.json({ error: 'Cancellation reason is required' }, { status: 400 })
+      if (input.action === 'PAUSE' && !input.reason?.trim())
+        return NextResponse.json({ error: 'A reason is required to pause applications' }, { status: 400 })
       result = await prisma.vacancy.update({ where: { id: vacancy.id }, data: { status } })
     }
 

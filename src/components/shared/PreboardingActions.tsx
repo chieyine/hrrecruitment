@@ -391,6 +391,68 @@ export function SimpleAction({
   )
 }
 
+export function MeetingResponseAction({ resourceId }: { resourceId: string }) {
+  const router = useRouter()
+  const [response, setResponse] = useState('CONFIRMED')
+  const [reason, setReason] = useState('')
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const needsReason = response === 'DECLINED' || response === 'RESCHEDULE_REQUESTED'
+
+  const submit = async () => {
+    setBusy(true)
+    setMessage('')
+    try {
+      await postAction('MEETING_RESPOND', resourceId, { response, reason: reason.trim() || undefined })
+      setMessage('Your response was sent.')
+      router.refresh()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Your response could not be sent.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-4 max-w-xl space-y-3 border-t border-stone-200 pt-4">
+      <label className="field-label">
+        Your response
+        <select value={response} onChange={(event) => setResponse(event.target.value)} className="field-control">
+          <option value="CONFIRMED">I will attend</option>
+          <option value="RESCHEDULE_REQUESTED">I need another time</option>
+          <option value="DECLINED">I cannot attend</option>
+        </select>
+      </label>
+      {needsReason && (
+        <label className="field-label">
+          Reason *
+          <textarea
+            required
+            rows={3}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            className="field-control"
+            placeholder="Give the recruitment team enough information to respond."
+          />
+        </label>
+      )}
+      <button
+        type="button"
+        onClick={submit}
+        disabled={busy || (needsReason && reason.trim().length < 3)}
+        className="btn-primary"
+      >
+        {busy ? 'Sending…' : 'Send response'}
+      </button>
+      {message && (
+        <p role={/could not|required|error/i.test(message) ? 'alert' : 'status'} className="text-xs text-stone-700">
+          {message}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function PolicyAction({ resourceId, method }: { resourceId: string; method: string }) {
   const router = useRouter()
   const [typedName, setTypedName] = useState('')

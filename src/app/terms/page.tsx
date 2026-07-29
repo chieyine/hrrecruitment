@@ -36,13 +36,13 @@ const sections = [
   {
     title: 'Availability and changes',
     paragraphs: [
-      'FRAD may close the portal briefly for maintenance or security work. Important changes to these terms will be dated and published here. Continued use after a change means the new terms apply to later activity.',
+      'FRAD may close the service briefly for maintenance or security work. Changes to these terms will show a new effective date. FRAD will give additional notice where a change materially affects an account or active application.',
     ],
   },
   {
     title: 'Questions and concerns',
     paragraphs: [
-      'Use the candidate help pages for routine questions. Use the concern service if you need to raise a complaint, appeal, safeguarding matter, privacy issue or suspected fraud.',
+      'Use candidate help or Messages for routine questions. Use the concern service for a complaint, appeal, safeguarding matter or privacy issue. Use the separate fraud form if someone impersonates FRAD or asks you to pay for a role.',
     ],
   },
 ]
@@ -54,7 +54,7 @@ export default async function TermsPage() {
       user={user}
       eyebrow="Using this service"
       title="Terms of use"
-      summary="These terms set out what FRAD expects when you use the recruitment and preboarding service."
+      summary="These terms apply when you use FRAD recruitment, including the steps before your first day."
       version="Version 2026-07 · Effective 22 July 2026"
       sections={sections}
     />

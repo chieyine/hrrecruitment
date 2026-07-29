@@ -14,10 +14,11 @@ export async function setup() {
     )
   }
   process.env.DATABASE_URL = databaseUrl
+  process.env.DIRECT_URL = databaseUrl
 
   console.log('Applying schema to the configured PostgreSQL integration database...')
   execSync('npx prisma db push --accept-data-loss', {
-    env: { ...process.env, DATABASE_URL: databaseUrl },
+    env: { ...process.env, DATABASE_URL: databaseUrl, DIRECT_URL: databaseUrl },
     stdio: 'inherit',
   })
 }

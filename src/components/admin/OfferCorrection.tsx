@@ -18,11 +18,11 @@ export default function OfferCorrection({
   offerId,
   status,
   current,
+  initiallyOpen = false,
 }: {
   offerId: string
   status: string
   current: {
-    position: string
     salary: string
     startDate: string
     endDate: string | null
@@ -32,12 +32,12 @@ export default function OfferCorrection({
     conditions: string | null
     contractDuration: string | null
   }
+  initiallyOpen?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(initiallyOpen)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [form, setForm] = useState({
-    position: current.position,
     salary: current.salary,
     startDate: current.startDate.slice(0, 10),
     endDate: current.endDate?.slice(0, 10) ?? '',
@@ -58,7 +58,6 @@ export default function OfferCorrection({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          position: form.position,
           salary: form.salary,
           startDate: new Date(form.startDate).toISOString(),
           endDate: form.endDate ? new Date(form.endDate).toISOString() : null,
@@ -120,7 +119,6 @@ export default function OfferCorrection({
       </p>
 
       <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {field('position', 'Position')}
         {field('salary', 'Approved compensation')}
         {field('contractDuration', 'Contract duration')}
         {field('startDate', 'Start date', 'date')}
@@ -142,7 +140,7 @@ export default function OfferCorrection({
       <button
         type="button"
         onClick={submit}
-        disabled={busy || !form.position || !form.salary || !form.startDate || !form.acceptanceDeadline}
+        disabled={busy || !form.salary || !form.startDate || !form.acceptanceDeadline}
         className="mt-3 inline-flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
       >
         {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}

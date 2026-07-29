@@ -14,7 +14,7 @@ import { homeRouteForRoles } from '@/lib/home-route'
  * replayable state/verifier/nonce behind for the rest of its 10-minute life.
  */
 function clearSsoCookies(response: NextResponse) {
-  for (const name of ['frad_sso_state', 'frad_sso_verifier', 'frad_sso_nonce']) {
+  for (const name of ['frad_sso_state', 'frad_sso_verifier', 'frad_sso_nonce', 'frad_sso_next']) {
     response.cookies.set(name, '', { path: '/api/auth/sso', maxAge: 0 })
   }
 }
@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
       state = request.nextUrl.searchParams.get('state')
     const storedState = request.cookies.get('frad_sso_state')?.value,
       verifier = request.cookies.get('frad_sso_verifier')?.value,
-      nonce = request.cookies.get('frad_sso_nonce')?.value
+      nonce = request.cookies.get('frad_sso_nonce')?.value,
+      requested = request.cookies.get('frad_sso_next')?.value
     if (!code || !verifier || !nonce || !secureEqual(state, storedState))
       throw new Error('Invalid or expired SSO response')
     const environment = oidcEnvironment(),
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
       sessionVersion: user.sessionVersion,
     })
     await logAudit({ actorUserId: user.id, action: 'STAFF_SSO_LOGIN', resourceType: 'User', resourceId: user.id })
-    const home = homeRouteForRoles(roles)
+    const home = requested?.startsWith('/') && !requested.startsWith('//') ? requested : homeRouteForRoles(roles)
     const response = attachSession(NextResponse.redirect(new URL(home, request.url)), token)
     clearSsoCookies(response)
     return response
@@ -92,6 +93,8 @@ export async function GET(request: NextRequest) {
     // be reflected back through the query string.
     logger.error('Staff SSO callback failed', { error: error instanceof Error ? error.message : String(error) })
     login.searchParams.set('error', 'sso_failed')
+    const requested = request.cookies.get('frad_sso_next')?.value
+    if (requested?.startsWith('/') && !requested.startsWith('//')) login.searchParams.set('next', requested)
     const response = NextResponse.redirect(login)
     clearSsoCookies(response)
     return response

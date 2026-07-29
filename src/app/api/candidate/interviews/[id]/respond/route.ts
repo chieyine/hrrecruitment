@@ -11,10 +11,20 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const user = await requireUser()
     const input = await parseBody(
       request,
-      z.object({
-        response: z.enum(['CONFIRMED', 'RESCHEDULE_REQUESTED', 'DECLINED']),
-        comment: z.string().max(2000).optional(),
-      })
+      z
+        .object({
+          response: z.enum(['CONFIRMED', 'RESCHEDULE_REQUESTED', 'DECLINED']),
+          comment: z.string().trim().max(2000).optional(),
+        })
+        .superRefine((value, context) => {
+          if (value.response === 'RESCHEDULE_REQUESTED' && !value.comment) {
+            context.addIssue({
+              code: 'custom',
+              path: ['comment'],
+              message: 'Tell us why you need another time',
+            })
+          }
+        })
     )
     const interview = await prisma.interview.findUnique({
       where: { id: params.id },

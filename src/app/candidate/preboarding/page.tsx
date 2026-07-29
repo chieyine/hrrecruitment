@@ -4,8 +4,19 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
-import { FileText, Upload, Shield, BookOpen, MapPin, CheckSquare, Calendar, Info } from 'lucide-react'
-import { PageIntro } from '@/components/ui/PageElements'
+import {
+  ArrowRight,
+  BookOpen,
+  Calendar,
+  CheckSquare,
+  FileText,
+  Info,
+  MapPin,
+  Shield,
+  Upload,
+  BriefcaseBusiness,
+} from 'lucide-react'
+import { EmptyState, PageIntro } from '@/components/ui/PageElements'
 
 const EMPTY = {
   id: '',
@@ -14,6 +25,8 @@ const EMPTY = {
   confirmedStartDate: null,
   proposedStartDate: null,
   reportingLocation: '',
+  vacancyTitle: '',
+  vacancyReference: '',
   forms: [],
   documents: [],
   policies: [],
@@ -28,13 +41,14 @@ export default function CandidatePreboardingPage() {
   const [loading, setLoading] = useState(true)
   const [startDate, setStartDate] = useState('')
   const [notice, setNotice] = useState('')
-  const groupComplete = (items: any[], complete: string[]) =>
-    items.length > 0 && items.every((item) => complete.includes(item.status))
+  const [error, setError] = useState('')
+  const [confirmingDate, setConfirmingDate] = useState(false)
 
   useEffect(() => {
     fetch('/api/candidate/preboarding')
       .then(async (res) => {
         const json = await res.json()
+        if (!res.ok) throw new Error(json.error || 'Unable to load your preboarding checklist.')
         const p = json.preboarding
         if (p) {
           setPreboarding({
@@ -46,6 +60,8 @@ export default function CandidatePreboardingPage() {
             reportingLocation: [p.application?.vacancy?.dutyStation?.name, p.application?.vacancy?.dutyStation?.address]
               .filter(Boolean)
               .join(' — '),
+            vacancyTitle: p.application?.vacancy?.title || '',
+            vacancyReference: p.application?.vacancy?.referenceNumber || '',
             forms: (p.forms || []).map((f: any) => ({
               id: f.id,
               title: f.formTemplate?.title || 'Form',
@@ -82,20 +98,70 @@ export default function CandidatePreboardingPage() {
           setStartDate((p.confirmedStartDate || p.application?.offers?.[0]?.startDate || '').slice(0, 10))
         }
       })
-      .catch(console.error)
+      .catch((reason) =>
+        setError(reason instanceof Error ? reason.message : 'Unable to load your preboarding checklist.')
+      )
       .finally(() => setLoading(false))
   }, [])
 
   const confirmStartDate = async () => {
     setNotice('')
-    const response = await fetch('/api/candidate/preboarding/confirm-start-date', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ preboardingId: preboarding.id, startDate }),
-    })
-    const data = await response.json()
-    setNotice(response.ok ? 'Start date confirmed.' : data.error || 'Unable to confirm start date.')
-    if (response.ok) setPreboarding({ ...preboarding, confirmedStartDate: data.confirmedStartDate })
+    setConfirmingDate(true)
+    try {
+      const response = await fetch('/api/candidate/preboarding/confirm-start-date', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preboardingId: preboarding.id, startDate }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to confirm start date.')
+      setNotice('Start date confirmed.')
+      setPreboarding({ ...preboarding, confirmedStartDate: data.confirmedStartDate })
+    } catch (reason) {
+      setNotice(reason instanceof Error ? reason.message : 'Unable to confirm start date.')
+    } finally {
+      setConfirmingDate(false)
+    }
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen flex-col bg-surface-50">
+        <Header />
+        <main id="main-content" className="flex-1 py-9">
+          <div className="page-shell max-w-5xl">
+            <div role="alert" className="border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
+              {error}
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    )
+  }
+
+  if (!preboarding.id) {
+    return (
+      <div className="flex min-h-screen flex-col bg-surface-50">
+        <Header />
+        <main id="main-content" className="flex-1 py-7 sm:py-9">
+          <div className="page-shell max-w-5xl space-y-6">
+            <PageIntro
+              eyebrow="Your account"
+              title="Before you start"
+              description="Your checklist will appear here after you accept an offer from FRAD."
+            />
+            <EmptyState
+              icon={BriefcaseBusiness}
+              title="No preboarding checklist"
+              description="There is nothing for you to complete here at the moment."
+              action={{ href: '/candidate/applications', label: 'View applications' }}
+            />
+          </div>
+        </main>
+        <Footer />
+      </div>
+    )
   }
 
   if (loading) {
@@ -110,20 +176,82 @@ export default function CandidatePreboardingPage() {
     )
   }
 
+  const completedCount = (items: any[], complete: string[]) =>
+    items.filter((item) => complete.includes(item.status)).length
+  const categories = [
+    {
+      label: 'Forms',
+      description: 'Complete the forms FRAD has assigned to you.',
+      href: '/candidate/preboarding/forms',
+      icon: FileText,
+      done: completedCount(preboarding.forms, ['APPROVED', 'WAIVED']),
+      total: preboarding.forms.length,
+    },
+    {
+      label: 'Documents',
+      description: 'Upload the required identity and employment documents.',
+      href: '/candidate/preboarding/documents',
+      icon: Upload,
+      done: completedCount(preboarding.documents, ['APPROVED', 'WAIVED']),
+      total: preboarding.documents.length,
+    },
+    {
+      label: 'Policies',
+      description: 'Read and sign the policies that apply to your role.',
+      href: '/candidate/preboarding/policies',
+      icon: Shield,
+      done: completedCount(preboarding.policies, ['SIGNED', 'APPROVED', 'WAIVED']),
+      total: preboarding.policies.length,
+    },
+    {
+      label: 'Courses',
+      description: 'Finish any required learning before your start date.',
+      href: '/candidate/preboarding/courses',
+      icon: BookOpen,
+      done: completedCount(preboarding.courses, ['COMPLETED', 'WAIVED']),
+      total: preboarding.courses.length,
+    },
+    {
+      label: 'Other tasks',
+      description: 'Complete the remaining actions from the recruitment team.',
+      href: '/candidate/preboarding/tasks',
+      icon: CheckSquare,
+      done: completedCount(preboarding.tasks, ['COMPLETED', 'APPROVED', 'WAIVED']),
+      total: preboarding.tasks.length,
+    },
+    {
+      label: 'Meetings',
+      description: 'Confirm orientation and other meetings.',
+      href: '/candidate/preboarding/meetings',
+      icon: Calendar,
+      done: completedCount(preboarding.meetings, ['CONFIRMED', 'ATTENDED', 'WAIVED']),
+      total: preboarding.meetings.length,
+    },
+    {
+      label: 'First-day information',
+      description: 'Read and confirm reporting instructions.',
+      href: '/candidate/preboarding/reporting-information',
+      icon: Info,
+      done: preboarding.infoItems.filter((item: any) => item.acknowledged).length,
+      total: preboarding.infoItems.length,
+    },
+  ]
+  const assignedCategories = categories.filter((category) => category.total > 0)
+
   return (
-    <div className="flex min-h-screen flex-col bg-stone-50">
+    <div className="flex min-h-screen flex-col bg-surface-50">
       <Header />
 
-      <main id="main-content" className="flex-1 py-8">
-        <div className="page-shell max-w-5xl space-y-7">
+      <main id="main-content" className="flex-1 py-7 sm:py-9">
+        <div className="page-shell max-w-5xl space-y-6">
           <PageIntro
-            eyebrow="Preboarding"
+            eyebrow="Your offer"
             title="Before you start"
-            description="Complete the forms, documents, policies, courses and other actions requested by the recruitment team."
+            description={`${preboarding.vacancyTitle}${preboarding.vacancyReference ? ` · ${preboarding.vacancyReference}` : ''}`}
             actions={
               <div className="text-right">
-                <span className="text-xs font-semibold text-stone-500">Required items complete</span>
-                <span className="block text-3xl font-bold text-stone-950">
+                <span className="text-xs font-semibold text-stone-500">Complete</span>
+                <span className="block text-3xl font-semibold tracking-[-.04em] text-navy-900">
                   {preboarding.overallCompletionPercentage}%
                 </span>
               </div>
@@ -139,290 +267,112 @@ export default function CandidatePreboardingPage() {
             />
           </div>
 
-          {/* Reporting & Start Info Card */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-2">
-              Reporting & First-Day Information
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                <label htmlFor="confirmed-start-date" className="block text-slate-400 font-semibold mb-1">
-                  Confirmed Start Date
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    id="confirmed-start-date"
-                    type="date"
-                    value={startDate}
-                    onChange={(event) => setStartDate(event.target.value)}
-                    className="min-w-0 rounded-lg border border-slate-300 px-2 py-1"
-                  />
+          <section id="start-date" aria-labelledby="first-day-heading" className="section-panel scroll-mt-24">
+            <div className="section-heading">
+              <div>
+                <h2 id="first-day-heading" className="text-lg font-semibold text-navy-900">
+                  Your first day
+                </h2>
+                <p className="mt-1 text-sm text-stone-600">Confirm the date and check where to report.</p>
+              </div>
+            </div>
+            <div className="grid divide-y divide-stone-200 md:grid-cols-2 md:divide-x md:divide-y-0">
+              <div className="px-5 py-5 sm:px-6">
+                <p className="field-label">Agreed start date</p>
+                <p className="text-base font-semibold text-navy-900">
+                  {startDate
+                    ? new Date(`${startDate}T12:00:00`).toLocaleDateString('en-GB', {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      })
+                    : 'Not yet set'}
+                </p>
+                {startDate && !preboarding.confirmedStartDate && (
                   <button
                     type="button"
                     onClick={confirmStartDate}
-                    className="rounded-lg bg-brand-600 px-3 py-1 font-bold text-white"
+                    disabled={confirmingDate}
+                    className="btn-primary mt-3"
                   >
-                    Confirm
+                    {confirmingDate ? 'Confirming…' : 'Confirm this date'}
                   </button>
-                </div>
+                )}
+                {preboarding.confirmedStartDate && (
+                  <span className="status-chip mt-3 bg-emerald-50 text-emerald-800">Confirmed</span>
+                )}
                 {notice && (
-                  <p role="status" className="mt-1 text-brand-700">
+                  <p role="status" className="mt-2 text-xs font-semibold text-brand-700">
                     {notice}
                   </p>
                 )}
+                <p className="mt-3 text-xs leading-5 text-stone-500">
+                  Need a different date?{' '}
+                  <Link
+                    href="/candidate/messages"
+                    className="font-semibold text-brand-800 underline underline-offset-4"
+                  >
+                    Message the recruitment team
+                  </Link>
+                  .
+                </p>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                <span className="block text-slate-400 font-semibold mb-0.5">Reporting Location</span>
-                <span className="font-extrabold text-slate-900 flex items-center gap-1">
-                  <MapPin className="h-3.5 w-3.5 text-brand-600" />{' '}
-                  {preboarding.reportingLocation || 'To be confirmed by HR'}
-                </span>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                <span className="block text-slate-400 font-semibold mb-0.5">HR Orientation Officer</span>
-                <span className="font-extrabold text-slate-900">Recruitment team</span>
+              <div className="px-5 py-5 sm:px-6">
+                <p className="field-label">Reporting location</p>
+                <p className="flex items-start gap-2 text-sm font-semibold leading-6 text-navy-900">
+                  <MapPin className="mt-1 h-4 w-4 shrink-0 text-brand-700" />
+                  {preboarding.reportingLocation || 'The recruitment team will confirm this with you.'}
+                </p>
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* Preboarding Categories Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* 1. Pre-Employment Forms */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-brand-600" /> Pre-Employment Forms
-                </h3>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  {groupComplete(preboarding.forms, ['APPROVED', 'WAIVED']) ? 'Complete' : 'In progress'}
-                </span>
+          <section aria-labelledby="checklist-heading" className="section-panel">
+            <div className="section-heading">
+              <div>
+                <h2 id="checklist-heading" className="text-lg font-semibold text-navy-900">
+                  Checklist
+                </h2>
+                <p className="mt-1 text-sm text-stone-600">Open a row to see and complete its items.</p>
               </div>
-
-              <div className="space-y-2 text-xs">
-                {preboarding.forms.map((f: any) => (
-                  <div
-                    key={f.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200"
+            </div>
+            <div className="divide-y divide-stone-100">
+              {assignedCategories.map((category) => {
+                const Icon = category.icon
+                const complete = category.total === 0 || category.done === category.total
+                return (
+                  <Link
+                    key={category.href}
+                    href={category.href}
+                    className="group grid gap-3 px-5 py-4 hover:bg-stone-50 sm:grid-cols-[auto_1fr_auto_auto] sm:items-center sm:px-6"
                   >
-                    <span className="font-bold text-slate-800">{f.title}</span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      {f.status}
+                    <span
+                      className={`grid h-9 w-9 place-items-center rounded-lg ${
+                        complete ? 'bg-emerald-50 text-emerald-700' : 'bg-brand-50 text-brand-700'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
                     </span>
-                  </div>
-                ))}
-              </div>
-              <div className="pt-2">
-                <Link href="/candidate/preboarding/forms" className="text-xs font-bold text-brand-600 hover:underline">
-                  View forms →
-                </Link>
-              </div>
-            </div>
-
-            {/* 2. Required Document Attachments */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                  <Upload className="h-4 w-4 text-purple-600" /> Required Documents
-                </h3>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  {groupComplete(preboarding.documents, ['APPROVED', 'WAIVED']) ? 'Verified' : 'In progress'}
-                </span>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                {preboarding.documents.map((d: any) => (
-                  <div
-                    key={d.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200"
-                  >
-                    <span className="font-bold text-slate-800">{d.name}</span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      {d.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <div className="pt-2">
-                <Link
-                  href="/candidate/preboarding/documents"
-                  className="text-xs font-bold text-purple-600 hover:underline"
-                >
-                  Manage documents →
-                </Link>
-              </div>
-            </div>
-
-            {/* 3. Policy Reading & Signatures */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-amber-600" /> Policies & Digital Signatures
-                </h3>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  {groupComplete(preboarding.policies, ['SIGNED', 'APPROVED', 'WAIVED']) ? 'Signed' : 'In progress'}
-                </span>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                {preboarding.policies.map((p: any) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200"
-                  >
-                    <span className="font-bold text-slate-800">{p.title}</span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      {p.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <div className="pt-2">
-                <Link
-                  href="/candidate/preboarding/policies"
-                  className="text-xs font-bold text-amber-600 hover:underline"
-                >
-                  Read and sign →
-                </Link>
-              </div>
-            </div>
-
-            {/* 4. Compulsory Pre-Resumption Courses */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                  <BookOpen className="h-4 w-4 text-emerald-600" /> Compulsory Courses & Quizzes
-                </h3>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  {groupComplete(preboarding.courses, ['COMPLETED', 'WAIVED']) ? 'Passed' : 'In progress'}
-                </span>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                {preboarding.courses.map((c: any) => (
-                  <div
-                    key={c.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200"
-                  >
-                    <div>
-                      <span className="font-bold text-slate-800 block">{c.title}</span>
-                      <span className="text-[10px] text-slate-500">Score: {c.score}</span>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-navy-900">{category.label}</h3>
+                      <p className="mt-0.5 text-xs text-stone-500">{category.description}</p>
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      {c.status}
+                    <span className={`text-xs font-semibold ${complete ? 'text-emerald-700' : 'text-stone-700'}`}>
+                      {category.total ? `${category.done} of ${category.total}` : 'Nothing assigned'}
                     </span>
-                  </div>
-                ))}
-              </div>
-              <div className="pt-2">
-                <Link
-                  href="/candidate/preboarding/courses"
-                  className="text-xs font-bold text-emerald-600 hover:underline"
-                >
-                  Take courses →
-                </Link>
-              </div>
+                    <ArrowRight className="h-4 w-4 text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-brand-700" />
+                  </Link>
+                )
+              })}
+              {assignedCategories.length === 0 && (
+                <div className="px-6 py-8 text-center text-sm text-stone-600">
+                  No forms, documents, courses or meetings have been assigned.
+                </div>
+              )}
             </div>
-
-            {/* 5. Pre-Resumption Tasks */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                  <CheckSquare className="h-4 w-4 text-rose-600" /> Pre-Resumption Tasks
-                </h3>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  {groupComplete(preboarding.tasks, ['COMPLETED', 'APPROVED', 'WAIVED']) ? 'Completed' : 'In progress'}
-                </span>
-              </div>
-              <div className="space-y-2 text-xs">
-                {preboarding.tasks.map((t: any) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200"
-                  >
-                    <span className="font-bold text-slate-800">{t.title}</span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      {t.status.replace(/_/g, ' ')}
-                    </span>
-                  </div>
-                ))}
-                {preboarding.tasks.length === 0 && <span className="text-slate-500">No tasks assigned.</span>}
-              </div>
-              <div className="pt-2">
-                <Link href="/candidate/preboarding/tasks" className="text-xs font-bold text-rose-600 hover:underline">
-                  View tasks →
-                </Link>
-              </div>
-            </div>
-
-            {/* 6. Meetings */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-cyan-600" /> Meetings &amp; Orientation
-                </h3>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  {groupComplete(preboarding.meetings, ['CONFIRMED', 'ATTENDED', 'WAIVED'])
-                    ? 'Resolved'
-                    : 'Action needed'}
-                </span>
-              </div>
-              <div className="space-y-2 text-xs">
-                {preboarding.meetings.map((m: any) => (
-                  <div
-                    key={m.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200"
-                  >
-                    <span className="font-bold text-slate-800">{m.title}</span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      {m.status.replace(/_/g, ' ')}
-                    </span>
-                  </div>
-                ))}
-                {preboarding.meetings.length === 0 && <span className="text-slate-500">No meetings scheduled.</span>}
-              </div>
-              <div className="pt-2">
-                <Link
-                  href="/candidate/preboarding/meetings"
-                  className="text-xs font-bold text-cyan-600 hover:underline"
-                >
-                  Manage meetings →
-                </Link>
-              </div>
-            </div>
-
-            {/* 7. Reporting Info */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                  <Info className="h-4 w-4 text-brand-600" /> Reporting Information
-                </h3>
-              </div>
-              <div className="space-y-2 text-xs">
-                {preboarding.infoItems.map((i: any) => (
-                  <div
-                    key={i.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200"
-                  >
-                    <span className="font-bold text-slate-800">{i.title}</span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      {i.acknowledged ? 'Acknowledged' : 'Pending'}
-                    </span>
-                  </div>
-                ))}
-                {preboarding.infoItems.length === 0 && <span className="text-slate-500">No information items.</span>}
-              </div>
-              <div className="pt-2">
-                <Link
-                  href="/candidate/preboarding/reporting-information"
-                  className="text-xs font-bold text-brand-600 hover:underline"
-                >
-                  View details →
-                </Link>
-              </div>
-            </div>
-          </div>
+          </section>
         </div>
       </main>
 

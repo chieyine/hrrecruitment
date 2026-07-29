@@ -9,6 +9,7 @@ import { hasStaffRole, isCandidateOnly } from '@/lib/roles'
 import { homeRouteForRoles } from '@/lib/home-route'
 
 type NavLink = { href: string; label: string }
+type NavGroup = { label: string; links: NavLink[] }
 
 const PUBLIC_LINKS: NavLink[] = [
   { href: '/careers', label: 'Open roles' },
@@ -17,30 +18,57 @@ const PUBLIC_LINKS: NavLink[] = [
   { href: '/complaints', label: 'Raise a concern' },
 ]
 
-const STAFF_MORE_LINKS: NavLink[] = [
-  { href: '/recruitment/assessments', label: 'Assessments' },
-  { href: '/recruitment/interviews', label: 'Interviews' },
-  { href: '/recruitment/references', label: 'References' },
-  { href: '/recruitment/selections', label: 'Selection decisions' },
-  { href: '/recruitment/offers', label: 'Offers' },
-  { href: '/recruitment/preboarding', label: 'Preboarding' },
-  { href: '/recruitment/talent-pools', label: 'Talent pools' },
-  { href: '/recruitment/communications', label: 'Communications' },
-  { href: '/recruitment/accommodations', label: 'Accommodations' },
-  { href: '/recruitment/complaints', label: 'Cases and concerns' },
-  { href: '/recruitment/quality', label: 'Decision quality' },
-  { href: '/recruitment/operations', label: 'Service health' },
-  { href: '/recruitment/reports', label: 'Reports' },
+const STAFF_MORE_GROUPS: NavGroup[] = [
+  {
+    label: 'Assess and decide',
+    links: [
+      { href: '/recruitment/assessments', label: 'Assessments' },
+      { href: '/recruitment/interviews', label: 'Interviews' },
+      { href: '/recruitment/references', label: 'References' },
+      { href: '/recruitment/selections', label: 'Selection decisions' },
+    ],
+  },
+  {
+    label: 'Offer and start',
+    links: [
+      { href: '/recruitment/offers', label: 'Offers' },
+      { href: '/recruitment/preboarding', label: 'Starting steps' },
+      { href: '/recruitment/talent-pools', label: 'Talent pools' },
+    ],
+  },
+  {
+    label: 'Candidate support',
+    links: [
+      { href: '/recruitment/communications', label: 'Messages' },
+      { href: '/recruitment/accommodations', label: 'Adjustments' },
+      { href: '/recruitment/complaints', label: 'Concerns and complaints' },
+    ],
+  },
+  {
+    label: 'Review and report',
+    links: [
+      { href: '/recruitment/quality', label: 'Decision review' },
+      { href: '/recruitment/reports', label: 'Reports' },
+    ],
+  },
 ]
 
-const CANDIDATE_MORE_LINKS: NavLink[] = [
-  { href: '/candidate/interviews', label: 'Interviews' },
-  { href: '/candidate/assessments', label: 'Assessments' },
-  { href: '/candidate/offers', label: 'Offers' },
-  { href: '/candidate/preboarding', label: 'Preboarding' },
-  { href: '/candidate/accommodations', label: 'Adjustments' },
-  { href: '/candidate/complaints', label: 'My concerns' },
-  { href: '/candidate/settings', label: 'Account and privacy' },
+const CANDIDATE_MORE_GROUPS: NavGroup[] = [
+  {
+    label: 'Your account',
+    links: [
+      { href: '/candidate/profile', label: 'Profile' },
+      { href: '/candidate/preboarding', label: 'Before you start' },
+      { href: '/candidate/settings', label: 'Account and privacy' },
+    ],
+  },
+  {
+    label: 'Help',
+    links: [
+      { href: '/candidate/accommodations', label: 'Request an adjustment' },
+      { href: '/candidate/complaints', label: 'Raise a concern' },
+    ],
+  },
 ]
 
 function routeIsActive(pathname: string, href: string) {
@@ -83,28 +111,43 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
 
   const isCandidate = Boolean(resolvedUser && isCandidateOnly(resolvedUser.roles))
   const isStaff = Boolean(resolvedUser && hasStaffRole(resolvedUser.roles))
-  const isCourseAdmin = Boolean(
-    resolvedUser?.roles?.includes('COURSE_ADMIN') && !resolvedUser.roles.includes('SYSTEM_ADMIN')
-  )
+  const isSystemAdmin = Boolean(resolvedUser?.roles.includes('SYSTEM_ADMIN'))
+  const isOperationalStaff = isStaff && !isSystemAdmin
+  const isHrManager = Boolean(resolvedUser?.roles.includes('HR_MANAGER'))
+  const isRecruitmentOfficer = Boolean(resolvedUser?.roles.includes('RECRUITMENT_OFFICER'))
+  const isCourseAdmin = Boolean(resolvedUser?.roles?.includes('COURSE_ADMIN') && !isSystemAdmin)
   const isApprover = Boolean(resolvedUser?.roles?.includes('APPROVER') && !resolvedUser.roles.includes('HR_MANAGER'))
   const isPanelOnly = Boolean(resolvedUser?.roles?.length === 1 && resolvedUser.roles.includes('PANEL_MEMBER'))
   const isAuditorOnly = Boolean(resolvedUser?.roles?.length === 1 && resolvedUser.roles.includes('AUDITOR'))
   const home = resolvedUser ? homeRouteForRoles(resolvedUser.roles) : '/careers'
 
   let primaryLinks: NavLink[] = PUBLIC_LINKS
-  let secondaryLinks: NavLink[] = []
+  let secondaryGroups: NavGroup[] = []
 
   if (resolvedUser === undefined) {
     primaryLinks = []
   } else if (isCandidate) {
     primaryLinks = [
-      { href: '/candidate/dashboard', label: 'Overview' },
-      { href: '/candidate/tasks', label: 'To do' },
+      { href: '/candidate/dashboard', label: 'Home' },
       { href: '/candidate/applications', label: 'Applications' },
+      { href: '/candidate/tasks', label: 'To do' },
       { href: '/candidate/messages', label: 'Messages' },
-      { href: '/candidate/profile', label: 'Profile' },
     ]
-    secondaryLinks = CANDIDATE_MORE_LINKS
+    secondaryGroups = CANDIDATE_MORE_GROUPS
+  } else if (isSystemAdmin) {
+    primaryLinks = [
+      { href: '/admin/users', label: 'Users' },
+      { href: '/admin/roles', label: 'Roles' },
+      { href: '/admin/system-settings', label: 'System' },
+      { href: '/admin/governance', label: 'Governance' },
+      { href: '/recruitment/audit', label: 'Audit trail' },
+    ]
+    secondaryGroups = [
+      {
+        label: 'Configuration',
+        links: [{ href: '/admin/configuration-releases', label: 'Change drafts' }],
+      },
+    ]
   } else if (isCourseAdmin) {
     primaryLinks = [
       { href: '/admin/courses', label: 'Courses' },
@@ -121,25 +164,32 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
     ]
   } else if (isStaff) {
     primaryLinks = [
-      { href: '/recruitment/dashboard', label: 'Overview' },
+      { href: '/recruitment/dashboard', label: 'Home' },
       { href: '/recruitment/work', label: 'My work' },
-      { href: '/recruitment/applications', label: 'Candidates' },
       { href: '/recruitment/vacancies', label: 'Vacancies' },
+      { href: '/recruitment/applications', label: 'Candidates' },
     ]
-    secondaryLinks = STAFF_MORE_LINKS
+    secondaryGroups = STAFF_MORE_GROUPS
   }
+  const secondaryLinks = secondaryGroups.flatMap((group) => group.links)
 
   const accountLabel = isCandidate
     ? 'Candidate'
-    : isCourseAdmin
-      ? 'Course administrator'
-      : isApprover
-        ? 'Approver'
-        : isPanelOnly
-          ? 'Panel member'
-          : isAuditorOnly
-            ? 'Auditor'
-            : 'Recruitment staff'
+    : isSystemAdmin
+      ? 'System administrator'
+      : isCourseAdmin
+        ? 'Course administrator'
+        : isHrManager
+          ? 'HR manager'
+          : isRecruitmentOfficer
+            ? 'Recruitment / HR officer'
+            : isApprover
+              ? 'Approver'
+              : isPanelOnly
+                ? 'Panel member'
+                : isAuditorOnly
+                  ? 'Auditor'
+                  : 'Recruitment staff'
 
   const signOut = async () => {
     setSigningOut(true)
@@ -158,11 +208,7 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
           href={home}
           onClick={() => setOpen(false)}
           aria-label={
-            resolvedUser
-              ? isCandidate
-                ? 'Candidate overview'
-                : 'Recruitment workspace'
-              : 'FRAD Foundation recruitment'
+            resolvedUser ? (isCandidate ? 'Candidate overview' : 'Recruitment') : 'FRAD Foundation recruitment'
           }
           className="group flex shrink-0 items-center gap-3"
         >
@@ -172,7 +218,13 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
           <span className="leading-none">
             <span className="block text-sm font-bold tracking-[-0.02em] text-navy-900">FRAD Foundation</span>
             <span className="mt-1.5 block text-[9px] font-bold uppercase tracking-[0.17em] text-stone-500">
-              {isStaff ? 'Recruitment workspace' : isCandidate ? 'Candidate portal' : 'People & careers'}
+              {isSystemAdmin
+                ? 'Platform administration'
+                : isStaff
+                  ? 'Recruitment'
+                  : isCandidate
+                    ? 'Candidate portal'
+                    : 'People & careers'}
             </span>
           </span>
         </Link>
@@ -206,40 +258,48 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
               >
                 More <ChevronDown className="h-3.5 w-3.5 transition group-open:rotate-180" />
               </summary>
-              <div className="absolute right-0 top-[calc(100%+12px)] z-50 w-[440px] rounded-2xl border border-stone-200 bg-white p-3 shadow-[0_20px_60px_rgba(16,24,20,.16)]">
-                <div className="grid grid-cols-2 gap-1">
-                  {secondaryLinks.map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className={`rounded-lg px-3 py-2.5 text-sm font-medium ${
-                        routeIsActive(pathname, link.href)
-                          ? 'bg-brand-50 text-brand-900'
-                          : 'text-stone-700 hover:bg-stone-50 hover:text-navy-900'
-                      }`}
-                    >
-                      {link.label}
-                    </Link>
-                  ))}
-                  {isStaff && (
-                    <>
-                      <Link
-                        href="/recruitment/search"
-                        className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-stone-700 hover:bg-stone-50"
-                      >
-                        <Search className="h-4 w-4 text-stone-400" /> Search
-                      </Link>
-                      {(resolvedUser?.roles.includes('SYSTEM_ADMIN') || resolvedUser?.roles.includes('HR_MANAGER')) && (
+              <div className="absolute right-0 top-[calc(100%+12px)] z-50 w-[620px] rounded-2xl border border-stone-200 bg-white p-4 shadow-[0_20px_60px_rgba(16,24,20,.16)]">
+                <div className="grid grid-cols-2 gap-3">
+                  {secondaryGroups.map((group) => (
+                    <div key={group.label} className="rounded-xl bg-stone-50/70 p-2">
+                      <p className="px-2 pb-1.5 pt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-stone-500">
+                        {group.label}
+                      </p>
+                      {group.links.map((link) => (
                         <Link
-                          href="/admin/projects"
-                          className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-stone-700 hover:bg-stone-50"
+                          key={link.href}
+                          href={link.href}
+                          className={`block rounded-lg px-2 py-2 text-sm font-medium ${
+                            routeIsActive(pathname, link.href)
+                              ? 'bg-brand-100 text-brand-950'
+                              : 'text-stone-700 hover:bg-white hover:text-navy-900'
+                          }`}
                         >
-                          <Settings className="h-4 w-4 text-stone-400" /> Administration
+                          {link.label}
                         </Link>
-                      )}
-                    </>
-                  )}
+                      ))}
+                    </div>
+                  ))}
                 </div>
+                {isOperationalStaff && (
+                  <div className="mt-3 flex items-center gap-2 border-t border-stone-200 pt-3">
+                    <Link
+                      href="/recruitment/search"
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+                    >
+                      <Search className="h-4 w-4 text-stone-400" /> Search all records
+                    </Link>
+                    {resolvedUser?.roles.some((role) => ['RECRUITMENT_OFFICER', 'HR_MANAGER'].includes(role)) && (
+                      <Link
+                        href={resolvedUser.roles.includes('HR_MANAGER') ? '/admin/projects' : '/admin/automations'}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+                      >
+                        <Settings className="h-4 w-4 text-stone-400" />{' '}
+                        {resolvedUser.roles.includes('HR_MANAGER') ? 'Recruitment setup' : 'Automation'}
+                      </Link>
+                    )}
+                  </div>
+                )}
               </div>
             </details>
           )}
@@ -317,7 +377,7 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
           )}
 
           <div className="grid gap-1 sm:grid-cols-2">
-            {[...primaryLinks, ...secondaryLinks].map((link) => (
+            {primaryLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -333,7 +393,32 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
             ))}
           </div>
 
-          {isStaff && (
+          {secondaryGroups.map((group) => (
+            <div key={group.label} className="mt-4 border-t border-stone-200 pt-3">
+              <p className="mb-1 px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-stone-500">
+                {group.label}
+              </p>
+              <div className="grid gap-1 sm:grid-cols-2">
+                {group.links.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setOpen(false)}
+                    aria-current={routeIsActive(pathname, link.href) ? 'page' : undefined}
+                    className={`rounded-lg px-3 py-2.5 text-sm font-semibold ${
+                      routeIsActive(pathname, link.href)
+                        ? 'bg-brand-100 text-brand-950'
+                        : 'text-stone-700 hover:bg-stone-50'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {isOperationalStaff && (
             <div className="mt-3 grid grid-cols-2 gap-2 border-t border-stone-200 pt-3">
               <Link
                 href="/recruitment/search"
@@ -342,13 +427,14 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
               >
                 <Search className="h-4 w-4" /> Search
               </Link>
-              {(resolvedUser?.roles.includes('SYSTEM_ADMIN') || resolvedUser?.roles.includes('HR_MANAGER')) && (
+              {resolvedUser?.roles.some((role) => ['RECRUITMENT_OFFICER', 'HR_MANAGER'].includes(role)) && (
                 <Link
-                  href="/admin/projects"
+                  href={resolvedUser.roles.includes('HR_MANAGER') ? '/admin/projects' : '/admin/automations'}
                   onClick={() => setOpen(false)}
                   className="btn-secondary min-h-10 px-3 py-2 text-xs"
                 >
-                  <Settings className="h-4 w-4" /> Administration
+                  <Settings className="h-4 w-4" />{' '}
+                  {resolvedUser.roles.includes('HR_MANAGER') ? 'Recruitment setup' : 'Automation'}
                 </Link>
               )}
             </div>

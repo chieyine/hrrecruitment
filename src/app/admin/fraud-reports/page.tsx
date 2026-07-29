@@ -2,26 +2,30 @@ import { redirect } from 'next/navigation'
 import { getVerifiedUser } from '@/lib/auth'
 import { PageIntro } from '@/components/ui/PageElements'
 import FraudReportTriage from '@/components/admin/FraudReportTriage'
+import { canMakeHrManagerDecision, canRunRecruitmentOperations } from '@/lib/recruitment-role-policy'
 
 /**
  * Triage queue for reports submitted through the public /report-fraud form.
- * Restricted to the two roles the API also enforces.
+ * Recruitment officers triage reports; HR managers make closure decisions.
  */
 export default async function FraudReportsPage() {
   const user = await getVerifiedUser()
   if (!user) redirect('/auth/login')
-  if (!user.roles.some((role) => role === 'SYSTEM_ADMIN' || role === 'HR_MANAGER')) {
-    redirect('/recruitment/work')
-  }
+  if (user.roles.includes('SYSTEM_ADMIN')) redirect('/admin/system-settings')
+  if (!canRunRecruitmentOperations(user.roles)) redirect('/recruitment/work')
 
   return (
     <div className="page-shell max-w-5xl space-y-6">
       <PageIntro
-        eyebrow="Confidential"
-        title="Recruitment fraud reports"
-        description="Reports submitted by the public about people impersonating FRAD or asking candidates for money. Record what was decided on every report you close."
+        eyebrow="Recruitment integrity"
+        title="Fraud reports"
+        description={
+          canMakeHrManagerDecision(user.roles)
+            ? 'Review reports of impersonation or payment requests and record the evidence behind each closure decision.'
+            : 'Check new reports of impersonation or payment requests and record the facts for manager closure.'
+        }
       />
-      <FraudReportTriage />
+      <FraudReportTriage canClose={canMakeHrManagerDecision(user.roles)} />
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireRole, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
+import { canMakeHrManagerDecision } from '@/lib/recruitment-role-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,7 +75,7 @@ async function preview(primaryCandidateId: string, duplicateCandidateId: string)
 
 export async function GET() {
   try {
-    await requireRole('HR_MANAGER', 'SYSTEM_ADMIN')
+    await requireRole('RECRUITMENT_OFFICER', 'HR_MANAGER')
     const reviews = await prisma.candidateMergeReview.findMany({ orderBy: { createdAt: 'desc' }, take: 100 })
     return Response.json({ reviews })
   } catch (error) {
@@ -84,7 +85,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireRole('HR_MANAGER', 'SYSTEM_ADMIN')
+    const user = await requireRole('RECRUITMENT_OFFICER', 'HR_MANAGER')
     const input = await parseBody(
       request,
       z.object({
@@ -146,7 +147,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const user = await requireRole('HR_MANAGER', 'SYSTEM_ADMIN')
+    const user = await requireRole('RECRUITMENT_OFFICER', 'HR_MANAGER')
     const input = await parseBody(
       request,
       z.object({
@@ -168,22 +169,30 @@ export async function PATCH(request: Request) {
         data: { status: 'PENDING', lockVersion: { increment: 1 } },
       })
     } else if (input.action === 'APPROVE') {
+      if (!canMakeHrManagerDecision(user.roles))
+        throw new AuthzError('An HR manager must approve candidate-record merges', 403)
       if (review.status !== 'PENDING') throw new AuthzError('Only a pending merge can be approved', 409)
-      if (review.requestedBy === user.userId) throw new AuthzError('A second HR user must approve this merge', 409)
+      if (review.requestedBy === user.userId)
+        throw new AuthzError('The person who requested the merge cannot approve it', 409)
       await prisma.candidateMergeReview.update({
         where: { id: review.id },
         data: { status: 'APPROVED', approvedBy: user.userId, approvedAt: new Date(), lockVersion: { increment: 1 } },
       })
     } else if (input.action === 'REJECT') {
+      if (!canMakeHrManagerDecision(user.roles))
+        throw new AuthzError('An HR manager must reject candidate-record merges', 403)
       if (!['PENDING', 'APPROVED'].includes(review.status))
         throw new AuthzError('This review cannot be rejected now', 409)
-      if (review.requestedBy === user.userId) throw new AuthzError('A second HR user must decide this merge', 409)
+      if (review.requestedBy === user.userId)
+        throw new AuthzError('The person who requested the merge cannot reject it', 409)
       await prisma.candidateMergeReview.update({
         where: { id: review.id },
         data: { status: 'REJECTED', lockVersion: { increment: 1 } },
       })
     } else {
       if (review.status !== 'APPROVED') throw new AuthzError('The merge must be independently approved first', 409)
+      if (review.requestedBy !== user.userId)
+        throw new AuthzError('Only the original requesting officer can complete the approved merge', 403)
       const latest = await preview(review.primaryCandidateId, review.duplicateCandidateId)
       if (!latest.canMerge) throw new AuthzError('New conflicts appeared after approval. Review the merge again.', 409)
       const choices = JSON.parse(review.survivorChoicesJson || '{}') as Record<string, string>

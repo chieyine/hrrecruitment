@@ -7,6 +7,7 @@ import { parseBody } from '@/lib/validation'
 import { rateLimitDistributed } from '@/lib/rate-limit'
 import { z } from 'zod'
 import { hasStaffRole } from '@/lib/roles'
+import { canRunRecruitmentOperations } from '@/lib/recruitment-role-policy'
 
 const messageSchema = z
   .object({
@@ -20,7 +21,7 @@ const messageSchema = z
 export async function GET(request: Request) {
   try {
     const user = await requireUser()
-    if (!hasStaffRole(user.roles)) return NextResponse.json({ templates: [] })
+    if (!canRunRecruitmentOperations(user.roles)) return NextResponse.json({ templates: [] })
     const query = new URL(request.url).searchParams
     const applicationId = query.get('applicationId')
     const threadId = query.get('threadId')
@@ -29,12 +30,8 @@ export async function GET(request: Request) {
       : null
     const targetId = applicationId || thread?.applicationId
     if (!targetId) throw new AuthzError('Application context is required', 400)
-    const readAll = await hasPermission(user.userId, 'application.read.all')
     const application = await prisma.application.findFirst({
-      where: {
-        id: targetId,
-        ...(readAll ? {} : { OR: [{ assignedReviewerId: user.userId }, { vacancy: { ownerUserId: user.userId } }] }),
-      },
+      where: { id: targetId, internalStatus: { not: 'DRAFT' } },
       include: { candidate: true, vacancy: true },
     })
     if (!application) throw new AuthzError('Application not found or outside your assigned scope', 404)
@@ -85,6 +82,10 @@ export async function POST(request: Request) {
       )
 
     const isStaff = hasStaffRole(user.roles)
+    const isOperationalStaff = canRunRecruitmentOperations(user.roles)
+    if (isStaff && !isOperationalStaff) {
+      throw new AuthzError('Candidate messages are managed by the recruitment HR team', 403)
+    }
 
     async function assertAccess(appId: string) {
       const app = await prisma.application.findUnique({
@@ -92,22 +93,11 @@ export async function POST(request: Request) {
         include: { candidate: { select: { userId: true } } },
       })
       if (!app) throw new AuthzError('Application not found', 404)
+      if (app.internalStatus === 'DRAFT') throw new AuthzError('Application not found', 404)
       if (!isStaff) {
         if (app.candidate.userId !== user.userId) throw new AuthzError('Forbidden', 403)
       } else {
-        const readAll = await hasPermission(user.userId, 'application.read.all')
-        const assigned =
-          (await hasPermission(user.userId, 'application.read.assigned')) &&
-          Boolean(
-            await prisma.application.findFirst({
-              where: {
-                id: appId,
-                OR: [{ assignedReviewerId: user.userId }, { vacancy: { ownerUserId: user.userId } }],
-              },
-              select: { id: true },
-            })
-          )
-        if (!readAll && !assigned) throw new AuthzError('Forbidden', 403)
+        if (!(await hasPermission(user.userId, 'application.read.all'))) throw new AuthzError('Forbidden', 403)
       }
       return app
     }
@@ -149,6 +139,7 @@ export async function POST(request: Request) {
           type: 'MESSAGE_RECEIVED',
           title: 'New message from HR',
           body: 'You have a new message in your recruitment portal.',
+          applicationId: thread.applicationId,
         })
       }
     }

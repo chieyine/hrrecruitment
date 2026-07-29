@@ -16,7 +16,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const { email } = await parseBody(request, forgotPasswordSchema)
+    const { email, nextPath } = await parseBody(request, forgotPasswordSchema)
     const accountLimit = await rateLimitDistributed(`forgot-account:${email}`, 3, 60 * 60_000)
     if (!accountLimit.allowed)
       return NextResponse.json({
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
       const appUrl = process.env.APP_URL
       if (!appUrl) throw new Error('APP_URL is required to send password-reset links')
       const link = new URL('/reset-password', appUrl)
+      if (nextPath) link.searchParams.set('next', nextPath)
       link.hash = `token=${encodeURIComponent(token)}`
       await enqueueEmail({
         recipient: user.email,

@@ -1,29 +1,12 @@
 import { prisma } from './prisma'
 
-// Infrastructure administration does not imply access to confidential case
-// content. These permissions must always be granted explicitly to a role.
-const EXPLICIT_ONLY_PERMISSIONS = new Set([
-  // A system administrator operates the platform; that role is not an
-  // automatic member of a recruitment case team. Case permissions must be
-  // granted separately when the same person also performs an HR role.
-  'application.read.assigned',
-  'application.read.all',
-  'application.stage.change',
-  'scorecard.submit',
-  'scorecard.reopen',
-  'assessment.manage',
-  'interview.manage',
-  'interview.score.assigned',
-  'preboarding.restricted.read',
-  'reference.manage',
-  'offer.manage',
-  'preboarding.manage',
-  'preboarding.clearance',
-  'resumption.confirm',
-  'erp.transfer',
-  'report.export',
-  'complaint.manage',
-])
+/**
+ * System administration is a technical control-plane role. It must never
+ * inherit recruitment authority from a wildcard or from a second role on the
+ * same account. People who also perform HR work need a separate HR account so
+ * decisions retain an unambiguous actor and separation of duties.
+ */
+const SYSTEM_ADMIN_PERMISSIONS = new Set(['admin.manage', 'audit.read', 'governance.manage'])
 
 export async function hasPermission(
   userId: string,
@@ -45,7 +28,14 @@ export async function hasPermission(
     },
   })
 
+  const isSystemAdmin = userRoles.some((assignment) => assignment.role.name === 'SYSTEM_ADMIN')
+  if (isSystemAdmin && !SYSTEM_ADMIN_PERMISSIONS.has(requiredPermissionCode)) return false
+
   for (const ur of userRoles) {
+    // A system-admin account may exercise only the technical permission set,
+    // even when it has accidentally also been assigned an operational role.
+    if (isSystemAdmin && ur.role.name !== 'SYSTEM_ADMIN') continue
+
     const assignmentScope = ur.scopeType || 'GLOBAL'
     if (assignmentScope !== 'GLOBAL') {
       // Scoped assignments never become global merely because a caller omitted
@@ -53,11 +43,8 @@ export async function hasPermission(
       if (!scope?.type || !scope.id || assignmentScope !== scope.type || ur.scopeId !== scope.id) continue
     }
 
-    const explicitOnly = EXPLICIT_ONLY_PERMISSIONS.has(requiredPermissionCode)
-    if (ur.role.name === 'SYSTEM_ADMIN' && !explicitOnly) return true
-
     for (const rp of ur.role.rolePermissions) {
-      if (rp.permission.code === requiredPermissionCode || (rp.permission.code === '*' && !explicitOnly)) {
+      if (rp.permission.code === requiredPermissionCode || rp.permission.code === '*') {
         return true
       }
     }

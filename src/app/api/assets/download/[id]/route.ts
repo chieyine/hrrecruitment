@@ -11,9 +11,9 @@ import { hasStaffRole } from '@/lib/roles'
  * Content-Disposition with both a sanitised ASCII fallback and an RFC 5987
  * UTF-8 form, so non-Latin filenames survive instead of being mangled.
  */
-function contentDisposition(originalName: string): string {
+function contentDisposition(originalName: string, inline = false): string {
   const ascii = originalName.replace(/[^\x20-\x7E]/g, '_').replace(/["\\\r\n]/g, '_') || 'download'
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(originalName)}`
+  return `${inline ? 'inline' : 'attachment'}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(originalName)}`
 }
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -38,31 +38,51 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       if (user) {
         authorized = asset.ownerUserId === user.userId
         if (!authorized && user.roles.includes('CANDIDATE')) {
-          const [candidateOffer, assignedPolicy, assignedCourse] = await Promise.all([
-            prisma.offer.findFirst({
-              where: {
-                OR: [{ offerFileId: asset.id }, { signedFileId: asset.id }],
-                application: { candidate: { userId: user.userId } },
-                status: { in: ['SENT', 'VIEWED', 'ACCEPTED', 'DECLINED', 'EXPIRED', 'WITHDRAWN'] },
-              },
-              select: { id: true },
-            }),
-            prisma.candidatePolicyAcknowledgement.findFirst({
-              where: {
-                policyDocument: { fileAssetId: asset.id },
-                candidatePreboarding: { application: { candidate: { userId: user.userId } } },
-              },
-              select: { id: true },
-            }),
-            prisma.candidateCourse.findFirst({
-              where: {
-                course: { contents: { some: { fileAssetId: asset.id } } },
-                candidatePreboarding: { application: { candidate: { userId: user.userId } } },
-              },
-              select: { id: true },
-            }),
-          ])
-          authorized = Boolean(candidateOffer || assignedPolicy || assignedCourse)
+          const [candidateOffer, assignedPolicy, assignedCourse, assignedDocument, candidateMessage] =
+            await Promise.all([
+              prisma.offer.findFirst({
+                where: {
+                  OR: [{ offerFileId: asset.id }, { signedFileId: asset.id }],
+                  application: { candidate: { userId: user.userId } },
+                  status: { in: ['SENT', 'VIEWED', 'ACCEPTED', 'DECLINED', 'EXPIRED', 'WITHDRAWN'] },
+                },
+                select: { id: true },
+              }),
+              prisma.candidatePolicyAcknowledgement.findFirst({
+                where: {
+                  policyDocument: { fileAssetId: asset.id },
+                  candidatePreboarding: { application: { candidate: { userId: user.userId } } },
+                },
+                select: { id: true },
+              }),
+              prisma.candidateCourse.findFirst({
+                where: {
+                  course: { contents: { some: { fileAssetId: asset.id } } },
+                  candidatePreboarding: { application: { candidate: { userId: user.userId } } },
+                },
+                select: { id: true },
+              }),
+              prisma.candidateRequiredDocument.findFirst({
+                where: {
+                  fileAssetId: asset.id,
+                  candidatePreboarding: { application: { candidate: { userId: user.userId } } },
+                },
+                select: { id: true },
+              }),
+              prisma.message.findFirst({
+                where: {
+                  fileAssetId: asset.id,
+                  messageThread: {
+                    restricted: false,
+                    application: { candidate: { userId: user.userId } },
+                  },
+                },
+                select: { id: true },
+              }),
+            ])
+          authorized = Boolean(
+            candidateOffer || assignedPolicy || assignedCourse || assignedDocument || candidateMessage
+          )
         }
         if (!authorized && hasStaffRole(user.roles)) {
           const readAll = await hasPermission(user.userId, 'application.read.all')
@@ -75,7 +95,24 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
                     OR: [
                       { files: { some: { fileAssetId: asset.id } } },
                       { candidate: { documents: { some: { fileAssetId: asset.id } } } },
-                      { preboardings: { some: { documents: { some: { fileAssetId: asset.id } } } } },
+                      {
+                        preboardings: {
+                          some: {
+                            OR: [
+                              { documents: { some: { fileAssetId: asset.id } } },
+                              { tasks: { some: { evidenceFileId: asset.id } } },
+                              {
+                                policyAcknowledgements: {
+                                  some: {
+                                    OR: [{ signedFileId: asset.id }, { policyDocument: { fileAssetId: asset.id } }],
+                                  },
+                                },
+                              },
+                              { courses: { some: { certificateFileId: asset.id } } },
+                            ],
+                          },
+                        },
+                      },
                       { offers: { some: { OR: [{ offerFileId: asset.id }, { signedFileId: asset.id }] } } },
                       { messageThreads: { some: { messages: { some: { fileAssetId: asset.id } } } } },
                     ],
@@ -140,7 +177,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       status: 200,
       headers: {
         'Content-Type': asset.mimeType || 'application/octet-stream',
-        'Content-Disposition': contentDisposition(asset.originalName),
+        'Content-Disposition': contentDisposition(
+          asset.originalName,
+          searchParams.get('disposition') === 'inline' && asset.mimeType === 'application/pdf'
+        ),
         'Content-Length': String(buffer.length),
         'Cache-Control': 'private, no-store',
       },

@@ -29,6 +29,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         { status: 409 }
       )
     }
+    if (['INELIGIBLE', 'CANCELLED'].includes(internalStatus) && (!reason || reason.trim().length < 10)) {
+      return NextResponse.json(
+        { error: 'Record a clear reason of at least 10 characters for this outcome' },
+        { status: 422 }
+      )
+    }
     if (!canTransitionApplication(application.internalStatus, internalStatus)) {
       return NextResponse.json(
         {

@@ -1,20 +1,22 @@
 import { redirect } from 'next/navigation'
 import AutomationManager from '@/components/admin/AutomationManager'
 import { getVerifiedUser } from '@/lib/auth'
+import { canRunRecruitmentOperations } from '@/lib/recruitment-role-policy'
 
 export default async function AutomationsPage() {
   const user = await getVerifiedUser()
-  if (!user || !user.roles.some((role) => ['SYSTEM_ADMIN', 'HR_MANAGER'].includes(role))) redirect('/auth/login')
+  if (!user) redirect('/auth/login')
+  if (user.roles.includes('SYSTEM_ADMIN')) redirect('/admin/system-settings')
+  if (!canRunRecruitmentOperations(user.roles)) redirect('/recruitment/dashboard')
   return (
     <div className="page-shell space-y-7">
       <div className="page-intro">
-        <p className="editorial-kicker">Scheduled work</p>
-        <h1 className="page-title">Automation controls</h1>
+        <h1 className="page-title">Scheduled work</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Check, pause or turn on reminders and scheduled tasks. Every run remains in the audit record.
+          Check reminders and timed actions, or stop a schedule when it is not safe to run.
         </p>
       </div>
-      <AutomationManager />
+      <AutomationManager canActivate={user.roles.includes('HR_MANAGER')} />
     </div>
   )
 }

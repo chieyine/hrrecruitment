@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const documentTypes = await prisma.documentType.findMany({
       where: { active: true },
       orderBy: { name: 'asc' },
-      select: { code: true, name: true },
+      select: { code: true, name: true, allowedFileTypes: true, maximumFileSize: true },
       take: 200,
     })
     return NextResponse.json({ documentTypes })
@@ -53,6 +53,31 @@ export async function POST(request: Request) {
     const asset = await prisma.fileAsset.findUnique({ where: { id: fileAssetId } })
     if (!asset || asset.ownerUserId !== user.userId || asset.virusScanStatus !== 'CLEAN') {
       return NextResponse.json({ error: 'Invalid file reference' }, { status: 400 })
+    }
+    const configuredType = await prisma.documentType.findFirst({
+      where: { code: documentType, active: true },
+      select: { allowedFileTypes: true, maximumFileSize: true },
+    })
+    const fallbackTypes = new Set(['CV', 'COVER_LETTER'])
+    const hasConfiguredTypes = (await prisma.documentType.count({ where: { active: true } })) > 0
+    if (!configuredType && (hasConfiguredTypes || !fallbackTypes.has(documentType))) {
+      return NextResponse.json({ error: 'Choose an available document category' }, { status: 400 })
+    }
+    if (configuredType) {
+      const allowed = configuredType.allowedFileTypes
+        .split(',')
+        .map((value) => value.trim().toLowerCase().replace(/^\./, ''))
+        .filter(Boolean)
+      const extension = asset.originalName.split('.').pop()?.toLowerCase() || ''
+      if (!allowed.includes(extension)) {
+        return NextResponse.json(
+          { error: `This category accepts: ${allowed.map((value) => value.toUpperCase()).join(', ')}` },
+          { status: 400 }
+        )
+      }
+      if (asset.sizeBytes > configuredType.maximumFileSize) {
+        return NextResponse.json({ error: 'This file exceeds the size limit for this category' }, { status: 400 })
+      }
     }
 
     const document = await prisma.candidateDocument.create({

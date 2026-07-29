@@ -13,7 +13,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const input = await parseBody(
       request,
       z.object({
-        score: z.coerce.number().min(0).max(100),
+        score: z.coerce.number().min(0).max(100).optional(),
         comment: z.string().max(2000).optional(),
         offlineRecord: z
           .object({
@@ -29,7 +29,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     )
     const record = await prisma.candidateAssessment.findUnique({
       where: { id: params.id },
-      include: { assessment: true },
+      include: { assessment: { include: { questions: true } }, answers: true },
     })
     if (!record) return NextResponse.json({ error: 'Candidate assessment not found' }, { status: 404 })
     const offlineTypes = new Set(['OFFLINE_WRITTEN', 'PRACTICAL', 'PRESENTATION', 'DRIVING_TEST', 'SIMULATION'])
@@ -46,6 +46,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     if (isOffline && !input.offlineRecord)
       return NextResponse.json({ error: 'Complete the offline assessment record' }, { status: 400 })
+    if (isOffline && input.score === undefined)
+      return NextResponse.json({ error: 'Enter the assessment score' }, { status: 400 })
     if (
       input.offlineRecord?.scoreSheetFileId &&
       !(await prisma.fileAsset.findFirst({
@@ -53,12 +55,31 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }))
     )
       return NextResponse.json({ error: 'The score sheet is unavailable or unsafe' }, { status: 400 })
-    const passed = input.score >= record.assessment.passMark
+    let finalScore = input.score
+    if (!isOffline) {
+      const scoreByQuestion = new Map(record.answers.map((answer) => [answer.assessmentQuestionId, answer.score]))
+      const unmarked = record.assessment.questions.find((question) => scoreByQuestion.get(question.id) == null)
+      if (unmarked)
+        return NextResponse.json(
+          { error: 'Finish marking every question before recording the outcome' },
+          { status: 409 }
+        )
+      const maximum = record.assessment.questions.reduce((sum, question) => sum + question.maximumScore, 0)
+      if (maximum <= 0) return NextResponse.json({ error: 'The assessment has no available marks' }, { status: 409 })
+      const awarded = record.assessment.questions.reduce(
+        (sum, question) => sum + (scoreByQuestion.get(question.id) || 0),
+        0
+      )
+      finalScore = Math.round((awarded / maximum) * 10_000) / 100
+    }
+    if (finalScore === undefined)
+      return NextResponse.json({ error: 'The assessment score is required' }, { status: 400 })
+    const passed = finalScore >= record.assessment.passMark
     await prisma.$transaction(async (tx) => {
       const marked = await tx.candidateAssessment.updateMany({
         where: { id: record.id, status: record.status },
         data: {
-          score: input.score,
+          score: finalScore,
           passed,
           status: passed ? 'PASSED' : 'FAILED',
           markerUserId: user.userId,
@@ -70,7 +91,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       await tx.application.update({
         where: { id: record.applicationId },
         data: {
-          assessmentScore: input.score,
+          assessmentScore: finalScore,
           internalStatus: 'ASSESSMENT_COMPLETED',
           candidateVisibleStatus: 'ASSESSMENT_COMPLETED',
         },
@@ -82,9 +103,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       action: 'ASSESSMENT_MARKED',
       resourceType: 'CandidateAssessment',
       resourceId: record.id,
-      newValue: { score: input.score, passed },
+      newValue: { score: finalScore, passed },
     })
-    return NextResponse.json({ success: true, score: input.score, passed })
+    return NextResponse.json({ success: true, score: finalScore, passed })
   } catch (err) {
     if (err instanceof Error && err.message === 'ASSESSMENT_CHANGED')
       return NextResponse.json({ error: 'Assessment was already marked; refresh and try again' }, { status: 409 })

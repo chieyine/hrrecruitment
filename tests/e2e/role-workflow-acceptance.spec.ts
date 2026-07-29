@@ -7,6 +7,7 @@ const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 type FixtureUsers = {
   hr: { id: string }
+  officer: { id: string }
   hiringManager: { id: string }
   panelMember: { id: string }
   approver: { id: string }
@@ -52,21 +53,24 @@ async function createApplication(vacancyId: string, internalStatus = 'SUBMITTED'
 
 test.describe('direct acceptance for specialist-role workflows', () => {
   test.beforeAll(async () => {
-    const [hr, hiringManager, panelMember, approver, candidateUser, department, dutyStation] = await Promise.all([
-      prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@frad.org' }, select: { id: true } }),
-      prisma.user.findUniqueOrThrow({ where: { email: 'hiring.manager@frad.org' }, select: { id: true } }),
-      prisma.user.findUniqueOrThrow({ where: { email: 'panel.member@frad.org' }, select: { id: true } }),
-      prisma.user.findUniqueOrThrow({ where: { email: 'approver@frad.org' }, select: { id: true } }),
-      prisma.user.findUniqueOrThrow({
-        where: { email: 'candidate@example.com' },
-        include: { candidateProfile: { select: { id: true } } },
-      }),
-      prisma.department.findFirstOrThrow({ where: { active: true }, select: { id: true } }),
-      prisma.dutyStation.findFirstOrThrow({ where: { active: true }, select: { id: true } }),
-    ])
+    const [hr, officer, hiringManager, panelMember, approver, candidateUser, department, dutyStation] =
+      await Promise.all([
+        prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@frad.org' }, select: { id: true } }),
+        prisma.user.findUniqueOrThrow({ where: { email: 'recruitment.officer@frad.org' }, select: { id: true } }),
+        prisma.user.findUniqueOrThrow({ where: { email: 'hiring.manager@frad.org' }, select: { id: true } }),
+        prisma.user.findUniqueOrThrow({ where: { email: 'panel.member@frad.org' }, select: { id: true } }),
+        prisma.user.findUniqueOrThrow({ where: { email: 'approver@frad.org' }, select: { id: true } }),
+        prisma.user.findUniqueOrThrow({
+          where: { email: 'candidate@example.com' },
+          include: { candidateProfile: { select: { id: true } } },
+        }),
+        prisma.department.findFirstOrThrow({ where: { active: true }, select: { id: true } }),
+        prisma.dutyStation.findFirstOrThrow({ where: { active: true }, select: { id: true } }),
+      ])
     if (!candidateUser.candidateProfile) throw new Error('The seeded candidate profile is missing')
     fixture = {
       hr,
+      officer,
       hiringManager,
       panelMember,
       approver,
@@ -84,7 +88,7 @@ test.describe('direct acceptance for specialist-role workflows', () => {
     await prisma.$disconnect()
   })
 
-  test('approver can record all four documented decisions with the correct vacancy transition', async ({ page }) => {
+  test('HR manager can record all four vacancy decisions with the correct transition', async ({ page }) => {
     const decisions = [
       { decision: 'APPROVED', expectedStatus: 'PENDING_APPROVAL', comment: undefined },
       {
@@ -98,20 +102,20 @@ test.describe('direct acceptance for specialist-role workflows', () => {
     ] as const
     const records = []
     for (const [index, item] of decisions.entries()) {
-      const vacancy = await createVacancy(fixture.hr.id, `approval-${index}`, 'PENDING_APPROVAL')
+      const vacancy = await createVacancy(fixture.officer.id, `approval-${index}`, 'PENDING_APPROVAL')
       const approval = await prisma.approval.create({
         data: {
           resourceType: 'VACANCY',
           resourceId: vacancy.id,
-          approverUserId: fixture.approver.id,
-          requestedBy: fixture.hr.id,
+          approverUserId: fixture.hr.id,
+          requestedBy: fixture.officer.id,
           decision: 'PENDING',
         },
       })
       records.push({ ...item, vacancy, approval })
     }
 
-    await login(page, 'approver@frad.org')
+    await login(page, 'hrmanager@frad.org')
     for (const record of records) {
       const response = await page.request.post('/api/recruitment/approvals', {
         data: {

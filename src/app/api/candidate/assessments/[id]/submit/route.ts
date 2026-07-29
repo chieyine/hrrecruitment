@@ -4,7 +4,6 @@ import { requireUser, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody, assessmentSubmitSchema } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 import { refreshApplicationFinalScore } from '@/lib/recruitment-scoring.server'
-import { deterministicShuffle } from '@/lib/deterministic-shuffle'
 
 /** Normalise an answer value into a comparable, order-insensitive form. */
 function normalize(value: unknown): string {
@@ -14,58 +13,6 @@ function normalize(value: unknown): string {
   if (value === null || value === undefined) return ''
   if (typeof value === 'boolean') return value ? 'true' : 'false'
   return String(value).trim().toLowerCase()
-}
-
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params
-  try {
-    const user = await requireUser()
-    const record = await prisma.candidateAssessment.findUnique({
-      where: { id: params.id },
-      include: {
-        assessment: { include: { questions: { orderBy: { displayOrder: 'asc' } } } },
-        application: { include: { candidate: true } },
-      },
-    })
-    if (!record) return NextResponse.json({ error: 'Assessment not found' }, { status: 404 })
-    if (record.application.candidate.userId !== user.userId) throw new AuthzError('Forbidden', 403)
-    const now = new Date()
-    if (record.assessment.opensAt && record.assessment.opensAt > now)
-      return NextResponse.json({ error: 'Assessment is not open yet' }, { status: 409 })
-    if (record.assessment.closesAt && record.assessment.closesAt <= now)
-      return NextResponse.json({ error: 'Assessment has closed' }, { status: 409 })
-    let startedAt = record.startedAt
-    let status = record.status
-    if (['INVITED', 'NOT_STARTED'].includes(status)) {
-      startedAt = now
-      status = 'IN_PROGRESS'
-      await prisma.candidateAssessment.update({ where: { id: record.id }, data: { startedAt, status } })
-    }
-    const durationEnd = (startedAt || now).getTime() + record.assessment.durationMinutes * 60_000
-    const closingEnd = record.assessment.closesAt?.getTime() ?? Number.POSITIVE_INFINITY
-    const secondsRemaining = Math.max(0, Math.floor((Math.min(durationEnd, closingEnd) - now.getTime()) / 1000))
-    const questions = record.assessment.randomizeQuestions
-      ? deterministicShuffle(record.assessment.questions, record.id)
-      : record.assessment.questions
-    return NextResponse.json({
-      assessment: {
-        id: record.id,
-        title: record.assessment.title,
-        description: record.assessment.description,
-        status,
-        secondsRemaining,
-        questions: questions.map((q) => ({
-          id: q.id,
-          questionType: q.questionType,
-          prompt: q.prompt,
-          optionsJson: q.optionsJson,
-          maximumScore: q.maximumScore,
-        })),
-      },
-    })
-  } catch (err) {
-    return authzResponse(err)
-  }
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -147,7 +94,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     // Auto-scorable question types are graded against the stored key. Free-text
     // types (SHORTTEXT/LONGTEXT/FILE) are left for a marker (score null).
-    const AUTO_TYPES = new Set(['MCQ', 'MULTISELECT', 'TRUEFALSE'])
+    const AUTO_TYPES = new Set(['MCQ', 'MULTISELECT', 'TRUEFALSE', 'NUMBER'])
     let awardedAuto = 0
     let possibleAuto = 0
     let requiresMarking = false
@@ -243,8 +190,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     return NextResponse.json({
       success: true,
-      score: updated.score,
-      passed,
       requiresMarking,
     })
   } catch (err) {

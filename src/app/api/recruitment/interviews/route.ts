@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { requirePermission, authzResponse } from '@/lib/authz'
+import { requireRole, authzResponse } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
-import { createNotification } from '@/lib/notifications'
 import { applicationAccess } from '@/lib/recruitment-access'
 import { hasStaffRole } from '@/lib/roles'
 
@@ -54,21 +53,36 @@ const schema = z
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission('interview.manage')
+    const user = await requireRole('RECRUITMENT_OFFICER', 'HR_MANAGER')
     const input = await parseBody(request, schema)
+    if (input.scheduledStart <= new Date())
+      return NextResponse.json({ error: 'Choose a future interview time' }, { status: 422 })
     const attachmentFileIds = input.attachmentFileIds ?? []
     const access = await applicationAccess(user.userId, input.applicationId)
     if (!access.readAll && !access.vacancyOwner && !access.assignedReviewer)
       return NextResponse.json({ error: 'Application not found or outside your assigned scope' }, { status: 404 })
     const application = await prisma.application.findUnique({
       where: { id: input.applicationId },
-      include: { candidate: true },
+      select: {
+        id: true,
+        internalStatus: true,
+        interviews: {
+          where: { status: { not: 'CANCELLED' } },
+          select: { id: true },
+          take: 1,
+        },
+      },
     })
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     if (!['SHORTLISTED', 'ASSESSMENT_COMPLETED', 'INTERVIEW_INVITED'].includes(application.internalStatus))
       return NextResponse.json(
         { error: `Cannot schedule interview from ${application.internalStatus}` },
         { status: 422 }
+      )
+    if (application.interviews.length)
+      return NextResponse.json(
+        { error: 'This application already has an active interview. Reschedule or cancel it instead.' },
+        { status: 409 }
       )
     const [panelUsers, attachmentFiles] = await Promise.all([
       prisma.user.findMany({
@@ -119,32 +133,8 @@ export async function POST(request: Request) {
           },
         },
       })
-      await tx.application.update({
-        where: { id: application.id },
-        data: {
-          internalStatus: 'INTERVIEW_INVITED',
-          candidateVisibleStatus: 'INTERVIEW_INVITED',
-          lockVersion: { increment: 1 },
-        },
-      })
-      await tx.applicationStageHistory.create({
-        data: {
-          applicationId: application.id,
-          fromStatus: application.internalStatus,
-          toStatus: 'INTERVIEW_INVITED',
-          changedBy: user.userId,
-          reason: 'Interview scheduled',
-        },
-      })
       return created
     })
-    if (application.candidate.userId)
-      await createNotification({
-        userId: application.candidate.userId,
-        type: 'INTERVIEW_INVITED',
-        title: 'Interview invitation',
-        body: `You have been invited to ${input.title}.`,
-      })
     await logAudit({
       actorUserId: user.userId,
       action: 'INTERVIEW_SCHEDULED',

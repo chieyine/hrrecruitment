@@ -2,8 +2,12 @@ import Link from 'next/link'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import { ArrowRight } from 'lucide-react'
+import { getVerifiedUser } from '@/lib/auth'
 
-export default function FAQPage() {
+export default async function FAQPage() {
+  const user = await getVerifiedUser()
+  const isCandidate = Boolean(user?.roles.includes('CANDIDATE'))
+  const helpHref = isCandidate ? '/candidate/messages' : user ? '/recruitment/dashboard' : '/auth/login?next=/candidate/messages'
   const faqs = [
     {
       question: 'Does FRAD charge recruitment fees?',
@@ -48,7 +52,7 @@ export default function FAQPage() {
     {
       question: 'I cannot sign in or upload a document. Where can I get help?',
       answer:
-        'Use password recovery if you cannot sign in. For an upload problem, check the allowed file type and size shown beside the field. If the problem continues, raise a technical concern and include the page, time and error message.',
+        'Use password recovery if you cannot sign in. For an upload problem, check the allowed file type and size shown beside the field. If the problem continues, send a message from your candidate account and include the page, time and error message.',
     },
     {
       question: 'How do I withdraw an application or close my account?',
@@ -59,7 +63,7 @@ export default function FAQPage() {
 
   return (
     <div className="flex min-h-screen flex-col justify-between bg-[#f4f1ea]">
-      <Header />
+      <Header currentUser={user} />
       <main id="main-content" className="mx-auto w-full max-w-7xl flex-1 px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
         <div className="grid gap-12 lg:grid-cols-[340px_1fr]">
           <aside>
@@ -70,8 +74,12 @@ export default function FAQPage() {
             </p>
             <div className="mt-8 border-l-2 border-[#d4875f] pl-4">
               <p className="text-sm font-bold text-[#17211c]">Still need help?</p>
-              <Link href="/complaints" className="mt-2 inline-flex items-center gap-2 text-xs font-bold text-brand-800">
-                Raise a recruitment concern <ArrowRight className="h-3.5 w-3.5" />
+              <Link
+                href={helpHref}
+                className="mt-2 inline-flex items-center gap-2 text-xs font-bold text-brand-800"
+              >
+                {isCandidate ? 'Message the recruitment team' : user ? 'Return to recruitment' : 'Sign in to send a message'}{' '}
+                <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
           </aside>

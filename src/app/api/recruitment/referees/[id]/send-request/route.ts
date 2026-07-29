@@ -11,7 +11,18 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   try {
     const user = await requirePermission('reference.manage')
 
-    const referee = await prisma.referee.findUnique({ where: { id: params.id } })
+    const referee = await prisma.referee.findUnique({
+      where: { id: params.id },
+      select: {
+        id: true,
+        applicationId: true,
+        name: true,
+        email: true,
+        permissionToContact: true,
+        contactStatus: true,
+        preferredContactMethod: true,
+      },
+    })
     if (!referee) return NextResponse.json({ error: 'Referee not found' }, { status: 404 })
     if (!referee.permissionToContact)
       return NextResponse.json({ error: 'The candidate has not authorised contact with this referee' }, { status: 409 })
@@ -65,6 +76,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
           channel: 'EMAIL',
           recipient: referee.email,
           subject,
+          applicationId: referee.applicationId,
           payloadJson: protectOutboxPayload({ html }),
           deduplicationKey: `reference-request:${created.id}`,
         },

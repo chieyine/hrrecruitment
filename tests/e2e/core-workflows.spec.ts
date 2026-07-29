@@ -98,9 +98,9 @@ test('candidate updates personal information and talent-pool preference', async 
   await expect(page.getByRole('status')).toBeVisible()
 })
 
-test('administrator creates and removes a configuration record', async ({ page }, testInfo) => {
+test('HR manager creates and removes a recruitment configuration record', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once.')
-  await login(page, 'admin@frad.org')
+  await login(page, 'hrmanager@frad.org')
   await page.goto('/admin/departments')
 
   await page.getByRole('button', { name: /^add department$/i }).click()

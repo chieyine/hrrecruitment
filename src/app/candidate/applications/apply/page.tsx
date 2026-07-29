@@ -24,31 +24,31 @@ function ApplyForm() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [loadProblem, setLoadProblem] = useState('')
   const [saveStatus, setSaveStatus] = useState('')
   const [reviewOpen, setReviewOpen] = useState(false)
   const submissionKey = useRef(crypto.randomUUID())
-  const restoredLocalDraft = useRef(false)
   const formRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
-    if (!vacancyId) return
-    let hasCachedVacancy = false
-    try {
-      const local = JSON.parse(localStorage.getItem(`frad-application-draft:${vacancyId}`) || '{}')
-      if (local.vacancy?.id === vacancyId) {
-        setVacancy(local.vacancy)
-        hasCachedVacancy = true
-      }
-      if (local.answers) setAnswers(local.answers)
-      if (local.selectedDocuments) setSelectedDocuments(local.selectedDocuments)
-      restoredLocalDraft.current = Boolean(local.vacancy || local.answers || local.selectedDocuments)
-    } catch {}
+    if (!vacancyId) {
+      setLoadProblem('No role was selected. Return to open roles and choose the position you want to apply for.')
+      setLoading(false)
+      return
+    }
+    let unavailable = false
     // Ask for this vacancy only. Fetching the entire list and filtering client
     // side broke as soon as the public endpoint became paginated.
     fetch(`/api/public/vacancies?id=${encodeURIComponent(vacancyId)}`)
       .then((res) => res.json())
       .then((data) => {
         const found = data.vacancies?.find((v: any) => v.id === vacancyId)
+        if (!found) {
+          unavailable = true
+          setLoadProblem('This role is no longer open for applications.')
+          setLoading(false)
+          return Promise.reject(new Error('ROLE_UNAVAILABLE'))
+        }
         setVacancy(found)
         return Promise.all([
           Promise.resolve(found),
@@ -85,25 +85,14 @@ function ApplyForm() {
           }
           setSelectedDocuments(restoredDocuments)
         } else if (data?.application?.id) {
-          localStorage.removeItem(`frad-application-draft:${vacancyId}`)
           router.replace(`/candidate/applications/${data.application.id}`)
           return
-        } else if (found && !restoredLocalDraft.current) {
-          try {
-            const local = JSON.parse(localStorage.getItem(`frad-application-draft:${vacancyId}`) || '{}')
-            if (local.answers) setAnswers(local.answers)
-            if (local.selectedDocuments) setSelectedDocuments(local.selectedDocuments)
-          } catch {}
-          restoredLocalDraft.current = true
         }
         setLoading(false)
       })
       .catch(() => {
-        if (hasCachedVacancy)
-          setError(
-            'Connection unavailable. Your locally saved application draft is shown below and will sync when connectivity returns.'
-          )
-        else setError('Connection unavailable and no local copy of this vacancy is available. Reconnect and try again.')
+        if (unavailable) return
+        setLoadProblem('The application could not be loaded. Check your connection and try again.')
         setLoading(false)
       })
   }, [vacancyId, router])
@@ -157,7 +146,6 @@ function ApplyForm() {
     e.preventDefault()
     const applicationId = await save('SUBMIT')
     if (applicationId) {
-      if (vacancyId) localStorage.removeItem(`frad-application-draft:${vacancyId}`)
       router.push(`/candidate/applications/${applicationId}/receipt`)
       router.refresh()
     }
@@ -215,8 +203,6 @@ function ApplyForm() {
     if (loading || !vacancyId || (!Object.keys(answers).length && !Object.keys(selectedDocuments).length)) return
     const timer = window.setTimeout(async () => {
       setSaveStatus('Saving changes…')
-      const localDraft = { vacancy, answers, selectedDocuments, savedAt: new Date().toISOString() }
-      localStorage.setItem(`frad-application-draft:${vacancyId}`, JSON.stringify(localDraft))
       try {
         const response = await fetch('/api/candidate/applications', {
           method: 'POST',
@@ -234,10 +220,10 @@ function ApplyForm() {
         setSaveStatus(
           response.ok
             ? `Saved at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-            : 'Saved on this device. We will retry when the connection is available.'
+            : 'Not saved. Check your connection and try again.'
         )
       } catch {
-        setSaveStatus('Saved on this device. We will retry when the connection is available.')
+        setSaveStatus('Not saved. Check your connection and try again.')
       }
     }, 1500)
     return () => window.clearTimeout(timer)
@@ -262,6 +248,25 @@ function ApplyForm() {
         <Header />
         <main id="main-content" className="flex-1 flex items-center justify-center">
           <p className="text-xs text-slate-500 font-semibold">Loading vacancy details…</p>
+        </main>
+        <Footer />
+      </div>
+    )
+  }
+
+  if (!vacancy || loadProblem) {
+    return (
+      <div className="flex min-h-screen flex-col bg-surface-50">
+        <Header />
+        <main id="main-content" className="flex flex-1 items-center px-4 py-12 sm:px-6">
+          <section className="mx-auto w-full max-w-xl border-t-4 border-brand-800 bg-white p-7 shadow-soft sm:p-10">
+            <AlertCircle className="h-9 w-9 text-amber-700" />
+            <h1 className="mt-6 font-display text-3xl text-navy-900">Application not available</h1>
+            <p className="mt-4 text-sm leading-6 text-stone-600">{loadProblem || 'This role could not be opened.'}</p>
+            <Link href="/careers" className="btn-primary mt-7">
+              View open roles
+            </Link>
+          </section>
         </main>
         <Footer />
       </div>
@@ -488,7 +493,8 @@ function ApplyForm() {
                           htmlFor={`document-${requirement.id}`}
                           className="block text-xs font-bold text-slate-900"
                         >
-                          {requirement.documentType} {requirement.required && <span className="text-rose-600">*</span>}
+                          {requirement.documentType.replaceAll('_', ' ')}{' '}
+                          {requirement.required && <span className="text-rose-600">*</span>}
                         </label>
                         <select
                           id={`document-${requirement.id}`}
@@ -539,7 +545,7 @@ function ApplyForm() {
                     onChange={(e) => setDeclarationsAccepted(e.target.checked)}
                     className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                   />
-                  <span>I agree to these declarations and the privacy notice</span>
+                  <span>I confirm the statements above</span>
                 </label>
               </div>
 
@@ -551,6 +557,14 @@ function ApplyForm() {
                   type="button"
                   onClick={() => {
                     if (!formRef.current?.reportValidity()) return
+                    if (completedRequiredQuestions !== requiredQuestions.length) {
+                      setError('Complete all required questions before reviewing your application.')
+                      return
+                    }
+                    if (selectedRequiredDocuments !== requiredDocuments.length) {
+                      setError('Attach all required documents before reviewing your application.')
+                      return
+                    }
                     if (!declarationsAccepted) {
                       setError('Confirm the declarations before reviewing your application.')
                       return

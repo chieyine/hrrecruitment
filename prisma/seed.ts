@@ -601,7 +601,7 @@ async function main() {
 
   // 11. Permissions & role-permission grants (§8)
   const permissions = [
-    { code: '*', description: 'Full access (superuser)' },
+    { code: '*', description: 'Legacy wildcard; not assigned to built-in roles' },
     { code: 'vacancy.create.all', description: 'Create vacancies' },
     { code: 'vacancy.read.all', description: 'Read all vacancies' },
     { code: 'vacancy.read.assigned', description: 'Read vacancies owned by or assigned to the user' },
@@ -636,7 +636,7 @@ async function main() {
   }
 
   const grants: Record<string, string[]> = {
-    SYSTEM_ADMIN: ['*'],
+    SYSTEM_ADMIN: ['admin.manage', 'audit.read', 'governance.manage'],
     HR_MANAGER: [
       'vacancy.create.all',
       'vacancy.read.all',
@@ -672,6 +672,8 @@ async function main() {
       'reference.manage',
       'offer.manage',
       'preboarding.manage',
+      'resumption.confirm',
+      'erp.transfer',
       'complaint.manage',
     ],
     HIRING_MANAGER: [

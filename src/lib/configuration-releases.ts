@@ -1,5 +1,9 @@
 import { prisma } from '@/lib/prisma'
 import { AuthzError } from '@/lib/authz'
+import { validateFormSchema } from '@/lib/form-template'
+import { validateMessageTemplate } from '@/lib/message-template'
+import { validatePolicyValues } from '@/lib/policy-template'
+import { validateOfferTemplate } from '@/lib/offer-template'
 
 type FieldType = 'string' | 'int' | 'float' | 'bool' | 'date'
 type ReleaseConfig = { model: string; fields: Record<string, FieldType> }
@@ -26,8 +30,8 @@ export const RELEASE_ENTITIES: Record<string, ReleaseConfig> = {
       category: 'string',
       effectiveDate: 'date',
       summary: 'string',
+      fileAssetId: 'string',
       acknowledgementMethod: 'string',
-      signatureMethod: 'string',
       active: 'bool',
     },
   },
@@ -39,6 +43,7 @@ export const RELEASE_ENTITIES: Record<string, ReleaseConfig> = {
       schemaJson: 'string',
       required: 'bool',
       reviewRequired: 'bool',
+      sensitivityClass: 'string',
       active: 'bool',
     },
   },
@@ -56,7 +61,7 @@ export const RELEASE_ENTITIES: Record<string, ReleaseConfig> = {
   },
   'preboarding-packages': {
     model: 'preboardingPackage',
-    fields: { name: 'string', description: 'string', candidateType: 'string', roleCategory: 'string', active: 'bool' },
+    fields: { name: 'string', description: 'string', active: 'bool' },
   },
   scorecards: {
     model: 'scorecardTemplate',
@@ -93,6 +98,19 @@ export function coerceRelease(entity: string, data: Record<string, unknown>) {
     else if (type === 'date') output[key] = new Date(String(value))
     else output[key] = String(value).trim()
   }
+  if (entity === 'forms') {
+    if (output.schemaJson !== undefined) output.schemaJson = validateFormSchema(output.schemaJson)
+    if (
+      output.sensitivityClass !== undefined &&
+      !['STANDARD', 'CONFIDENTIAL', 'RESTRICTED'].includes(String(output.sensitivityClass))
+    )
+      throw new AuthzError('Choose a valid form access classification', 422)
+    output.required = true
+    output.reviewRequired = true
+  }
+  if (entity === 'notification-templates' || entity === 'email-templates') validateMessageTemplate(output)
+  if (entity === 'templates') validateOfferTemplate(output)
+  if (entity === 'policies') validatePolicyValues(output)
   return output
 }
 

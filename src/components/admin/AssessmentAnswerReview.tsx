@@ -43,9 +43,11 @@ interface Review {
 export default function AssessmentAnswerReview({
   candidateAssessmentId,
   candidateName,
+  onMarksSaved,
 }: {
   candidateAssessmentId: string
   candidateName: string
+  onMarksSaved?: (percentage: number) => void
 }) {
   const [review, setReview] = useState<Review | null>(null)
   const [open, setOpen] = useState(false)
@@ -109,6 +111,7 @@ export default function AssessmentAnswerReview({
         `Saved. ${data.awardedScore} of ${data.maximumScore}` +
           (data.percentage !== null ? ` (${data.percentage}%) — use this as the overall score.` : '')
       )
+      if (data.percentage !== null) onMarksSaved?.(data.percentage)
       await load()
     } finally {
       setSaving(false)

@@ -47,6 +47,35 @@ const schema = z
     message: 'Closing time must follow opening time',
     path: ['closesAt'],
   })
+  .superRefine((value, context) => {
+    const offlineTypes = new Set(['OFFLINE_WRITTEN', 'PRACTICAL', 'PRESENTATION', 'DRIVING_TEST', 'SIMULATION'])
+    if (!offlineTypes.has(value.type) && value.questions.length === 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['questions'],
+        message: 'Add at least one question to an online assessment',
+      })
+    }
+    value.questions.forEach((question, index) => {
+      if (['MCQ', 'MULTISELECT'].includes(question.questionType) && (question.options?.length || 0) < 2) {
+        context.addIssue({
+          code: 'custom',
+          path: ['questions', index, 'options'],
+          message: 'Add at least two answer options',
+        })
+      }
+      if (
+        ['MCQ', 'MULTISELECT', 'TRUEFALSE', 'NUMBER'].includes(question.questionType) &&
+        (question.correctAnswer === undefined || question.correctAnswer === '')
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['questions', index, 'correctAnswer'],
+          message: 'Add the correct answer for automatic marking',
+        })
+      }
+    })
+  })
 
 export async function GET() {
   try {
@@ -68,6 +97,8 @@ export async function POST(request: Request) {
     const input = await parseBody(request, schema)
     const vacancy = await prisma.vacancy.findUnique({ where: { id: input.vacancyId } })
     if (!vacancy) return NextResponse.json({ error: 'Vacancy not found' }, { status: 404 })
+    if (['CANCELLED', 'COMPLETED', 'ARCHIVED'].includes(vacancy.status))
+      return NextResponse.json({ error: 'Assessments cannot be added to this vacancy' }, { status: 409 })
     const assessment = await prisma.assessment.create({
       data: {
         vacancyId: input.vacancyId,

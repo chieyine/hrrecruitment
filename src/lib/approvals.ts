@@ -12,14 +12,17 @@ import { AuthzError } from '@/lib/authz'
  */
 export async function findIndependentApprover(
   requestedBy: string,
-  preferredRoles = ['HR_MANAGER', 'APPROVER', 'SYSTEM_ADMIN'],
+  preferredRoles = ['HR_MANAGER', 'APPROVER'],
   additionallyExcluded: string[] = []
 ) {
   const candidates = await prisma.user.findMany({
     where: {
       id: { notIn: [requestedBy, ...additionallyExcluded] },
       accountStatus: 'ACTIVE',
-      userRoles: { some: { role: { name: { in: preferredRoles } } } },
+      AND: [
+        { userRoles: { some: { role: { name: { in: preferredRoles } } } } },
+        { userRoles: { none: { role: { name: 'SYSTEM_ADMIN' } } } },
+      ],
     },
     select: { id: true, createdAt: true },
     orderBy: { createdAt: 'asc' },

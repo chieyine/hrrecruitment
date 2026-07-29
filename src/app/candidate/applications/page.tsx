@@ -1,24 +1,27 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { ArrowRight, FileText } from 'lucide-react'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
+import { EmptyState, PageIntro } from '@/components/ui/PageElements'
 import { prisma } from '@/lib/prisma'
 import { getVerifiedUser } from '@/lib/auth'
 import { formatDate } from '@/lib/utils'
-import { ArrowLeft, FileText } from 'lucide-react'
 import { candidateFacingStatus, candidateStatusLabel } from '@/lib/candidate-status'
 import DeleteDraftButton from './DeleteDraftButton'
+import { homeRouteForRoles } from '@/lib/home-route'
 
 export default async function CandidateApplicationsPage() {
   const user = await getVerifiedUser()
   if (!user) redirect('/auth/login')
+  if (!user.roles.includes('CANDIDATE')) redirect(homeRouteForRoles(user.roles))
 
   const profile = await prisma.candidateProfile.findUnique({
     where: { userId: user.userId },
   })
 
-  // Never pass an undefined candidate id to Prisma: omitted filters would turn
-  // this candidate page into an all-applications query.
+  // An absent profile must return an empty list. Omitting candidateId here
+  // would expose applications belonging to other candidates.
   const applications = profile
     ? await prisma.application.findMany({
         where: { candidateId: profile.id },
@@ -32,96 +35,100 @@ export default async function CandidateApplicationsPage() {
     : []
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f4f1ea]">
+    <div className="flex min-h-screen flex-col bg-surface-50">
       <Header currentUser={user} />
 
-      <main id="main-content" className="flex-1 py-10">
-        <div className="mx-auto max-w-6xl space-y-8 px-4 sm:px-6 lg:px-8">
-          <Link
-            href="/candidate/dashboard"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" /> Back to dashboard
-          </Link>
-
-          <section>
-            <div className="flex items-end justify-between border-b border-[#cfc9bd] pb-5">
-              <div>
-                <h1 className="font-display text-4xl text-[#17211c]">Applications</h1>
-                <p className="mt-2 text-sm text-[#617067]">Saved drafts and applications you have sent.</p>
-              </div>
-
-              <Link
-                href="/careers"
-                className="bg-brand-800 px-5 py-2.5 text-xs font-bold text-white hover:bg-brand-950"
-              >
-                Find a vacancy
+      <main id="main-content" className="flex-1 py-7 sm:py-9">
+        <div className="page-shell max-w-6xl space-y-6">
+          <PageIntro
+            eyebrow="Candidate account"
+            title="Applications"
+            description="Draft applications and roles you have applied for."
+            actions={
+              <Link href="/careers" className="btn-primary">
+                Find a role <ArrowRight className="h-4 w-4" />
               </Link>
-            </div>
+            }
+          />
 
-            {applications.length === 0 ? (
-              <div className="border-b border-[#cfc9bd] py-16 text-center text-sm text-[#617067]">
-                <FileText className="mx-auto h-10 w-10 text-[#9aa49e]" />
-                <p className="mt-3 font-bold text-[#26352d]">You have not started an application.</p>
-                <p className="mt-1">Open a vacancy to begin.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-[#d9d4ca] border-b border-[#d9d4ca]">
+          {applications.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title="You have not started an application"
+              description="Browse the open roles and start an application when you find the right one."
+              action={{ href: '/careers', label: 'View open roles' }}
+            />
+          ) : (
+            <section aria-label="Your applications" className="section-panel">
+              <div className="divide-y divide-stone-100">
                 {applications.map((app) => {
                   const status = candidateFacingStatus(app.internalStatus, app.candidateVisibleStatus)
                   const isDraft = status === 'APPLICATION_DRAFT'
+                  const now = new Date()
+                  const roleIsPublic =
+                    app.vacancy.status === 'OPEN' && app.vacancy.openingAt <= now && app.vacancy.closingAt > now
+                  const href = isDraft
+                    ? `/candidate/applications/apply?vacancyId=${app.vacancy.id}`
+                    : `/candidate/applications/${app.id}`
 
                   return (
                     <article
                       key={app.id}
                       data-testid="candidate-application-card"
-                      className="grid gap-5 bg-white/55 px-5 py-7 sm:px-6 md:grid-cols-[1fr_auto] md:items-center"
+                      className="grid gap-5 px-5 py-6 sm:px-6 md:grid-cols-[1fr_auto] md:items-center"
                     >
-                      <div>
-                        <span className="font-mono text-[11px] font-bold text-[#647169]">
-                          {app.vacancy.referenceNumber}
-                        </span>
-                        <h2 className="mt-1 font-display text-2xl text-[#17211c]">{app.vacancy.title}</h2>
-                        <p className="mt-1 text-xs text-[#617067]">
-                          {app.vacancy.department.name} · {app.vacancy.dutyStation.name}
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-[10px] font-bold text-stone-500">
+                            {app.vacancy.referenceNumber}
+                          </span>
+                          <span
+                            className={`status-chip ${
+                              isDraft
+                                ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                : 'border-brand-200 bg-brand-50 text-brand-800'
+                            }`}
+                          >
+                            {candidateStatusLabel(status)}
+                          </span>
+                        </div>
+                        <Link href={href} className="group mt-2 inline-flex items-center gap-2">
+                          <h2 className="truncate text-xl font-semibold tracking-[-.02em] text-navy-900 group-hover:text-brand-800">
+                            {app.vacancy.title}
+                          </h2>
+                          <ArrowRight className="h-4 w-4 shrink-0 text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-brand-700" />
+                        </Link>
+                        <p className="mt-1 text-sm text-stone-600">
+                          {app.vacancy.department.name} · {app.vacancy.dutyStation.name},{' '}
+                          {app.vacancy.dutyStation.state}
                         </p>
-                        <p className="mt-4 text-xs text-[#617067]">
+                        <p className="mt-3 text-xs text-stone-500">
                           {isDraft
                             ? `Last saved ${formatDate(app.updatedAt)}`
                             : `Received ${formatDate(app.submittedAt || app.updatedAt)}`}
                         </p>
                       </div>
 
-                      <div className="md:text-right">
-                        <p className={`text-xs font-bold ${isDraft ? 'text-amber-800' : 'text-brand-800'}`}>
-                          {candidateStatusLabel(status)}
-                        </p>
-                        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs md:justify-end">
-                          <Link
-                            href={
-                              isDraft
-                                ? `/candidate/applications/apply?vacancyId=${app.vacancy.id}`
-                                : `/candidate/applications/${app.id}`
-                            }
-                            className="font-bold text-brand-700 hover:underline"
-                          >
-                            {isDraft ? 'Continue application' : 'View application'}
-                          </Link>
-                          {isDraft && <DeleteDraftButton applicationId={app.id} vacancyId={app.vacancy.id} />}
+                      <div className="flex flex-wrap items-center gap-3 md:justify-end">
+                        <Link href={href} className="btn-secondary min-h-10 px-4 py-2 text-xs">
+                          {isDraft ? 'Continue' : 'View application'}
+                        </Link>
+                        {isDraft && <DeleteDraftButton applicationId={app.id} />}
+                        {roleIsPublic && (
                           <Link
                             href={`/careers/${encodeURIComponent(app.vacancy.referenceNumber)}`}
-                            className="font-bold text-[#526158] hover:underline"
+                            className="text-xs font-semibold text-stone-600 hover:text-brand-800 hover:underline"
                           >
-                            Vacancy details
+                            Role details
                           </Link>
-                        </div>
+                        )}
                       </div>
                     </article>
                   )
                 })}
               </div>
-            )}
-          </section>
+            </section>
+          )}
         </div>
       </main>
 

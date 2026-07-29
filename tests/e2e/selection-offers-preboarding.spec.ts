@@ -13,13 +13,13 @@ test.describe('Selection, Offers, and Preboarding', () => {
     await logout(page)
   })
 
-  test('Candidate offers workspace renders the current offer state', async ({ page }, testInfo) => {
+  test('Candidate application history renders the current offer state', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once.')
 
     await login(page, 'candidate@example.com')
-    await page.goto('/candidate/offers')
+    await page.goto('/candidate/applications')
 
-    await expect(page.getByRole('heading', { name: /^offers$/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /^applications$/i })).toBeVisible()
     await logout(page)
   })
 

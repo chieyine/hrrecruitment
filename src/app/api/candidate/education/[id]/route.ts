@@ -12,13 +12,25 @@ const educationSchema = z
     fieldOfStudy: z.string().trim().min(1).max(200),
     country: z.string().trim().min(1).max(100),
     startYear: z.coerce.number().int().min(1900).max(2100),
-    completionYear: z.coerce.number().int().min(1900).max(2100),
+    completionYear: z.preprocess(
+      (value) => (value === '' || value === undefined ? null : value),
+      z.coerce.number().int().min(1900).max(2100).nullable()
+    ),
+    isCurrent: z.boolean().default(false),
     grade: z.string().trim().max(100).optional().nullable(),
     certificateFileId: z.string().optional().nullable(),
   })
-  .refine((v) => v.completionYear >= v.startYear, {
-    message: 'Completion year must not precede start year',
-    path: ['completionYear'],
+  .superRefine((value, context) => {
+    if (!value.isCurrent && !value.completionYear) {
+      context.addIssue({ code: 'custom', path: ['completionYear'], message: 'Completion year is required' })
+    }
+    if (value.completionYear && value.completionYear < value.startYear) {
+      context.addIssue({
+        code: 'custom',
+        path: ['completionYear'],
+        message: 'Completion year must not precede start year',
+      })
+    }
   })
 
 async function owned(id: string, userId: string) {
@@ -33,6 +45,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const user = await requireUser()
     const existing = await owned(params.id, user.userId)
     const data = await parseBody(request, educationSchema)
+    const completionYear = data.completionYear === null ? null : Number(data.completionYear)
     if (
       data.certificateFileId &&
       !(await prisma.fileAsset.findFirst({
@@ -40,7 +53,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       }))
     )
       throw new AuthzError('Certificate file is unavailable or unsafe', 400)
-    const education = await prisma.candidateEducation.update({ where: { id: params.id }, data })
+    const education = await prisma.candidateEducation.update({
+      where: { id: params.id },
+      data: { ...data, completionYear },
+    })
     await refreshProfileCompletion(existing.candidateId)
     await logAudit({
       actorUserId: user.userId,

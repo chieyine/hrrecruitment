@@ -20,25 +20,44 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         infoItems: true,
         meetings: true,
         application: {
-          include: {
-            candidate: true,
+          select: {
+            candidate: { select: { legalFirstName: true, lastName: true } },
             vacancy: { select: { title: true, referenceNumber: true } },
           },
         },
       },
     })
     if (!preboarding) return NextResponse.json({ error: 'Preboarding record not found' }, { status: 404 })
-    const canReadRestricted = await hasPermission(user.userId, 'preboarding.restricted.read')
+    const [canReadRestricted, canClearance] = await Promise.all([
+      hasPermission(user.userId, 'preboarding.restricted.read'),
+      hasPermission(user.userId, 'preboarding.clearance'),
+    ])
     if (!canReadRestricted) {
       preboarding.forms = preboarding.forms.map((form) =>
         form.formTemplate.sensitivityClass === 'RESTRICTED' ? { ...form, responseJson: null } : form
       )
     }
     const [packages, requirements] = await Promise.all([
-      prisma.preboardingPackage.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
-      prisma.documentRequirement.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+      prisma.preboardingPackage.findMany({
+        where: { active: true },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.documentRequirement.findMany({
+        where: { active: true },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
     ])
-    return NextResponse.json({ preboarding, packages, requirements })
+    return NextResponse.json({
+      preboarding,
+      packages,
+      requirements,
+      capabilities: {
+        canWaive: user.roles.includes('HR_MANAGER'),
+        canClearance,
+      },
+    })
   } catch (err) {
     return authzResponse(err)
   }
@@ -50,31 +69,26 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const user = await requirePermission('preboarding.manage')
     const body = await request.json()
     const checkId = String(body.checkId || '')
-    const status = String(body.status || '')
     const reason = String(body.reason || '').trim()
-    if (!checkId || !['PASSED', 'FAILED', 'PENDING', 'WAIVED'].includes(status)) {
-      return NextResponse.json({ error: 'A valid checkId and status are required' }, { status: 400 })
-    }
-    if (status === 'WAIVED') {
-      await requireRole('HR_MANAGER', 'SYSTEM_ADMIN')
-      if (!reason) return NextResponse.json({ error: 'A waiver reason is required' }, { status: 400 })
-    }
+    await requireRole('HR_MANAGER')
+    if (!checkId || reason.length < 10)
+      return NextResponse.json({ error: 'A waiver and reason of at least 10 characters are required' }, { status: 400 })
     const check = await prisma.readinessCheck.findFirst({ where: { id: checkId, candidatePreboardingId: params.id } })
     if (!check) return NextResponse.json({ error: 'Readiness check not found' }, { status: 404 })
 
     const updated = await prisma.readinessCheck.update({
       where: { id: check.id },
       data: {
-        status,
+        status: 'WAIVED',
         reviewedAt: new Date(),
-        waivedBy: status === 'WAIVED' ? user.userId : null,
-        waiverReason: status === 'WAIVED' ? reason : null,
-        waivedAt: status === 'WAIVED' ? new Date() : null,
+        waivedBy: user.userId,
+        waiverReason: reason,
+        waivedAt: new Date(),
       },
     })
     await logAudit({
       actorUserId: user.userId,
-      action: status === 'WAIVED' ? 'READINESS_CHECK_WAIVED' : 'READINESS_CHECK_REVIEWED',
+      action: 'READINESS_CHECK_WAIVED',
       resourceType: 'ReadinessCheck',
       resourceId: check.id,
       previousValue: check,

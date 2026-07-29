@@ -16,7 +16,11 @@ execFileSync('npm', ['run', 'db:seed'], { cwd: root, env: environment, stdio: 'i
 
 const serverEnvironment = { ...environment }
 delete serverEnvironment.NODE_ENV
-execFileSync('npm', ['run', 'build'], { cwd: root, env: serverEnvironment, stdio: 'inherit' })
+// The disposable E2E database is already initialised above with `db push`.
+// Calling the production `npm run build` wrapper here also runs migrate deploy,
+// which attempts to baseline the populated test database and fails with P3005.
+execFileSync('npx', ['prisma', 'generate'], { cwd: root, env: serverEnvironment, stdio: 'inherit' })
+execFileSync('npx', ['next', 'build'], { cwd: root, env: serverEnvironment, stdio: 'inherit' })
 const server = spawn('npm', ['start', '--', '--hostname', '127.0.0.1', '--port', '3107'], {
   cwd: root,
   env: serverEnvironment,

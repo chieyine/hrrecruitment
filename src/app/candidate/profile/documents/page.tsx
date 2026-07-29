@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import Link from 'next/link'
-import { ArrowLeft, Upload, FileText, CheckCircle, Trash2, Pencil } from 'lucide-react'
+import { ArrowLeft, Upload, FileText, Trash2, Pencil, Download, CalendarClock } from 'lucide-react'
 import { useToast } from '@/components/ui/Toaster'
-import { ReasonDialog } from '@/components/ui/Dialog'
+import { ConfirmDialog } from '@/components/ui/Dialog'
+import { EmptyState, PageIntro } from '@/components/ui/PageElements'
 
 /**
  * Fallback categories used only if the configured DocumentType list is empty or
@@ -15,11 +16,6 @@ import { ReasonDialog } from '@/components/ui/Dialog'
 const DEFAULT_DOCUMENT_TYPES = [
   { code: 'CV', name: 'Curriculum Vitae (CV)' },
   { code: 'COVER_LETTER', name: 'Cover Letter' },
-  { code: 'ACADEMIC_CERTIFICATE', name: 'Academic Certificate' },
-  { code: 'PROFESSIONAL_LICENCE', name: 'Professional Licence / Certificate' },
-  { code: 'NYSC', name: 'NYSC Discharge / Exemption Certificate' },
-  { code: 'PASSPORT_PHOTO', name: 'Passport Photograph' },
-  { code: 'GUARANTOR_FORM', name: 'Guarantor Form' },
 ]
 
 export default function CandidateDocumentLibraryPage() {
@@ -35,6 +31,7 @@ export default function CandidateDocumentLibraryPage() {
   // Categories are configured in /admin/document-types; hardcoding them meant
   // an administrator's changes never reached this form.
   const [documentTypes, setDocumentTypes] = useState<Array<{ code: string; name: string }>>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetch('/api/candidate/documents?types=1')
@@ -79,14 +76,19 @@ export default function CandidateDocumentLibraryPage() {
   }
 
   const loadData = () => {
+    setLoading(true)
     fetch('/api/candidate/profile')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.profile?.documents) {
-          setDocuments(data.profile.documents)
-        }
+      .then(async (res) => {
+        const body = await res.json()
+        if (!res.ok) throw new Error(body.error || 'Unable to load your documents.')
+        return body
       })
-      .catch(console.error)
+      .then((data) => {
+        setDocuments(data.profile?.documents ?? [])
+        setError('')
+      })
+      .catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load your documents.'))
+      .finally(() => setLoading(false))
   }
 
   useEffect(() => {
@@ -122,216 +124,221 @@ export default function CandidateDocumentLibraryPage() {
       setFile(null)
       setExpiryDate('')
       loadData()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to upload the document.')
     } finally {
       setUploading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+    <div className="flex min-h-screen flex-col bg-surface-50">
       <Header />
-      <main id="main-content" className="max-w-4xl mx-auto px-4 py-8 flex-1 w-full">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/candidate/profile"
-              className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-            >
-              <ArrowLeft className="w-4 h-4 text-slate-600" />
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Documents</h1>
-              <p className="text-slate-600 text-sm">Add CVs, cover letters, certificates and identity documents.</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setShowUpload(!showUpload)}
-            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition"
+      <main id="main-content" className="flex-1 py-7 sm:py-9">
+        <div className="page-shell max-w-5xl space-y-6">
+          <Link
+            href="/candidate/profile"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-stone-600 hover:text-brand-800"
           >
-            <Upload className="w-4 h-4" /> Upload Document
-          </button>
-        </div>
+            <ArrowLeft className="h-4 w-4" /> Profile
+          </Link>
+          <PageIntro
+            eyebrow="Your profile"
+            title="Document library"
+            description="Keep reusable application files here. FRAD will ask separately for identity or pre-employment documents when they are needed."
+            actions={
+              <button onClick={() => setShowUpload(!showUpload)} className="btn-primary">
+                <Upload className="h-4 w-4" /> Upload a file
+              </button>
+            }
+          />
 
-        {showUpload && (
-          <form
-            onSubmit={handleUpload}
-            className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-6 space-y-4"
-          >
-            <h2 className="font-bold text-slate-900 text-lg">Upload Document</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {showUpload && (
+            <form onSubmit={handleUpload} className="section-panel space-y-5">
               <div>
-                <label htmlFor="document-category" className="block text-sm font-medium text-slate-700 mb-1">
-                  Document Category *
-                </label>
-                <select
-                  id="document-category"
-                  value={documentType}
-                  onChange={(e) => setDocumentType(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                >
-                  {documentTypes.length === 0
-                    ? DEFAULT_DOCUMENT_TYPES.map((type) => (
-                        <option key={type.code} value={type.code}>
-                          {type.name}
-                        </option>
-                      ))
-                    : documentTypes.map((type) => (
-                        <option key={type.code} value={type.code}>
-                          {type.name}
-                        </option>
-                      ))}
-                </select>
+                <h2 className="text-lg font-bold text-stone-950">Upload a file</h2>
+                <p className="mt-1 text-sm text-stone-600">Choose the category that describes this file.</p>
               </div>
-              <div>
-                <label htmlFor="document-file" className="block text-sm font-medium text-slate-700 mb-1">
-                  File *
-                </label>
-                <input
-                  id="document-file"
-                  type="file"
-                  required
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  className="w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-2 file:text-emerald-700"
-                />
-                <p className="text-xs text-slate-400 mt-1">PDF, JPG, PNG or Word. Max 10MB.</p>
-              </div>
-              <div>
-                <label htmlFor="document-expiry" className="block text-sm font-medium text-slate-700 mb-1">
-                  Expiry date (if applicable)
-                </label>
-                <input
-                  id="document-expiry"
-                  type="date"
-                  value={expiryDate}
-                  onChange={(event) => setExpiryDate(event.target.value)}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                />
-              </div>
-            </div>
-
-            {error && <div className="p-3 bg-rose-50 text-rose-700 rounded-lg text-sm">{error}</div>}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowUpload(false)}
-                className="px-4 py-2 text-slate-600 hover:text-slate-900 text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={uploading}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg text-sm disabled:opacity-60"
-              >
-                {uploading ? 'Uploading…' : 'Save Document'}
-              </button>
-            </div>
-          </form>
-        )}
-
-        {editingDoc && (
-          <form onSubmit={editDoc} className="mb-6 space-y-4 rounded-xl border border-brand-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold">Edit document</h2>
-            <p className="text-sm text-slate-600">{editingDoc.fileAsset?.originalName}</p>
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="text-sm font-medium">
-                Document Category
-                <select
-                  aria-label="Edit Document Category"
-                  value={editDocumentType}
-                  onChange={(event) => setEditDocumentType(event.target.value)}
-                  className="mt-1 w-full rounded-lg border p-2.5"
-                >
-                  {(documentTypes.length === 0 ? DEFAULT_DOCUMENT_TYPES : documentTypes).map((type) => (
-                    <option key={type.code} value={type.code}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm font-medium">
-                Document Expiry Date
-                <input
-                  aria-label="Edit Document Expiry Date"
-                  type="date"
-                  value={editExpiryDate}
-                  onChange={(event) => setEditExpiryDate(event.target.value)}
-                  className="mt-1 w-full rounded-lg border p-2.5"
-                />
-              </label>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setEditingDoc(null)} className="px-4 py-2 text-sm">
-                Cancel
-              </button>
-              <button
-                disabled={uploading}
-                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-              >
-                Save Changes
-              </button>
-            </div>
-          </form>
-        )}
-
-        <div className="space-y-4">
-          {documents.length === 0 ? (
-            <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
-              No documents added yet. Use “Upload document” to add one.
-            </div>
-          ) : (
-            documents.map((doc) => (
-              <div
-                key={doc.id}
-                className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-                    <FileText className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-base">{doc.documentType}</h3>
-                    <p className="text-slate-600 text-sm">{doc.fileAsset?.originalName || 'Document.pdf'}</p>
-                    <p className="text-slate-400 text-xs mt-1">
-                      Uploaded {new Date(doc.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="document-category" className="block text-sm font-medium text-slate-700 mb-1">
+                    Category *
+                  </label>
+                  <select
+                    id="document-category"
+                    value={documentType}
+                    onChange={(e) => setDocumentType(e.target.value)}
+                    className="field-control"
+                  >
+                    {documentTypes.length === 0
+                      ? DEFAULT_DOCUMENT_TYPES.map((type) => (
+                          <option key={type.code} value={type.code}>
+                            {type.name}
+                          </option>
+                        ))
+                      : documentTypes.map((type) => (
+                          <option key={type.code} value={type.code}>
+                            {type.name}
+                          </option>
+                        ))}
+                  </select>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-full flex items-center gap-1">
-                    <CheckCircle className="w-3 h-3" /> Ready
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={`Edit ${doc.fileAsset?.originalName || doc.documentType}`}
-                    onClick={() => {
-                      setEditingDoc(doc)
-                      setEditDocumentType(doc.documentType)
-                      setEditExpiryDate(doc.expiryDate ? new Date(doc.expiryDate).toISOString().slice(0, 10) : '')
-                    }}
-                    className="rounded-lg p-2 text-brand-700 hover:bg-brand-50"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${doc.fileAsset?.originalName || doc.documentType}`}
-                    onClick={() => setDeletingDoc(doc)}
-                    className="rounded-lg p-2 text-rose-700 hover:bg-rose-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                <div>
+                  <label htmlFor="document-file" className="block text-sm font-medium text-slate-700 mb-1">
+                    File *
+                  </label>
+                  <input
+                    id="document-file"
+                    type="file"
+                    required
+                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    className="mt-1 w-full text-sm text-stone-600 file:mr-3 file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:font-semibold file:text-brand-800"
+                  />
+                  <p className="mt-1 text-xs text-stone-500">
+                    PDF, JPG, PNG or Word. The category may have a lower size limit.
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="document-expiry" className="block text-sm font-medium text-slate-700 mb-1">
+                    Expiry date (if applicable)
+                  </label>
+                  <input
+                    id="document-expiry"
+                    type="date"
+                    value={expiryDate}
+                    onChange={(event) => setExpiryDate(event.target.value)}
+                    className="field-control"
+                  />
                 </div>
               </div>
-            ))
+
+              {error && <div className="p-3 bg-rose-50 text-rose-700 rounded-lg text-sm">{error}</div>}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowUpload(false)} className="btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={uploading} className="btn-primary">
+                  {uploading ? 'Uploading…' : 'Save file'}
+                </button>
+              </div>
+            </form>
           )}
+
+          {editingDoc && (
+            <form onSubmit={editDoc} className="section-panel space-y-4">
+              <h2 className="text-lg font-bold">Edit document</h2>
+              <p className="text-sm text-slate-600">{editingDoc.fileAsset?.originalName}</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="text-sm font-medium">
+                  Category
+                  <select
+                    aria-label="Edit Document Category"
+                    value={editDocumentType}
+                    onChange={(event) => setEditDocumentType(event.target.value)}
+                    className="field-control"
+                  >
+                    {(documentTypes.length === 0 ? DEFAULT_DOCUMENT_TYPES : documentTypes).map((type) => (
+                      <option key={type.code} value={type.code}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm font-medium">
+                  Expiry date
+                  <input
+                    aria-label="Edit Document Expiry Date"
+                    type="date"
+                    value={editExpiryDate}
+                    onChange={(event) => setEditExpiryDate(event.target.value)}
+                    className="field-control"
+                  />
+                </label>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setEditingDoc(null)} className="btn-secondary">
+                  Cancel
+                </button>
+                <button disabled={uploading} className="btn-primary">
+                  Save changes
+                </button>
+              </div>
+            </form>
+          )}
+
+          <div className="space-y-4">
+            {loading ? (
+              <div role="status" className="section-panel p-10 text-center text-sm text-stone-500">
+                Loading your files…
+              </div>
+            ) : documents.length === 0 ? (
+              <EmptyState
+                icon={FileText}
+                title="No reusable files"
+                description="Upload a CV or another file when you want to use it in an application."
+              />
+            ) : (
+              documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="section-panel flex flex-col justify-between gap-4 sm:flex-row sm:items-center"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="rounded-full bg-brand-50 p-3 text-brand-700">
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-bold text-stone-950">
+                        {(documentTypes.length === 0 ? DEFAULT_DOCUMENT_TYPES : documentTypes).find(
+                          (type) => type.code === doc.documentType
+                        )?.name || doc.documentType.replaceAll('_', ' ')}
+                      </h2>
+                      <p className="text-sm text-stone-600">{doc.fileAsset?.originalName || 'Stored file'}</p>
+                      <p className="mt-1 text-xs text-stone-500">
+                        Uploaded {new Date(doc.createdAt).toLocaleDateString()}
+                      </p>
+                      {doc.expiryDate && (
+                        <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-800">
+                          <CalendarClock className="h-3.5 w-3.5" /> Expires{' '}
+                          {new Date(doc.expiryDate).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a href={`/api/assets/download/${doc.fileAssetId}`} className="btn-secondary">
+                      <Download className="h-4 w-4" /> Open
+                    </a>
+                    <button
+                      type="button"
+                      aria-label={`Edit ${doc.fileAsset?.originalName || doc.documentType}`}
+                      onClick={() => {
+                        setEditingDoc(doc)
+                        setEditDocumentType(doc.documentType)
+                        setEditExpiryDate(doc.expiryDate ? new Date(doc.expiryDate).toISOString().slice(0, 10) : '')
+                      }}
+                      className="btn-icon"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Delete ${doc.fileAsset?.originalName || doc.documentType}`}
+                      onClick={() => setDeletingDoc(doc)}
+                      className="btn-icon text-rose-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </main>
-      <ReasonDialog
+      <ConfirmDialog
         open={deletingDoc !== null}
         onClose={() => setDeletingDoc(null)}
         onConfirm={() => {
@@ -340,7 +347,6 @@ export default function CandidateDocumentLibraryPage() {
         title="Delete document"
         description="Remove this document from your profile? Copies already included in submitted applications will not be removed."
         confirmLabel="Delete"
-        reasonLabel="Note"
         tone="danger"
       />
       <Footer />

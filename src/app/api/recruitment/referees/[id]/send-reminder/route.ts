@@ -18,6 +18,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       recipient: referee.email,
       subject: 'Reminder: FRAD reference request',
       html: '<p>This is a reminder to complete the confidential FRAD reference request using the original secure link.</p>',
+      applicationId: referee.applicationId,
       deduplicationKey: `reference-reminder:${referee.requests[0].id}:${new Date().toISOString().slice(0, 10)}`,
     })
     await prisma.referenceRequest.update({

@@ -6,6 +6,12 @@ test.describe('documented specialist personas', () => {
     await login(page, 'recruitment.officer@frad.org')
     await page.goto('/recruitment/applications')
     await expect(page.getByRole('heading', { name: 'Applications' })).toBeVisible()
+    await page.goto('/recruitment/accommodations')
+    await expect(page.getByRole('heading', { name: /candidate adjustments/i })).toBeVisible()
+    await page.goto('/recruitment/quality')
+    await expect(page.getByRole('heading', { name: /decision review/i })).toBeVisible()
+    await page.goto('/admin/automations')
+    await expect(page.getByRole('heading', { name: /automation controls/i })).toBeVisible()
     await page.goto('/admin/users')
     await expect(page).toHaveURL(/\/recruitment\/dashboard/)
     await logout(page)
@@ -32,6 +38,22 @@ test.describe('documented specialist personas', () => {
     await login(page, 'approver@frad.org')
     await expect(page).toHaveURL(/\/recruitment\/approvals/)
     await expect(page.getByRole('heading', { name: /pending approvals/i })).toBeVisible()
+    await logout(page)
+  })
+
+  test('system administrator stays in the technical control plane', async ({ page }) => {
+    await login(page, 'admin@frad.org')
+    await expect(page).toHaveURL(/\/admin\/system-settings/)
+    await page.goto('/recruitment/approvals')
+    await expect(page).toHaveURL(/\/admin\/system-settings/)
+    await page.goto('/admin/automations')
+    await expect(page).toHaveURL(/\/admin\/system-settings/)
+    await page.goto('/admin/departments')
+    await expect(page).toHaveURL(/\/admin\/system-settings/)
+    const recruitmentConfigWrite = await page.request.post('/api/admin/generic', {
+      data: { entity: 'departments', data: { name: 'Forbidden', code: 'NOPE', active: true } },
+    })
+    expect(recruitmentConfigWrite.status()).toBe(403)
     await logout(page)
   })
 

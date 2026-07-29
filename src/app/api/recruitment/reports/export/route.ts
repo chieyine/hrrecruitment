@@ -69,6 +69,7 @@ function xlsx(rows: Record<string, unknown>[]) {
       Reference: '',
       Vacancy: '',
       Department: '',
+      Project: '',
       'Duty Station': '',
       Status: '',
       Applicants: '',
@@ -203,13 +204,21 @@ async function reportRows(
 ): Promise<Record<string, unknown>[]> {
   if (type === 'pipeline') {
     const records = await prisma.vacancy.findMany({
-      include: { department: true, dutyStation: true, applications: { select: { internalStatus: true } } },
+      include: {
+        department: true,
+        project: true,
+        category: true,
+        dutyStation: true,
+        applications: { select: { internalStatus: true } },
+      },
       orderBy: { referenceNumber: 'asc' },
     })
     return records.map((vacancy) => ({
       Reference: vacancy.referenceNumber,
       Vacancy: vacancy.title,
       Department: vacancy.department.name,
+      Project: vacancy.project?.name || '',
+      'Job Family': vacancy.category?.name || '',
       'Duty Station': vacancy.dutyStation.name,
       Status: vacancy.status,
       Applicants: vacancy.applications.length,

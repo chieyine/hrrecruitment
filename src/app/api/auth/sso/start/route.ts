@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { oidcEnvironment, oidcConfiguration, pkce } from '@/lib/oidc'
 import { logger } from '@/lib/logger'
 import { shouldUseSecureCookies } from '@/lib/session'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const environment = oidcEnvironment()
     const configuration = await oidcConfiguration(environment.issuer)
@@ -32,6 +32,10 @@ export async function GET() {
     response.cookies.set('frad_sso_state', state, options)
     response.cookies.set('frad_sso_verifier', verifier, options)
     response.cookies.set('frad_sso_nonce', nonce, options)
+    const requested = request.nextUrl.searchParams.get('next')
+    if (requested?.startsWith('/') && !requested.startsWith('//')) {
+      response.cookies.set('frad_sso_next', requested, options)
+    }
     return response
   } catch (error) {
     // Configuration and discovery failures must not be echoed to the browser.

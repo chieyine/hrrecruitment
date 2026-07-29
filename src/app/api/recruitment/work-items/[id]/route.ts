@@ -2,8 +2,8 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireUser, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
-import { hasPermission } from '@/lib/rbac'
 import { logAudit } from '@/lib/audit'
+import { canMakeHrManagerDecision } from '@/lib/recruitment-role-policy'
 
 const schema = z.object({
   action: z.enum(['START', 'BLOCK', 'COMPLETE', 'REOPEN']),
@@ -18,7 +18,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const input = await parseBody(request, schema)
     const item = await prisma.workItem.findUnique({ where: { id: params.id } })
     if (!item) throw new AuthzError('Work item not found', 404)
-    const canManageAll = await hasPermission(user.userId, 'application.read.all')
+    const canManageAll = canMakeHrManagerDecision(user.roles)
     if (item.assignedUserId && item.assignedUserId !== user.userId && !canManageAll) {
       throw new AuthzError('This work item is assigned to another user', 403)
     }

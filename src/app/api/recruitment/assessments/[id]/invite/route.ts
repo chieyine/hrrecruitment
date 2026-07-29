@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { requirePermission, authzResponse } from '@/lib/authz'
+import { requirePermission, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
@@ -13,11 +13,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { applicationIds } = await parseBody(request, z.object({ applicationIds: z.array(z.string().min(1)).min(1) }))
     const assessment = await prisma.assessment.findUnique({ where: { id: params.id } })
     if (!assessment) return NextResponse.json({ error: 'Assessment not found' }, { status: 404 })
+    if (assessment.closesAt && assessment.closesAt <= new Date())
+      return NextResponse.json({ error: 'This assessment has closed' }, { status: 409 })
     const applications = await prisma.application.findMany({
       where: {
         id: { in: applicationIds },
         vacancyId: assessment.vacancyId,
-        internalStatus: { in: ['SHORTLISTED', 'ASSESSMENT_INVITED'] },
+        internalStatus: 'SHORTLISTED',
+        candidateAssessments: { none: {} },
       },
       include: { candidate: true },
     })
@@ -26,18 +29,23 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         { error: 'One or more applications are not eligible for this assessment' },
         { status: 422 }
       )
-    for (const application of applications) {
-      const existing = await prisma.candidateAssessment.findFirst({
-        where: { applicationId: application.id, assessmentId: assessment.id },
-      })
-      if (!existing)
-        await prisma.candidateAssessment.create({
+    await prisma.$transaction(async (tx) => {
+      for (const application of applications) {
+        await tx.candidateAssessment.create({
           data: { applicationId: application.id, assessmentId: assessment.id, status: 'INVITED' },
         })
-      await prisma.application.update({
-        where: { id: application.id },
-        data: { internalStatus: 'ASSESSMENT_INVITED', candidateVisibleStatus: 'ASSESSMENT_INVITED' },
-      })
+        const moved = await tx.application.updateMany({
+          where: { id: application.id, internalStatus: 'SHORTLISTED' },
+          data: {
+            internalStatus: 'ASSESSMENT_INVITED',
+            candidateVisibleStatus: 'ASSESSMENT_INVITED',
+            lockVersion: { increment: 1 },
+          },
+        })
+        if (moved.count !== 1) throw new AuthzError('An application changed; refresh and try again', 409)
+      }
+    })
+    for (const application of applications) {
       if (application.candidate.userId)
         await createNotification({
           userId: application.candidate.userId,

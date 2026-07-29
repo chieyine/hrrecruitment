@@ -6,8 +6,8 @@ export default function AdminCoursesPage() {
     <>
       <AdminCrud
         entity="courses"
-        title="Compulsory Courses"
-        subtitle="Preboarding courses, durations, and quiz pass benchmarks."
+        title="Courses"
+        subtitle="Learning assigned through a preboarding package."
         columns={[
           { name: 'title', label: 'Title' },
           { name: 'category', label: 'Category' },
@@ -31,12 +31,12 @@ export default function AdminCoursesPage() {
               { value: 'MANAGER', label: 'Manager' },
             ],
           },
-          { name: 'learningObjectives', label: 'Learning Objectives', type: 'textarea' },
+          { name: 'learningObjectives', label: 'Learning objectives', type: 'textarea' },
           { name: 'estimatedDurationMinutes', label: 'Duration (minutes)', type: 'number' },
-          { name: 'passMark', label: 'Pass Mark (%)', type: 'number' },
-          { name: 'allowedAttempts', label: 'Allowed Attempts', type: 'number' },
-          { name: 'certificateEnabled', label: 'Certificate Enabled', type: 'checkbox' },
-          { name: 'active', label: 'Active', type: 'checkbox' },
+          { name: 'passMark', label: 'Pass mark (%)', type: 'number' },
+          { name: 'allowedAttempts', label: 'Allowed attempts', type: 'number' },
+          { name: 'certificateEnabled', label: 'Issue certificate', type: 'checkbox' },
+          { name: 'active', label: 'Active', type: 'checkbox', defaultValue: false },
         ]}
       />
       <ConfigurationBuilder mode="courses" />

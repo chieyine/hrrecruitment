@@ -5,26 +5,28 @@ import { useRouter } from 'next/navigation'
 import { Trash2 } from 'lucide-react'
 import { ReasonDialog } from '@/components/ui/Dialog'
 
-export default function DeleteDraftButton({ applicationId, vacancyId }: { applicationId: string; vacancyId: string }) {
+export default function DeleteDraftButton({ applicationId }: { applicationId: string }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState('')
 
   const handleDelete = async () => {
     setDeleting(true)
+    setError('')
     try {
       const res = await fetch(`/api/candidate/applications/${applicationId}`, {
         method: 'DELETE',
       })
       if (res.ok) {
-        localStorage.removeItem(`frad-application-draft:${vacancyId}`)
         setOpen(false)
         router.refresh()
       } else {
-        alert('Failed to delete draft.')
+        const body = await res.json().catch(() => ({}))
+        setError(body.error || 'The draft could not be deleted.')
       }
     } catch {
-      alert('An error occurred while deleting the draft.')
+      setError('The draft could not be deleted. Please try again.')
     } finally {
       setDeleting(false)
     }
@@ -34,20 +36,30 @@ export default function DeleteDraftButton({ applicationId, vacancyId }: { applic
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
-        className="font-bold text-rose-700 hover:underline flex items-center gap-1"
+        onClick={() => {
+          setError('')
+          setOpen(true)
+        }}
+        className="flex items-center gap-1 text-xs font-bold text-rose-700 hover:underline"
         aria-label="Delete draft"
       >
         <Trash2 className="w-3.5 h-3.5" /> Delete draft
       </button>
+      {error && (
+        <p role="alert" className="basis-full text-xs font-medium text-rose-700">
+          {error}
+        </p>
+      )}
 
       <ReasonDialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          if (!deleting) setOpen(false)
+        }}
         onConfirm={handleDelete}
         title="Delete application draft?"
-        description="Are you sure you want to permanently delete this application draft? This action cannot be undone."
-        confirmLabel={deleting ? 'Deleting...' : 'Delete draft'}
+        description="This removes the saved answers for this role. It cannot be undone."
+        confirmLabel={deleting ? 'Deleting…' : 'Delete draft'}
         reasonRequired={false}
         tone="danger"
       />

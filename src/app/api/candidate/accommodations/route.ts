@@ -38,7 +38,17 @@ export async function POST(request: Request) {
       select: { id: true, internalStatus: true },
     })
     if (!application) throw new AuthzError('Application not found', 404)
-    if (['WITHDRAWN', 'CANCELLED', 'NOT_SELECTED', 'TRANSFERRED_TO_ERP'].includes(application.internalStatus)) {
+    if (
+      [
+        'WITHDRAWN',
+        'CANCELLED',
+        'NOT_SELECTED',
+        'INELIGIBLE',
+        'OFFER_DECLINED',
+        'OFFER_EXPIRED',
+        'TRANSFERRED_TO_ERP',
+      ].includes(application.internalStatus)
+    ) {
       throw new AuthzError('An accommodation cannot be requested for this closed application', 409)
     }
     const existing = await prisma.accommodationRequest.findFirst({

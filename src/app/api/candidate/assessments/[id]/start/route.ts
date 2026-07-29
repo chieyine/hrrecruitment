@@ -65,13 +65,13 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
         description: record.assessment.description,
         status: 'IN_PROGRESS',
         secondsRemaining,
+        autoSubmit: record.assessment.autoSubmit,
         savedAnswers,
         questions: questions.map((question) => ({
           id: question.id,
           questionType: question.questionType,
           prompt: question.prompt,
           optionsJson: question.optionsJson,
-          maximumScore: question.maximumScore,
         })),
       },
     })

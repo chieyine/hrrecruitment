@@ -59,8 +59,13 @@ export const registerSchema = z.object({
   email: emailSchema,
   phone: phoneSchema.optional().or(z.literal('')),
   password: bcryptSafePassword,
-  privacyAccepted: z.literal(true, { errorMap: () => ({ message: 'Privacy notice consent is required' }) }),
+  privacyAccepted: z.literal(true, { errorMap: () => ({ message: 'Privacy notice acknowledgement is required' }) }),
   termsAccepted: z.literal(true, { errorMap: () => ({ message: 'Terms agreement is required' }) }),
+  nextPath: z
+    .string()
+    .max(2_000)
+    .refine((value) => value.startsWith('/') && !value.startsWith('//'), 'Invalid return path')
+    .optional(),
 })
 
 export const loginSchema = z.object({
@@ -68,7 +73,14 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 })
 
-export const forgotPasswordSchema = z.object({ email: emailSchema })
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+  nextPath: z
+    .string()
+    .max(2_000)
+    .refine((value) => value.startsWith('/') && !value.startsWith('//'), 'Invalid return path')
+    .optional(),
+})
 export const resetPasswordSchema = z.object({
   token: nonEmpty('Reset token'),
   password: bcryptSafePassword,
@@ -147,6 +159,7 @@ export const offerResponseSchema = z
     action: z.enum(['ACCEPT', 'DECLINE', 'CLARIFY']),
     candidateComment: z.string().max(2000).optional(),
     signatureName: z.string().trim().max(200).optional(),
+    declarationAccepted: z.boolean().optional(),
     signedFileId: z.string().uuid().optional(),
     proposedStartDate: z.coerce.date().optional(),
   })
@@ -156,6 +169,12 @@ export const offerResponseSchema = z
         code: 'custom',
         path: ['signatureName'],
         message: 'Full legal name is required as your electronic signature',
+      })
+    if (value.action === 'ACCEPT' && value.declarationAccepted !== true)
+      context.addIssue({
+        code: 'custom',
+        path: ['declarationAccepted'],
+        message: 'Confirm that you have read and accept the offer',
       })
     if (value.action === 'CLARIFY' && !value.candidateComment?.trim() && !value.proposedStartDate)
       context.addIssue({
@@ -200,4 +219,5 @@ export const adminUpdateSchema = z.object({
 export const adminDeleteSchema = z.object({
   entity: nonEmpty('entity'),
   id: nonEmpty('id'),
+  reason: z.string().trim().min(10).max(1000),
 })

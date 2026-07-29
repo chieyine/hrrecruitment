@@ -4,6 +4,7 @@ import { requireRole, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
+import { canMakeHrManagerDecision } from '@/lib/recruitment-role-policy'
 
 const schema = z.object({
   id: z.string().min(1),
@@ -13,18 +14,29 @@ const schema = z.object({
 
 export async function PATCH(request: Request) {
   try {
-    const user = await requireRole('HR_MANAGER', 'SYSTEM_ADMIN')
+    const user = await requireRole('RECRUITMENT_OFFICER', 'HR_MANAGER')
     const input = await parseBody(request, schema)
     const current = await prisma.accommodationRequest.findUnique({ where: { id: input.id } })
     if (!current) throw new AuthzError('Accommodation request not found', 404)
     if (['DECLINED', 'FULFILLED'].includes(current.status)) throw new AuthzError('This request is closed', 409)
+    const managerDecision = ['APPROVED', 'PARTIALLY_APPROVED', 'DECLINED'].includes(input.status)
+    if (managerDecision && !canMakeHrManagerDecision(user.roles)) {
+      throw new AuthzError('An HR manager must make this adjustment decision', 403)
+    }
+    const validTransition =
+      (current.status === 'REQUESTED' && input.status === 'UNDER_REVIEW') ||
+      (['REQUESTED', 'UNDER_REVIEW'].includes(current.status) && managerDecision) ||
+      (['APPROVED', 'PARTIALLY_APPROVED'].includes(current.status) && input.status === 'FULFILLED')
+    if (!validTransition) {
+      throw new AuthzError(`This request cannot move from ${current.status} to ${input.status}`, 409)
+    }
     const updated = await prisma.accommodationRequest.updateMany({
       where: { id: current.id, status: current.status },
       data: {
         status: input.status,
-        decision: input.decision,
-        reviewedBy: user.userId,
-        reviewedAt: new Date(),
+        decision: input.status === 'FULFILLED' ? current.decision : input.decision,
+        reviewedBy: input.status === 'FULFILLED' ? current.reviewedBy : user.userId,
+        reviewedAt: input.status === 'FULFILLED' ? current.reviewedAt : new Date(),
         fulfilledAt: input.status === 'FULFILLED' ? new Date() : null,
       },
     })
@@ -38,7 +50,7 @@ export async function PATCH(request: Request) {
         userId: application.candidate.userId,
         type: 'ACCOMMODATION_UPDATED',
         title: 'Update on your adjustment request',
-        body: `Your adjustment request is now ${input.status.replaceAll('_', ' ').toLowerCase()}. Open the request to read HR's decision.`,
+        body: `Your adjustment request is now ${input.status.replaceAll('_', ' ').toLowerCase()}. Open the request to read the HR team's update.`,
       })
     await logAudit({
       actorUserId: user.userId,

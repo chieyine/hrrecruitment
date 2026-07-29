@@ -1,153 +1,182 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Header from '@/components/shared/Header'
-import Footer from '@/components/shared/Footer'
-import { Lock, ArrowLeft, CheckCircle } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, LockKeyhole } from 'lucide-react'
 
 export default function ResetPasswordPage() {
   const [token, setToken] = useState('')
+  const [nextPath, setNextPath] = useState('')
+  const [linkRead, setLinkRead] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [message, setMessage] = useState('')
+  const [complete, setComplete] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // URL fragments are not sent in HTTP requests or Referer headers.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-    const fragmentToken = params.get('token')
-    if (fragmentToken) {
-      setToken((current) => current || fragmentToken)
-      window.history.replaceState(null, '', window.location.pathname)
-    }
+    const query = new URLSearchParams(window.location.search)
+    const requested = query.get('next')
+    if (requested?.startsWith('/') && !requested.startsWith('//')) setNextPath(requested)
+
+    const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    setToken(fragment.get('token') || '')
+    setLinkRead(true)
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
   }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!token) {
-      setError('This reset link is missing its token. Please use the link from your email.')
-      return
-    }
+  const withNextPath = (path: string) =>
+    nextPath ? `${path}?${new URLSearchParams({ next: nextPath }).toString()}` : path
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match')
+      setError('The passwords do not match.')
       return
     }
     setError('')
     setLoading(true)
 
     try {
-      const res = await fetch('/api/auth/reset-password', {
+      const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password: newPassword }),
       })
-      const data = await res.json()
-      if (res.ok) {
-        setMessage('Password reset successful! You can now log in.')
-      } else {
-        setError(data.error || 'Password reset failed')
+      const data = await response.json()
+      if (!response.ok) {
+        setError(data.error || 'The password could not be changed.')
+        return
       }
-    } catch (err: any) {
-      setError(err.message)
+      setComplete(true)
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch {
+      setError('The password could not be changed. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+    <div className="flex min-h-screen flex-col bg-[#f4f1ea]">
       <Header />
-      <main id="main-content" className="max-w-md w-full mx-auto px-4 py-16 flex-1 flex flex-col justify-center">
-        <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
-          <div className="text-center mb-6">
-            <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3 text-emerald-600">
-              <Lock className="w-6 h-6" />
-            </div>
-            <h1 className="text-2xl font-bold text-slate-900">Reset Your Password</h1>
-            <p className="text-slate-600 text-sm mt-1">Enter your new password below.</p>
-          </div>
+      <main id="main-content" className="flex flex-1 items-center px-4 py-12 sm:px-6">
+        <div className="mx-auto grid w-full max-w-4xl overflow-hidden border border-[#d9d4ca] bg-[#fbfaf7] lg:grid-cols-[280px_1fr]">
+          <aside className="bg-brand-900 p-8 text-white sm:p-10">
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-200">Account security</span>
+            <h1 className="mt-6 font-display text-4xl leading-tight">Choose a new password</h1>
+            <p className="mt-5 text-sm leading-6 text-brand-100">
+              Use a password that you do not use for another account.
+            </p>
+            <p className="mt-10 border-t border-brand-700 pt-5 text-xs leading-5 text-brand-200">
+              Changing your password signs your account out on other devices.
+            </p>
+          </aside>
 
-          {error && (
-            <div role="alert" className="mb-4 p-3 bg-rose-50 text-rose-700 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-          {message ? (
-            <div className="p-4 bg-emerald-50 text-emerald-800 rounded-lg text-sm text-center">
-              <CheckCircle className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
-              {message}
-              <div className="mt-4">
-                <Link
-                  href="/auth/login"
-                  className="bg-emerald-600 text-white font-medium px-4 py-2 rounded-lg inline-block text-sm"
-                >
-                  Go to Sign In
+          <section className="flex min-h-[500px] flex-col justify-center p-6 sm:p-10 lg:p-12">
+            {!linkRead ? (
+              <p role="status" className="text-sm text-[#617067]">
+                Checking reset link…
+              </p>
+            ) : !token ? (
+              <>
+                <AlertCircle className="h-10 w-10 text-amber-700" />
+                <h2 className="mt-6 font-display text-3xl text-[#17211c]">This reset link is incomplete</h2>
+                <p className="mt-4 max-w-lg text-sm leading-6 text-[#526159]">
+                  Open the full link from your reset email. If the link has expired or has already been used, request
+                  another one.
+                </p>
+                <Link href={withNextPath('/forgot-password')} className="btn-primary mt-8 h-12 justify-center sm:w-fit">
+                  Request another link
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {!token && (
-                <div className="p-3 bg-amber-50 text-amber-800 rounded-lg text-xs">
-                  Open this page from the reset link in your email so your secure token is included.
-                </div>
-              )}
+              </>
+            ) : complete ? (
+              <>
+                <CheckCircle2 className="h-10 w-10 text-brand-700" />
+                <span className="mt-7 text-[10px] font-bold uppercase tracking-[0.16em] text-brand-700">
+                  Password changed
+                </span>
+                <h2 className="mt-3 font-display text-3xl text-[#17211c]">Sign in again</h2>
+                <p className="mt-4 max-w-lg text-sm leading-6 text-[#526159]">
+                  Your previous sessions have been closed. Use the new password to continue.
+                </p>
+                <Link href={withNextPath('/auth/login')} className="btn-primary mt-8 h-12 justify-center sm:w-fit">
+                  Continue to sign in
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </>
+            ) : (
+              <>
+                <LockKeyhole className="h-9 w-9 text-brand-700" />
+                <h2 className="mt-6 font-display text-3xl text-[#17211c]">Set your password</h2>
+                <p className="mt-3 text-sm leading-6 text-[#617067]">
+                  Use at least 8 characters, including a letter and a number.
+                </p>
 
-              <div>
-                <label htmlFor="new-password" className="block text-sm font-medium text-slate-700 mb-1">
-                  New Password
-                </label>
-                <input
-                  id="new-password"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
+                {error && (
+                  <div
+                    role="alert"
+                    className="mt-6 flex items-start gap-3 border border-rose-200 bg-rose-50 p-4 text-xs font-medium text-rose-800"
+                  >
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+                    <span>{error}</span>
+                  </div>
+                )}
 
-              <div>
-                <label htmlFor="confirm-password" className="block text-sm font-medium text-slate-700 mb-1">
-                  Confirm New Password
-                </label>
-                <input
-                  id="confirm-password"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
+                <form onSubmit={handleSubmit} className="mt-7 space-y-5">
+                  <div>
+                    <label htmlFor="new-password" className="mb-2 block text-xs font-semibold text-[#34443b]">
+                      New password
+                    </label>
+                    <input
+                      id="new-password"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={8}
+                      required
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                      className="field-control"
+                    />
+                  </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-lg transition"
-              >
-                {loading ? 'Updating password…' : 'Reset password'}
-              </button>
-            </form>
-          )}
+                  <div>
+                    <label htmlFor="confirm-password" className="mb-2 block text-xs font-semibold text-[#34443b]">
+                      Confirm new password
+                    </label>
+                    <input
+                      id="confirm-password"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={8}
+                      required
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      className="field-control"
+                    />
+                  </div>
 
-          <div className="mt-6 text-center">
-            <Link
-              href="/auth/login"
-              className="inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900"
-            >
-              <ArrowLeft className="w-4 h-4 mr-1" /> Back to Sign In
-            </Link>
-          </div>
+                  <button type="submit" disabled={loading} className="btn-primary h-12 w-full justify-center">
+                    {loading ? 'Changing password…' : 'Change password'}
+                    {!loading && <ArrowRight className="h-4 w-4" />}
+                  </button>
+                </form>
+
+                <Link
+                  href={withNextPath('/auth/login')}
+                  className="mt-7 inline-flex items-center gap-2 text-xs font-bold text-brand-800"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Return to sign in
+                </Link>
+              </>
+            )}
+          </section>
         </div>
       </main>
-      <Footer />
     </div>
   )
 }

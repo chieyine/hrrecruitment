@@ -12,7 +12,7 @@ export default function Footer() {
     ? 'Candidate portal'
     : pathname.startsWith('/admin')
       ? 'Recruitment administration'
-      : 'Recruitment workspace'
+      : 'Recruitment'
 
   if (isWorkspace) {
     return (

@@ -5,6 +5,8 @@ import { parseBody } from '@/lib/validation'
 import { expectedVersion, staleRecord } from '@/lib/concurrency'
 import { logAudit } from '@/lib/audit'
 import { enqueueEmail } from '@/lib/outbox'
+import { canMakeHrManagerDecision } from '@/lib/recruitment-role-policy'
+import { canTransitionComplaint } from '@/lib/complaint-workflow'
 
 export async function GET(request: Request) {
   try {
@@ -41,6 +43,15 @@ export async function PATCH(request: Request) {
     const requestedStatus = input.status
     const existing = await prisma.complaintCase.findUnique({ where: { id: input.id } })
     if (!existing) throw new AuthzError('Case not found', 404)
+    if (existing.status === 'CLOSED') throw new AuthzError('This complaint case is closed', 409)
+    if (requestedStatus === 'CLOSED' && !canMakeHrManagerDecision(user.roles))
+      throw new AuthzError('An HR manager must close a complaint case', 403)
+    if (
+      requestedStatus &&
+      requestedStatus !== existing.status &&
+      !canTransitionComplaint(existing.status, requestedStatus, canMakeHrManagerDecision(user.roles))
+    )
+      throw new AuthzError(`This case cannot move from ${existing.status} to ${requestedStatus}`, 409)
     if (requestedStatus === 'RESOLVED' && !input.resolution)
       throw new AuthzError('Resolution is required when resolving a case', 422)
     if (requestedStatus === 'CLOSED' && !(input.resolution || existing.resolution))
@@ -53,8 +64,15 @@ export async function PATCH(request: Request) {
         priority: input.priority,
         assignedToUserId: input.assignedToUserId,
         dueAt: input.dueAt,
-        resolution: input.resolution,
-        resolvedAt: requestedStatus === 'RESOLVED' ? new Date() : requestedStatus ? null : undefined,
+        resolution: requestedStatus === 'CLOSED' ? undefined : input.resolution,
+        resolvedAt:
+          requestedStatus === 'RESOLVED'
+            ? new Date()
+            : requestedStatus === 'CLOSED'
+              ? undefined
+              : requestedStatus
+                ? null
+                : undefined,
         lockVersion: { increment: 1 },
       },
     })
@@ -70,14 +88,33 @@ export async function PATCH(request: Request) {
       })
     const updated = await prisma.complaintCase.findUnique({
       where: { id: input.id },
-      include: { comments: true, attachments: true },
+      include: {
+        comments: { orderBy: { createdAt: 'asc' } },
+        attachments: true,
+        application: {
+          select: {
+            id: true,
+            candidate: { select: { legalFirstName: true, lastName: true } },
+            vacancy: { select: { referenceNumber: true, title: true } },
+          },
+        },
+      },
     })
     if (updated && input.comment && !input.internalOnly && updated.reporterEmail)
       await enqueueEmail({
         recipient: updated.reporterEmail,
         subject: `Update on ${updated.referenceNumber}`,
         html: `<p>${input.comment.replace(/[<&]/g, (value) => (value === '<' ? '&lt;' : '&amp;'))}</p>`,
+        applicationId: updated.applicationId || undefined,
         deduplicationKey: `complaint-comment:${updated.comments.at(-1)?.id}`,
+      })
+    if (updated && requestedStatus === 'RESOLVED' && input.resolution && updated.reporterEmail)
+      await enqueueEmail({
+        recipient: updated.reporterEmail,
+        subject: `Resolution of ${updated.referenceNumber}`,
+        html: `<p>${input.resolution.replace(/[<&]/g, (value) => (value === '<' ? '&lt;' : '&amp;'))}</p>`,
+        applicationId: updated.applicationId || undefined,
+        deduplicationKey: `complaint-resolution:${updated.id}:${updated.lockVersion}`,
       })
     await logAudit({
       actorUserId: user.userId,

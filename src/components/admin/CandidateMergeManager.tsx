@@ -13,7 +13,15 @@ async function fetchMergeReviews() {
   return body.reviews || []
 }
 
-export default function CandidateMergeManager({ candidates, userId }: { candidates: Candidate[]; userId: string }) {
+export default function CandidateMergeManager({
+  candidates,
+  userId,
+  canApprove,
+}: {
+  candidates: Candidate[]
+  userId: string
+  canApprove: boolean
+}) {
   const [primary, setPrimary] = useState('')
   const [duplicate, setDuplicate] = useState('')
   const [reason, setReason] = useState('')
@@ -107,7 +115,7 @@ export default function CandidateMergeManager({ candidates, userId }: { candidat
         <div>
           <h2 className="text-lg font-semibold text-navy-950">Compare candidate records</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-stone-600">
-            Choose the record to keep, compare every field, and send the proposed merge to another HR reviewer.
+            Choose the record to keep, compare every field, and send the proposed merge to an HR manager.
           </p>
         </div>
       </div>
@@ -247,7 +255,7 @@ export default function CandidateMergeManager({ candidates, userId }: { candidat
                       Send for approval
                     </button>
                   )}
-                  {review.status === 'PENDING' && review.requestedBy !== userId && (
+                  {canApprove && review.status === 'PENDING' && review.requestedBy !== userId && (
                     <>
                       <button onClick={() => setPending({ review, action: 'APPROVE' })} className="btn-primary">
                         Approve
@@ -257,7 +265,7 @@ export default function CandidateMergeManager({ candidates, userId }: { candidat
                       </button>
                     </>
                   )}
-                  {review.status === 'APPROVED' && (
+                  {review.status === 'APPROVED' && review.requestedBy === userId && (
                     <button onClick={() => setPending({ review, action: 'MERGE' })} className="btn-primary">
                       Complete merge
                     </button>

@@ -1,52 +1,33 @@
-'use client'
-
-import { useEffect, useState } from 'react'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { MessageSquareWarning } from 'lucide-react'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import { EmptyState, PageIntro } from '@/components/ui/PageElements'
-import { formatDate } from '@/lib/utils'
+import { formatDateTime } from '@/lib/utils'
+import { getVerifiedUser } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import ComplaintReply from './ComplaintReply'
 
-type CaseComment = { id: string; body: string; createdAt: string }
-type CandidateCase = {
-  id: string
-  referenceNumber: string
-  category: string
-  subject: string
-  status: string
-  resolution: string | null
-  createdAt: string
-  updatedAt: string
-  comments: CaseComment[]
-}
+export default async function CandidateComplaintsPage() {
+  const user = await getVerifiedUser()
+  if (!user) redirect('/auth/login')
 
-export default function CandidateComplaintsPage() {
-  const [cases, setCases] = useState<CandidateCase[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    const controller = new AbortController()
-    fetch('/api/complaints', { signal: controller.signal })
-      .then(async (response) => {
-        const body = await response.json()
-        if (!response.ok) throw new Error(body.error || 'We could not load your submissions.')
-        setCases(body.cases || [])
-      })
-      .catch((reason) => {
-        if (controller.signal.aborted) return
-        setError(reason instanceof Error ? reason.message : 'We could not load your submissions.')
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
-      })
-    return () => controller.abort()
-  }, [])
+  const cases = await prisma.complaintCase.findMany({
+    where: { reporterUserId: user.userId },
+    include: {
+      application: { select: { vacancy: { select: { referenceNumber: true, title: true } } } },
+      comments: {
+        where: { internalOnly: false },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  })
 
   return (
     <div className="flex min-h-screen flex-col bg-surface-50">
-      <Header />
+      <Header currentUser={user} />
       <main id="main-content" className="flex-1 py-8">
         <div className="mx-auto max-w-5xl space-y-7 px-4 sm:px-6 lg:px-8">
           <PageIntro
@@ -60,20 +41,11 @@ export default function CandidateComplaintsPage() {
             }
           />
 
-          {error && (
-            <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-              {error}
-            </p>
-          )}
-          {loading ? (
-            <div className="section-panel p-10 text-center text-sm text-stone-500" role="status">
-              Loading your submissions…
-            </div>
-          ) : cases.length === 0 ? (
+          {cases.length === 0 ? (
             <EmptyState
               icon={MessageSquareWarning}
               title="You have not sent a concern"
-              description="If something about recruitment does not feel right, you can contact FRAD confidentially."
+              description="Use the concern service if you need FRAD to formally review something about recruitment."
               action={{ href: '/complaints', label: 'Send a concern' }}
             />
           ) : (
@@ -85,29 +57,52 @@ export default function CandidateComplaintsPage() {
                       <p className="font-mono text-[10px] font-bold text-brand-700">{item.referenceNumber}</p>
                       <h2 className="mt-1 text-base font-semibold text-navy-900">{item.subject}</h2>
                       <p className="mt-1 text-xs text-stone-500">
-                        Sent {formatDate(item.createdAt)} · {item.category.replaceAll('_', ' ').toLowerCase()}
+                        Sent {formatDateTime(item.createdAt)} · {humanLabel(item.category)}
                       </p>
+                      {item.application && (
+                        <p className="mt-1 text-xs text-stone-500">
+                          {item.application.vacancy.referenceNumber} · {item.application.vacancy.title}
+                        </p>
+                      )}
                     </div>
                     <span className="status-chip border-stone-200 bg-stone-50 text-stone-700">
-                      {item.status.replaceAll('_', ' ')}
+                      {humanLabel(item.status)}
                     </span>
                   </div>
-                  {(item.resolution || item.comments.length > 0) && (
-                    <div className="space-y-3 px-5 py-4 sm:px-6">
-                      {item.resolution && (
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                          <p className="text-[10px] font-bold uppercase tracking-[.1em] text-emerald-800">Outcome</p>
-                          <p className="mt-1 text-sm leading-6 text-emerald-950">{item.resolution}</p>
-                        </div>
-                      )}
-                      {item.comments.map((comment) => (
-                        <div key={comment.id} className="rounded-xl bg-brand-50 p-4 text-sm leading-6 text-brand-950">
-                          {comment.body}
-                          <span className="mt-1 block text-[11px] text-brand-700">{formatDate(comment.createdAt)}</span>
-                        </div>
-                      ))}
+
+                  <div className="space-y-3 px-5 py-4 sm:px-6">
+                    <div className="rounded-xl bg-stone-50 p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-[.1em] text-stone-500">Your submission</p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-stone-700">{item.description}</p>
                     </div>
-                  )}
+
+                    {item.resolution && (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-[.1em] text-emerald-800">Outcome</p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-emerald-950">{item.resolution}</p>
+                      </div>
+                    )}
+
+                    {item.comments.map((comment) => {
+                      const mine = comment.authorUserId === user.userId
+                      return (
+                        <div
+                          key={comment.id}
+                          className={`rounded-xl p-4 text-sm leading-6 ${
+                            mine ? 'ml-8 bg-stone-100 text-stone-800' : 'mr-8 bg-brand-50 text-brand-950'
+                          }`}
+                        >
+                          <p className="text-[10px] font-bold uppercase tracking-[.1em] opacity-70">
+                            {mine ? 'You' : 'FRAD case team'}
+                          </p>
+                          <p className="mt-1 whitespace-pre-wrap">{comment.body}</p>
+                          <span className="mt-1 block text-[11px] opacity-70">{formatDateTime(comment.createdAt)}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {!['RESOLVED', 'CLOSED'].includes(item.status) && <ComplaintReply caseId={item.id} />}
                 </article>
               ))}
             </div>
@@ -117,4 +112,11 @@ export default function CandidateComplaintsPage() {
       <Footer />
     </div>
   )
+}
+
+function humanLabel(value: string) {
+  return value
+    .replaceAll('_', ' ')
+    .toLowerCase()
+    .replace(/^./, (letter) => letter.toUpperCase())
 }

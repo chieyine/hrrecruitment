@@ -87,6 +87,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
     const previous = await prisma.vacancy.findUnique({ where: { id: params.id } })
     if (!previous) return NextResponse.json({ error: 'Vacancy not found' }, { status: 404 })
+    if (previous.status !== 'DRAFT')
+      return NextResponse.json(
+        { error: 'Return the vacancy to draft before changing its specification' },
+        { status: 409 }
+      )
 
     const data: Record<string, any> = {}
     for (const key of EDITABLE_VACANCY_FIELDS) {
@@ -122,8 +127,43 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       )
     if (questions?.some((question: any) => !String(question.label || '').trim()))
       return NextResponse.json({ error: 'Every application question requires a label' }, { status: 400 })
+    if (questions && questions.length > 100)
+      return NextResponse.json({ error: 'A vacancy cannot have more than 100 application questions' }, { status: 400 })
+    const allowedQuestionTypes = new Set([
+      'TEXT',
+      'LONGTEXT',
+      'NUMBER',
+      'DATE',
+      'YESNO',
+      'SELECT',
+      'MULTISELECT',
+      'DECLARATION',
+    ])
+    if (questions?.some((question: any) => !allowedQuestionTypes.has(String(question.fieldType))))
+      return NextResponse.json({ error: 'One or more application question types are not supported' }, { status: 400 })
+    if (
+      questions?.some(
+        (question: any) =>
+          ['SELECT', 'MULTISELECT'].includes(question.fieldType) &&
+          (!Array.isArray(question.configurationJson?.options) || question.configurationJson.options.length < 2)
+      )
+    )
+      return NextResponse.json({ error: 'Selection questions require at least two options' }, { status: 400 })
     if (requiredDocuments?.some((document: any) => !String(document.documentType || '').trim()))
       return NextResponse.json({ error: 'Every document requirement requires a type' }, { status: 400 })
+    if (
+      requiredDocuments &&
+      new Set(requiredDocuments.map((document: any) => document.documentType)).size !== requiredDocuments.length
+    )
+      return NextResponse.json({ error: 'Each document type may be requested only once' }, { status: 400 })
+    const configuredDocuments = requiredDocuments?.length
+      ? await prisma.documentType.findMany({
+          where: { code: { in: requiredDocuments.map((document: any) => document.documentType) }, active: true },
+        })
+      : []
+    if (requiredDocuments && configuredDocuments.length !== requiredDocuments.length)
+      return NextResponse.json({ error: 'Choose active configured document types' }, { status: 400 })
+    const documentConfiguration = new Map(configuredDocuments.map((document) => [document.code, document]))
 
     if (body.status && body.status !== previous.status)
       return NextResponse.json(
@@ -149,7 +189,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
               helpText: question.helpText || null,
               required: question.required !== false,
               configurationJson: question.configurationJson ? JSON.stringify(question.configurationJson) : null,
-              conditionJson: question.conditionJson ? JSON.stringify(question.conditionJson) : null,
+              conditionJson: null,
               displayOrder: index,
             })),
           })
@@ -162,9 +202,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
               vacancyId: params.id,
               documentType: String(document.documentType).trim(),
               required: document.required !== false,
-              allowedFileTypes: document.allowedFileTypes || 'pdf,jpg,png',
-              maximumFileSize: Number(document.maximumFileSize) || 5_242_880,
-              expiryRequired: Boolean(document.expiryRequired),
+              allowedFileTypes: documentConfiguration.get(document.documentType)?.allowedFileTypes || 'pdf,jpg,png',
+              maximumFileSize: documentConfiguration.get(document.documentType)?.maximumFileSize || 5_242_880,
+              expiryRequired: false,
             })),
           })
       }

@@ -4,6 +4,7 @@ import { requirePermission, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
+import { createApplicationReference } from '@/lib/application-reference'
 
 function questionIsVisible(
   question: { conditionJson: string | null },
@@ -78,7 +79,14 @@ export async function POST(request: Request) {
     const [candidate, vacancy, existing] = await Promise.all([
       prisma.candidateProfile.findUnique({
         where: { id: input.candidateId },
-        include: { user: true, education: true, employment: true },
+        include: {
+          education: true,
+          employment: true,
+          licences: true,
+          certifications: true,
+          skills: true,
+          languages: true,
+        },
       }),
       prisma.vacancy.findUnique({
         where: { id: input.vacancyId },
@@ -92,6 +100,11 @@ export async function POST(request: Request) {
     if (!vacancy || vacancy.status !== 'OPEN' || vacancy.openingAt > new Date() || vacancy.closingAt <= new Date())
       throw new AuthzError('Vacancy is not accepting applications', 409)
     if (existing) throw new AuthzError('This candidate already has an application for the vacancy', 409)
+    if (vacancy.questions.some((question) => question.fieldType === 'FILE'))
+      throw new AuthzError(
+        'This vacancy contains a file question. The candidate must use the application form so the file can be verified.',
+        409
+      )
     const allowed = new Set(vacancy.questions.map((question) => question.id))
     if (input.answers.some((answer) => !allowed.has(answer.vacancyQuestionId)))
       throw new AuthzError('An answer does not belong to this vacancy', 400)
@@ -115,6 +128,7 @@ export async function POST(request: Request) {
         data: {
           candidateId: candidate.id,
           vacancyId: vacancy.id,
+          referenceNumber: createApplicationReference(),
           internalStatus: 'SUBMITTED',
           candidateVisibleStatus: 'APPLICATION_RECEIVED',
           submittedAt: new Date(),

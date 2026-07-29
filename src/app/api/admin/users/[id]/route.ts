@@ -3,16 +3,21 @@ import { prisma } from '@/lib/prisma'
 import { requireRole, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
+import { STAFF_ROLE_NAMES } from '@/lib/roles'
 
 const schema = z
   .object({
     accountStatus: z.enum(['ACTIVE', 'LOCKED', 'SUSPENDED']).optional(),
     roleId: z.string().optional(),
-    removeRoleId: z.string().optional(),
-    scopeType: z.enum(['GLOBAL', 'DEPARTMENT', 'VACANCY', 'DUTY_STATION']).optional().default('GLOBAL'),
-    scopeId: z.string().optional().default('GLOBAL'),
+    removeAssignmentId: z.string().optional(),
+    reason: z.string().trim().min(5).max(500).optional(),
   })
-  .refine((value) => value.accountStatus || value.roleId || value.removeRoleId, 'No user change supplied')
+  .superRefine((value, context) => {
+    if (!value.accountStatus && !value.roleId && !value.removeAssignmentId)
+      context.addIssue({ code: 'custom', message: 'No user change supplied' })
+    if ((value.accountStatus || value.removeAssignmentId) && !value.reason)
+      context.addIssue({ code: 'custom', path: ['reason'], message: 'Explain why this access change is needed' })
+  })
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
@@ -30,10 +35,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       (assignment) => assignment.role.name === 'SYSTEM_ADMIN' && (assignment.scopeType || 'GLOBAL') === 'GLOBAL'
     )
     const removingGlobalAdmin =
-      data.removeRoleId &&
+      data.removeAssignmentId &&
       target.userRoles.some(
         (assignment) =>
-          assignment.roleId === data.removeRoleId &&
+          assignment.id === data.removeAssignmentId &&
           assignment.role.name === 'SYSTEM_ADMIN' &&
           (assignment.scopeType || 'GLOBAL') === 'GLOBAL'
       )
@@ -53,8 +58,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       if (!otherActiveAdmins) throw new AuthzError('At least one active global system administrator must remain', 409)
     }
     let accessChanged = false
-    if (data.removeRoleId) {
-      const role = target.userRoles.find((assignment) => assignment.roleId === data.removeRoleId)
+    if (data.removeAssignmentId) {
+      const role = target.userRoles.find((assignment) => assignment.id === data.removeAssignmentId)
       if (!role) throw new AuthzError('Role assignment not found', 404)
       if (actor.userId === target.id && role.role.name === 'SYSTEM_ADMIN')
         throw new AuthzError('You cannot remove your own system administrator role', 409)
@@ -64,20 +69,27 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (data.roleId) {
       const role = await prisma.role.findUnique({ where: { id: data.roleId } })
       if (!role) throw new AuthzError('Role not found', 404)
-      const scopeType = data.scopeType || 'GLOBAL'
-      const scopeId = scopeType === 'GLOBAL' ? 'GLOBAL' : data.scopeId
-      if (!scopeId || scopeId === 'GLOBAL')
-        throw new AuthzError(`${scopeType.replaceAll('_', ' ')} scope requires a specific record`, 400)
-      if (role.name === 'SYSTEM_ADMIN' && scopeType !== 'GLOBAL')
-        throw new AuthzError('System administrator is a global role', 400)
-      if (scopeType !== 'GLOBAL') {
-        const exists =
-          scopeType === 'DEPARTMENT'
-            ? await prisma.department.findUnique({ where: { id: scopeId }, select: { id: true } })
-            : scopeType === 'VACANCY'
-              ? await prisma.vacancy.findUnique({ where: { id: scopeId }, select: { id: true } })
-              : await prisma.dutyStation.findUnique({ where: { id: scopeId }, select: { id: true } })
-        if (!exists) throw new AuthzError(`${scopeType.replaceAll('_', ' ')} scope not found`, 404)
+      if (!(STAFF_ROLE_NAMES as readonly string[]).includes(role.name))
+        throw new AuthzError('Candidate, referee and public identities cannot be assigned as staff access', 422)
+      const externalIdentityRoles = target.userRoles.filter((assignment) =>
+        ['CANDIDATE', 'REFEREE', 'PUBLIC'].includes(assignment.role.name)
+      )
+      if (externalIdentityRoles.length)
+        throw new AuthzError('Use a separate staff account; candidate and referee identities cannot receive staff access', 409)
+      const scopeType = 'GLOBAL'
+      const scopeId = 'GLOBAL'
+      const otherRoleAssignments = target.userRoles.filter((assignment) => assignment.roleId !== role.id)
+      if (role.name === 'SYSTEM_ADMIN' && otherRoleAssignments.length > 0) {
+        throw new AuthzError(
+          'System administration must use a separate account from recruitment and candidate roles',
+          409
+        )
+      }
+      if (role.name !== 'SYSTEM_ADMIN' && targetIsGlobalAdmin) {
+        throw new AuthzError(
+          'Remove the system administrator role before assigning an operational role to this account',
+          409
+        )
       }
       await prisma.userRole.upsert({
         where: { userId_roleId_scopeType_scopeId: { userId: target.id, roleId: data.roleId, scopeType, scopeId } },
@@ -90,7 +102,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       data.accountStatus || accessChanged
         ? await prisma.user.update({
             where: { id: target.id },
-            data: { accountStatus: data.accountStatus, sessionVersion: { increment: 1 } },
+            data: {
+              accountStatus: data.accountStatus,
+              ...(data.accountStatus === 'ACTIVE'
+                ? { failedLoginCount: 0, lastFailedLoginAt: null, lockedUntil: null }
+                : {}),
+              sessionVersion: { increment: 1 },
+            },
           })
         : target
     await logAudit({
@@ -102,7 +120,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         accountStatus: target.accountStatus,
         roles: target.userRoles.map((assignment) => assignment.role.name),
       },
-      newValue: data,
+      reason: data.reason,
+      newValue: { ...data, reason: undefined },
     })
     return Response.json({ success: true, user: updated })
   } catch (error) {

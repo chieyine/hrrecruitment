@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requirePermission, authzResponse } from '@/lib/authz'
+import { requireRole, authzResponse, AuthzError } from '@/lib/authz'
 import { logAudit } from '@/lib/audit'
 import { z } from 'zod'
 import { parseBody } from '@/lib/validation'
@@ -10,9 +10,6 @@ const schema = z
   .object({
     applicationId: z.string().min(1),
     offerTemplateId: z.string().optional(),
-    position: z.string().trim().min(1).max(200),
-    dutyStation: z.string().trim().min(1).max(200),
-    contractType: z.string().trim().min(1).max(100),
     contractDuration: z.string().max(100).optional(),
     salary: z.string().trim().min(1).max(100),
     startDate: z.coerce.date(),
@@ -29,20 +26,25 @@ const schema = z
         path: ['acceptanceDeadline'],
         message: 'Acceptance deadline must be in the future',
       })
+    if (value.startDate <= new Date())
+      context.addIssue({ code: 'custom', path: ['startDate'], message: 'Start date must be in the future' })
+    if (value.acceptanceDeadline >= value.startDate)
+      context.addIssue({
+        code: 'custom',
+        path: ['acceptanceDeadline'],
+        message: 'Acceptance deadline must be before the start date',
+      })
     if (value.endDate && value.endDate <= value.startDate)
       context.addIssue({ code: 'custom', path: ['endDate'], message: 'End date must follow start date' })
   })
 
 export async function POST(request: Request) {
   try {
-    const user = await requirePermission('offer.manage')
+    const user = await requireRole('RECRUITMENT_OFFICER', 'HR_MANAGER')
 
     const body = await parseBody(request, schema)
     const {
       applicationId,
-      position,
-      dutyStation,
-      contractType,
       contractDuration,
       salary,
       startDate,
@@ -55,7 +57,17 @@ export async function POST(request: Request) {
     } = body
 
     // Only issue an offer to an application at the recommended/offer-draft stage.
-    const application = await prisma.application.findUnique({ where: { id: applicationId } })
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        vacancy: { include: { dutyStation: { select: { name: true } } } },
+        selectionDecisions: {
+          where: { outcome: 'SELECTED', approvedAt: { not: null } },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    })
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     if (!['RECOMMENDED', 'OFFER_DRAFT'].includes(application.internalStatus)) {
       return NextResponse.json(
@@ -63,6 +75,18 @@ export async function POST(request: Request) {
         { status: 422 }
       )
     }
+    if (!application.selectionDecisions.length)
+      throw new AuthzError('The selected candidate must complete selection approval before an offer is prepared', 409)
+    const offerTemplate = offerTemplateId
+      ? await prisma.offerTemplate.findFirst({
+          where: { id: offerTemplateId, active: true },
+          select: { id: true, name: true, candidateType: true, bodyTemplate: true, version: true },
+        })
+      : null
+    if (offerTemplateId && !offerTemplate) throw new AuthzError('The selected offer template is not available', 422)
+    const position = application.vacancy.title
+    const dutyStation = application.vacancy.dutyStation.name
+    const contractType = application.vacancy.contractType
 
     const existingOffer = await prisma.offer.findFirst({
       where: { applicationId, status: { notIn: ['DECLINED', 'EXPIRED', 'WITHDRAWN', 'SUPERSEDED'] } },
@@ -87,6 +111,7 @@ export async function POST(request: Request) {
           conditions: conditions || null,
           acceptanceDeadline,
           offerTemplateId: offerTemplateId || null,
+          templateSnapshotJson: offerTemplate ? JSON.stringify(offerTemplate) : null,
           status: 'PENDING_APPROVAL',
         },
       })
@@ -102,8 +127,18 @@ export async function POST(request: Request) {
       })
       await tx.application.update({
         where: { id: applicationId },
-        data: { offerStatus: 'PENDING_APPROVAL', internalStatus: 'OFFER_DRAFT' },
+        data: { offerStatus: 'PENDING_APPROVAL', internalStatus: 'OFFER_DRAFT', lockVersion: { increment: 1 } },
       })
+      if (application.internalStatus !== 'OFFER_DRAFT')
+        await tx.applicationStageHistory.create({
+          data: {
+            applicationId,
+            fromStatus: application.internalStatus,
+            toStatus: 'OFFER_DRAFT',
+            changedBy: user.userId,
+            reason: 'Offer submitted for approval',
+          },
+        })
       return created
     })
 

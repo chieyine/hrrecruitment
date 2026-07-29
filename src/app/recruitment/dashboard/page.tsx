@@ -1,16 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import {
-  AlertTriangle,
-  ArrowRight,
-  BriefcaseBusiness,
-  CheckCircle2,
-  Clock3,
-  FileCheck2,
-  Search,
-  UserRoundCheck,
-  UsersRound,
-} from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, Search } from 'lucide-react'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import { EmptyState } from '@/components/ui/PageElements'
@@ -20,6 +10,7 @@ import { formatDateTime, getStatusBadgeClass } from '@/lib/utils'
 import { hasPermission } from '@/lib/rbac'
 import { hasStaffRole } from '@/lib/roles'
 import { workItemHref } from '@/lib/work-items'
+import { canRunRecruitmentOperations } from '@/lib/recruitment-role-policy'
 
 const TERMINAL_STAGES = [
   'TRANSFERRED_TO_ERP',
@@ -42,7 +33,8 @@ export default async function RecruitmentDashboardPage() {
   const user = await getVerifiedUser()
 
   if (!user || !hasStaffRole(user.roles)) redirect('/auth/login')
-  if (user.roles.includes('APPROVER') && !user.roles.includes('HR_MANAGER')) redirect('/recruitment/approvals')
+  if (user.roles.includes('SYSTEM_ADMIN')) redirect('/admin/system-settings')
+  if (user.roles.includes('APPROVER') && !canRunRecruitmentOperations(user.roles)) redirect('/recruitment/approvals')
   if (user.roles.includes('PANEL_MEMBER') && user.roles.every((role) => role === 'PANEL_MEMBER'))
     redirect('/recruitment/interviews')
   if (user.roles.includes('COURSE_ADMIN') && user.roles.every((role) => role === 'COURSE_ADMIN'))
@@ -65,6 +57,7 @@ export default async function RecruitmentDashboardPage() {
           { interviews: { some: { panelMembers: { some: { userId: user.userId } } } } },
         ],
       }
+  const visibleApplicationWhere = { AND: [applicationWhere, { internalStatus: { not: 'DRAFT' } }] }
   const workScope = readAll
     ? {}
     : {
@@ -73,32 +66,22 @@ export default async function RecruitmentDashboardPage() {
   const now = new Date()
 
   const [
-    totalVacancies,
     openVacancies,
-    totalApplications,
     pendingReview,
     activeApplications,
-    preboardingActive,
-    readyForErp,
-    createdInErp,
     groupedStages,
     recentApplications,
     attentionItems,
     overdueWork,
   ] = await Promise.all([
-    prisma.vacancy.count({ where: vacancyWhere }),
     prisma.vacancy.count({ where: { ...vacancyWhere, status: 'OPEN' } }),
-    prisma.application.count({ where: applicationWhere }),
     prisma.application.count({ where: { AND: [applicationWhere, { internalStatus: 'SUBMITTED' }] } }),
-    prisma.application.count({ where: { AND: [applicationWhere, { internalStatus: { notIn: TERMINAL_STAGES } }] } }),
-    readAll
-      ? prisma.candidatePreboarding.count({ where: { status: { in: ['IN_PROGRESS', 'AWAITING_HR_REVIEW'] } } })
-      : Promise.resolve(0),
-    readAll ? prisma.application.count({ where: { internalStatus: 'READY_TO_RESUME' } }) : Promise.resolve(0),
-    readAll ? prisma.application.count({ where: { internalStatus: 'TRANSFERRED_TO_ERP' } }) : Promise.resolve(0),
-    prisma.application.groupBy({ by: ['internalStatus'], where: applicationWhere, _count: true }),
+    prisma.application.count({
+      where: { AND: [applicationWhere, { internalStatus: { notIn: [...TERMINAL_STAGES, 'DRAFT'] } }] },
+    }),
+    prisma.application.groupBy({ by: ['internalStatus'], where: visibleApplicationWhere, _count: true }),
     prisma.application.findMany({
-      where: applicationWhere,
+      where: visibleApplicationWhere,
       take: 8,
       orderBy: { updatedAt: 'desc' },
       include: {
@@ -135,7 +118,7 @@ export default async function RecruitmentDashboardPage() {
     {
       label: 'Decision',
       detail: 'Reference through offer',
-      value: ['REFERENCE_CHECK', 'RECOMMENDED', 'OFFER_SENT', 'OFFER_ACCEPTED'].reduce(
+      value: ['REFERENCE_CHECK', 'RECOMMENDED', 'RESERVE', 'OFFER_DRAFT', 'OFFER_SENT', 'OFFER_ACCEPTED'].reduce(
         (sum, stage) => sum + (stageCounts[stage] || 0),
         0
       ),
@@ -143,9 +126,14 @@ export default async function RecruitmentDashboardPage() {
     {
       label: 'Preboarding',
       detail: 'Preparing to start',
-      value: ['PREBOARDING_IN_PROGRESS', 'READY_TO_RESUME'].reduce((sum, stage) => sum + (stageCounts[stage] || 0), 0),
+      value: ['PREBOARDING', 'READY_TO_RESUME', 'RESUMED'].reduce((sum, stage) => sum + (stageCounts[stage] || 0), 0),
     },
   ]
+  const roleLabel = user.roles.includes('HR_MANAGER')
+    ? 'HR manager'
+    : user.roles.includes('RECRUITMENT_OFFICER')
+      ? 'Recruitment / HR officer'
+      : 'Recruitment team'
 
   return (
     <div className="flex min-h-screen flex-col bg-surface-50">
@@ -155,21 +143,19 @@ export default async function RecruitmentDashboardPage() {
         <div className="page-shell space-y-7">
           <section className="workspace-band grid lg:grid-cols-[1.5fr_.8fr]">
             <div className="px-6 py-7 sm:px-8 sm:py-9">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-300">
-                Recruitment command centre
-              </p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-300">{roleLabel}</p>
               <h1 className="mt-3 max-w-2xl text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
-                Keep every candidate moving.
+                Recruitment
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-brand-100">
-                Start with overdue work, then review new applications and decisions waiting on the team.
+                Your work, active vacancies and candidates in one place. Start with anything overdue.
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
                 <Link
                   href="/recruitment/work"
                   className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-bold text-brand-950 hover:bg-brand-50"
                 >
-                  Open my work <ArrowRight className="h-4 w-4" />
+                  Go to my work <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   href="/recruitment/search"
@@ -182,7 +168,7 @@ export default async function RecruitmentDashboardPage() {
                     href="/recruitment/vacancies/new"
                     className="inline-flex min-h-10 items-center rounded-lg border border-white/20 px-4 py-2 text-xs font-bold text-white hover:bg-white/10"
                   >
-                    Create vacancy
+                    New vacancy
                   </Link>
                 )}
               </div>
@@ -190,18 +176,18 @@ export default async function RecruitmentDashboardPage() {
 
             <div className="grid grid-cols-2 border-t border-white/10 bg-white/[.045] lg:border-l lg:border-t-0">
               <div className="border-b border-r border-white/10 p-5">
-                <p className="text-[10px] font-bold uppercase tracking-[.12em] text-brand-300">Active cases</p>
-                <p className="mt-2 text-3xl font-semibold text-white">{activeApplications}</p>
-              </div>
-              <div className="border-b border-white/10 p-5">
-                <p className="text-[10px] font-bold uppercase tracking-[.12em] text-brand-300">New review</p>
+                <p className="text-[10px] font-bold uppercase tracking-[.12em] text-brand-300">Needs review</p>
                 <p className="mt-2 text-3xl font-semibold text-white">{pendingReview}</p>
               </div>
-              <div className="border-r border-white/10 p-5">
-                <p className="text-[10px] font-bold uppercase tracking-[.12em] text-brand-300">Overdue work</p>
+              <div className="border-b border-white/10 p-5">
+                <p className="text-[10px] font-bold uppercase tracking-[.12em] text-brand-300">Overdue</p>
                 <p className={`mt-2 text-3xl font-semibold ${overdueWork ? 'text-[#efaa8b]' : 'text-white'}`}>
                   {overdueWork}
                 </p>
+              </div>
+              <div className="border-r border-white/10 p-5">
+                <p className="text-[10px] font-bold uppercase tracking-[.12em] text-brand-300">Active candidates</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{activeApplications}</p>
               </div>
               <div className="p-5">
                 <p className="text-[10px] font-bold uppercase tracking-[.12em] text-brand-300">Open roles</p>
@@ -214,10 +200,10 @@ export default async function RecruitmentDashboardPage() {
             <div className="section-heading">
               <div>
                 <h2 id="pipeline-heading" className="text-lg font-semibold text-navy-900">
-                  Live pipeline
+                  Recruitment pipeline
                 </h2>
                 <p className="mt-1 text-sm text-stone-600">
-                  {totalApplications} applications across {totalVacancies} vacancies
+                  {activeApplications} active applications across {openVacancies} open vacancies
                 </p>
               </div>
               <Link href="/recruitment/applications" className="text-xs font-bold text-brand-800 hover:underline">
@@ -243,9 +229,9 @@ export default async function RecruitmentDashboardPage() {
               <div className="section-heading">
                 <div>
                   <h2 id="activity-heading" className="text-lg font-semibold text-navy-900">
-                    Recent movement
+                    Recently updated
                   </h2>
-                  <p className="mt-1 text-sm text-stone-600">Candidate records changed most recently.</p>
+                  <p className="mt-1 text-sm text-stone-600">The latest candidate activity.</p>
                 </div>
               </div>
               {recentApplications.length === 0 ? (
@@ -291,9 +277,9 @@ export default async function RecruitmentDashboardPage() {
               <div className="section-heading">
                 <div>
                   <h2 id="attention-heading" className="text-lg font-semibold text-navy-900">
-                    Needs attention
+                    Next up
                   </h2>
-                  <p className="mt-1 text-sm text-stone-600">Your next five active items.</p>
+                  <p className="mt-1 text-sm text-stone-600">Your first five work items.</p>
                 </div>
               </div>
               {attentionItems.length === 0 ? (
@@ -339,64 +325,12 @@ export default async function RecruitmentDashboardPage() {
                     href="/recruitment/work"
                     className="flex items-center justify-between bg-stone-50 px-5 py-3 text-xs font-bold text-brand-800 hover:bg-brand-50"
                   >
-                    Open the full work queue <ArrowRight className="h-4 w-4" />
+                    View all my work <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
               )}
             </section>
           </div>
-
-          <section aria-labelledby="operations-heading">
-            <div className="mb-3 flex items-end justify-between">
-              <div>
-                <h2 id="operations-heading" className="text-lg font-semibold tracking-[-.02em] text-navy-900">
-                  Operational picture
-                </h2>
-                <p className="mt-1 text-sm text-stone-600">A quick read on the work beyond screening.</p>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                {
-                  label: 'Open vacancies',
-                  value: `${openVacancies} / ${totalVacancies}`,
-                  detail: 'Accepting applications',
-                  href: '/recruitment/vacancies',
-                  icon: BriefcaseBusiness,
-                },
-                {
-                  label: 'Active preboarding',
-                  value: preboardingActive,
-                  detail: 'Candidates completing requirements',
-                  href: '/recruitment/preboarding',
-                  icon: FileCheck2,
-                },
-                {
-                  label: 'Ready for ERP',
-                  value: readyForErp,
-                  detail: 'Cleared for personnel creation',
-                  href: '/recruitment/preboarding',
-                  icon: UserRoundCheck,
-                },
-                {
-                  label: 'Handover complete',
-                  value: createdInErp,
-                  detail: 'Transferred into the HR system',
-                  href: '/recruitment/reports',
-                  icon: UsersRound,
-                },
-              ].map(({ label, value, detail, href, icon: Icon }) => (
-                <Link key={label} href={href} className="metric-card group">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-bold uppercase tracking-[.11em] text-stone-500">{label}</p>
-                    <Icon className="h-4 w-4 text-brand-700" />
-                  </div>
-                  <p className="mt-3 text-3xl font-semibold tracking-[-.04em] text-navy-900">{value}</p>
-                  <p className="mt-1 text-xs text-stone-500">{detail}</p>
-                </Link>
-              ))}
-            </div>
-          </section>
         </div>
       </main>
 

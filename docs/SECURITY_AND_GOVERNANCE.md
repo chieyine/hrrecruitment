@@ -2,11 +2,17 @@
 
 ## Access model
 
-- `SYSTEM_ADMIN` manages configuration and user access.
-- `HR_MANAGER` manages recruitment, complaints, governance, readiness waivers,
-  exports and approvals.
-- `RECRUITMENT_OFFICER` runs assigned recruitment work and complaints but cannot
-  perform governance administration.
+- `SYSTEM_ADMIN` manages the technical platform, user access and controlled
+  configuration releases. It cannot make recruitment decisions or read
+  recruitment case queues merely because it is an administrator.
+- `RECRUITMENT_OFFICER` runs the daily recruitment operation: vacancies,
+  applications, interviews, candidate communication, routine preboarding,
+  adjustment fulfilment, complaint and fraud triage, duplicate-record requests,
+  resumption confirmation and ERP handover.
+- `HR_MANAGER` supervises the operation and owns accountable decisions:
+  vacancy approval, offer and selection approval where assigned, adjustment
+  decisions, waivers, conflict exceptions, candidate-merge approval, offer or
+  vacancy cancellation, and final complaint or fraud-case closure.
 - `HIRING_MANAGER`, `PANEL_MEMBER` and `APPROVER` receive only the scoped records
   and actions required for their duties.
 - `CANDIDATE` can access only their profile, applications and related records.

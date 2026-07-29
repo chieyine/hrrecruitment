@@ -6,31 +6,24 @@ export default function AdminPreboardingPackagesPage() {
     <>
       <AdminCrud
         entity="preboarding-packages"
-        title="Preboarding Packages"
-        subtitle="Bundles of forms, documents, policies, courses and tasks by candidate type."
+        title="Preboarding packages"
+        subtitle="The forms, evidence, policies, learning and tasks assigned after an offer is accepted."
         columns={[
           { name: 'name', label: 'Name' },
-          { name: 'candidateType', label: 'Candidate Type' },
-          { name: 'roleCategory', label: 'Role Category' },
+          { name: 'version', label: 'Version' },
+          { name: 'usage.vacancies', label: 'Vacancies' },
           { name: 'active', label: 'Active' },
         ]}
         fields={[
-          { name: 'name', label: 'Name', required: true },
-          { name: 'description', label: 'Description', type: 'textarea' },
+          { name: 'name', label: 'Package name', required: true, placeholder: 'For example, Field programme staff' },
           {
-            name: 'candidateType',
-            label: 'Candidate Type',
-            type: 'select',
-            options: [
-              { value: 'GENERAL', label: 'General' },
-              { value: 'HEALTH', label: 'Health' },
-              { value: 'FIELD', label: 'Field' },
-              { value: 'FINANCE', label: 'Finance' },
-              { value: 'DRIVER', label: 'Driver' },
-            ],
+            name: 'description',
+            label: 'When to use this package',
+            type: 'textarea',
+            required: true,
+            placeholder: 'Describe the roles or working conditions this package covers.',
           },
-          { name: 'roleCategory', label: 'Role Category' },
-          { name: 'active', label: 'Active', type: 'checkbox' },
+          { name: 'active', label: 'Active', type: 'checkbox', defaultValue: false },
         ]}
       />
       <ConfigurationBuilder mode="packages" />

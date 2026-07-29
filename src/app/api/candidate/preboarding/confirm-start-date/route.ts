@@ -26,10 +26,11 @@ export async function POST(request: Request) {
     if (!preboarding) throw new AuthzError('Preboarding record not found', 404)
     const offer = preboarding.application.offers[0]
     if (!offer) throw new AuthzError('An accepted offer is required', 409)
-    const differenceDays = Math.abs(startDate.getTime() - offer.startDate.getTime()) / 86400000
-    if (differenceDays > 30)
+    const offeredDay = offer.startDate.toISOString().slice(0, 10)
+    const confirmedDay = startDate.toISOString().slice(0, 10)
+    if (confirmedDay !== offeredDay)
       throw new AuthzError(
-        'The proposed start date must be within 30 days of the accepted offer date; contact HR for a larger change',
+        'Confirm the date in your accepted offer, or message the recruitment team to request a change',
         400
       )
     await prisma.candidatePreboarding.update({

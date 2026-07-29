@@ -38,28 +38,17 @@ export async function instantiatePreboardingPackage(
   })
 
   const packageId = explicitPackageId || application?.vacancy.preboardingPackageId
-  const pkg = packageId
-    ? await db.preboardingPackage.findUnique({
-        where: { id: packageId },
-        include: {
-          packageForms: { include: { formTemplate: true } },
-          packageDocuments: { include: { documentRequirement: true } },
-          packagePolicies: { include: { policyDocument: true } },
-          packageCourses: { include: { course: { include: { contents: true, quizQuestions: true } } } },
-          packageTasks: { include: { taskTemplate: true } },
-        },
-      })
-    : await db.preboardingPackage.findFirst({
-        where: { active: true },
-        orderBy: [{ candidateType: 'asc' }, { version: 'desc' }],
-        include: {
-          packageForms: { include: { formTemplate: true } },
-          packageDocuments: { include: { documentRequirement: true } },
-          packagePolicies: { include: { policyDocument: true } },
-          packageCourses: { include: { course: { include: { contents: true, quizQuestions: true } } } },
-          packageTasks: { include: { taskTemplate: true } },
-        },
-      })
+  if (!packageId) return null
+  const pkg = await db.preboardingPackage.findUnique({
+    where: { id: packageId },
+    include: {
+      packageForms: { include: { formTemplate: true } },
+      packageDocuments: { include: { documentRequirement: true } },
+      packagePolicies: { include: { policyDocument: true } },
+      packageCourses: { include: { course: { include: { contents: true, quizQuestions: true } } } },
+      packageTasks: { include: { taskTemplate: true } },
+    },
+  })
 
   if (!pkg) return null
 

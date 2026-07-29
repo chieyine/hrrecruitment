@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test'
 import { login, logout } from './helpers'
 
 test.describe('Admin and Reports', () => {
-  test('Admin can manage system dictionaries and settings', async ({ page }, testInfo) => {
+  test('HR manager owns recruitment reference data', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once.')
 
-    await login(page, 'admin@frad.org')
+    await login(page, 'hrmanager@frad.org')
 
     // Duty Stations
     await page.goto('/admin/duty-stations')
@@ -16,7 +16,9 @@ test.describe('Admin and Reports', () => {
     await page.getByRole('button', { name: /^save$/i }).click()
     await expect(page.getByText(`Station ${unique}`)).toBeVisible()
 
-    // Privacy Requests
+    await logout(page)
+
+    await login(page, 'admin@frad.org')
     await page.goto('/admin/deletion-requests')
     await expect(page.getByRole('heading', { name: /deletion requests/i })).toBeVisible()
 
@@ -30,6 +32,7 @@ test.describe('Admin and Reports', () => {
 
     // Reports
     await page.goto('/recruitment/reports')
+    await page.getByRole('link', { name: /^downloads$/i }).click()
     const exportCSV = page.locator('a[href*=\"report=pipeline\"][href*=\"format=csv\"]')
     await expect(exportCSV).toBeVisible()
     const downloadPromise = page.waitForEvent('download')
@@ -66,6 +69,8 @@ test.describe('Admin and Reports', () => {
     await expect(targetDialog.getByLabel(/reason for change/i)).toBeVisible()
     await targetDialog.getByRole('button', { name: /cancel/i }).click()
 
+    await logout(page)
+    await login(page, 'course.admin@frad.org')
     await page.goto('/admin/courses')
     await page.getByRole('combobox', { name: /course/i }).selectOption({ index: 1 })
     await page.getByRole('button', { name: /add quiz question/i }).click()

@@ -31,7 +31,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         acceptedAt: true,
         declinedAt: true,
         version: true,
-        offerTemplate: { select: { bodyTemplate: true } },
         application: {
           select: {
             candidate: { select: { userId: true, legalFirstName: true, preferredName: true, lastName: true } },
@@ -81,7 +80,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
           acceptedAt: true,
           declinedAt: true,
           version: true,
-          offerTemplate: { select: { bodyTemplate: true } },
           application: {
             select: {
               candidate: { select: { userId: true, legalFirstName: true, preferredName: true, lastName: true } },
@@ -100,31 +98,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       offer = current
     }
 
-    const { application, offerTemplate, ...candidateOffer } = offer
+    const { application, ...candidateOffer } = offer
     const candidateName = `${application.candidate.legalFirstName} ${application.candidate.lastName}`
-    const template =
-      offerTemplate?.bodyTemplate ||
-      'Dear {{candidate_name}},\\n\\nWe are pleased to offer you the position of {{position}} in {{duty_station}}. Please review the terms below and respond before {{acceptance_deadline}}.'
-    const renderedBody = template.replace(
-      /\{\{([a-z_]+)\}\}/gi,
-      (token, key) =>
-        (
-          ({
-            candidate_name: candidateName,
-            candidate_first_name: application.candidate.preferredName || application.candidate.legalFirstName,
-            position: candidateOffer.position,
-            vacancy_title: application.vacancy.title,
-            duty_station: candidateOffer.dutyStation,
-            contract_type: candidateOffer.contractType,
-            salary: candidateOffer.salary,
-            start_date: candidateOffer.startDate.toLocaleDateString('en-GB'),
-            acceptance_deadline: candidateOffer.acceptanceDeadline.toLocaleDateString('en-GB'),
-            reporting_line: candidateOffer.reportingLine || '',
-          }) as Record<string, string>
-        )[key] ?? token
-    )
     return NextResponse.json({
-      offer: { ...candidateOffer, vacancyTitle: application.vacancy.title, candidateName, renderedBody },
+      offer: { ...candidateOffer, vacancyTitle: application.vacancy.title, candidateName },
     })
   } catch (err) {
     return authzResponse(err)

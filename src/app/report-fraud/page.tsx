@@ -49,8 +49,8 @@ export default function ReportFraudPage() {
             <div className="mt-6 border-t border-stone-300 pt-5 text-sm leading-6 text-stone-600">
               <p className="font-bold text-stone-900">Before you report</p>
               <p className="mt-2">
-                Keep the message, email address, phone number, payment request and any screenshots. Do not continue
-                engaging with the sender.
+                Keep the message, sender details and any screenshots. FRAD may ask for them if you provide an email
+                address. Do not continue engaging with the sender.
               </p>
             </div>
           </aside>
@@ -113,6 +113,7 @@ export default function ReportFraudPage() {
                     placeholder="Tell us what was promised or requested, when it happened and whether any payment details were provided."
                     className="field-control"
                   />
+                  <p className="field-help">Do not include passwords, PINs, sign-in codes or full payment-card details.</p>
                 </div>
                 {error && (
                   <p role="alert" className="border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">

@@ -20,6 +20,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         expiryDate: z.coerce.date().nullable().optional(),
       })
     )
+    const configuredType = await prisma.documentType.findFirst({
+      where: { code: data.documentType, active: true },
+      select: { id: true },
+    })
+    const hasConfiguredTypes = (await prisma.documentType.count({ where: { active: true } })) > 0
+    if (!configuredType && (hasConfiguredTypes || !['CV', 'COVER_LETTER'].includes(data.documentType))) {
+      throw new AuthzError('Choose an available document category', 400)
+    }
     const updated = await prisma.candidateDocument.update({ where: { id: document.id }, data })
     await logAudit({
       actorUserId: user.userId,

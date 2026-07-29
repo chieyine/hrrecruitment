@@ -45,7 +45,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!panelMember || panelMember.interviewId !== params.id) {
       return NextResponse.json({ error: 'Panel member does not belong to this interview' }, { status: 422 })
     }
-    if (panelMember.userId !== user.userId && !user.roles.includes('SYSTEM_ADMIN')) {
+    if (panelMember.userId !== user.userId) {
       return NextResponse.json({ error: 'You may only submit your own independent panel score' }, { status: 403 })
     }
     const declaredConflict = conflictType
@@ -70,6 +70,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       include: { questions: true, application: { select: { internalStatus: true } } },
     })
     if (!interview) throw new AuthzError('Interview not found', 404)
+    if (interview.scheduledStart > new Date()) {
+      throw new AuthzError('The scorecard opens when the interview starts', 409)
+    }
     if (interview.status === 'CANCELLED' || ['WITHDRAWN', 'CANCELLED'].includes(interview.application.internalStatus)) {
       throw new AuthzError('This interview is closed', 409)
     }

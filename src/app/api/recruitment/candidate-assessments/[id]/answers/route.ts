@@ -98,7 +98,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         // Only meaningful for auto-markable types; a model answer for free text
         // would be misleading next to a candidate's prose.
         expectedAnswerDisplay: expected && AUTO_MARKED.has(question.questionType) ? expected.display : null,
-        requiresHumanMark: !AUTO_MARKED.has(question.questionType),
+        requiresHumanMark: !AUTO_MARKED.has(question.questionType) || answer?.score === null,
         score: answer?.score ?? null,
         markerComment: answer?.markerComment ?? null,
       }

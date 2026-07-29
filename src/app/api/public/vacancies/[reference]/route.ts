@@ -15,6 +15,7 @@ export async function GET(_request: Request, context: { params: Promise<{ refere
       },
       include: {
         department: true,
+        category: true,
         project: true,
         dutyStation: true,
         questions: {

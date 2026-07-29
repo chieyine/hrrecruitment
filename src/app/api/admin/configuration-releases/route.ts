@@ -18,15 +18,23 @@ const createSchema = z.object({
   effectiveTo: z.coerce.date().optional(),
 })
 
+async function allowedReleaseEntities(user: Awaited<ReturnType<typeof requireUser>>) {
+  const allowed: string[] = []
+  if (user.roles.includes('HR_MANAGER')) {
+    allowed.push(...Object.keys(RELEASE_ENTITIES).filter((entity) => entity !== 'courses'))
+  }
+  if (await hasPermission(user.userId, 'course.manage')) allowed.push('courses')
+  return [...new Set(allowed)]
+}
+
 export async function GET() {
   try {
     const user = await requireUser()
-    const systemAdmin = user.roles.includes('SYSTEM_ADMIN')
-    const courseAdmin = await hasPermission(user.userId, 'course.manage')
-    if (!systemAdmin && !courseAdmin) throw new AuthzError('Forbidden', 403)
+    const entities = await allowedReleaseEntities(user)
+    if (entities.length === 0) throw new AuthzError('Forbidden', 403)
     const releases = await prisma.configurationChangeRequest.findMany({
       where: {
-        changeType: systemAdmin ? { startsWith: 'GENERIC_CONFIG_UPDATE:' } : 'GENERIC_CONFIG_UPDATE:courses',
+        changeType: { in: entities.map((entity) => `GENERIC_CONFIG_UPDATE:${entity}`) },
       },
       orderBy: { requestedAt: 'desc' },
       take: 250,
@@ -41,15 +49,101 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser()
     const input = await parseBody(request, createSchema)
-    const systemAdmin = user.roles.includes('SYSTEM_ADMIN')
-    if (!systemAdmin && !(input.entity === 'courses' && (await hasPermission(user.userId, 'course.manage'))))
-      throw new AuthzError('Forbidden', 403)
+    const entities = await allowedReleaseEntities(user)
+    if (!entities.includes(input.entity)) throw new AuthzError('Forbidden', 403)
     if (input.effectiveFrom && input.effectiveTo && input.effectiveTo <= input.effectiveFrom)
       throw new AuthzError('Effective end must follow effective start', 400)
     const config = RELEASE_ENTITIES[input.entity]
     const current = await (prisma as any)[config.model].findUnique({ where: { id: input.id } })
     if (!current) throw new AuthzError('Configuration record not found', 404)
     const proposed = coerceRelease(input.entity, input.data)
+    if (
+      ['notification-templates', 'email-templates'].includes(input.entity) &&
+      proposed.code !== undefined &&
+      proposed.code !== current.code
+    ) {
+      throw new AuthzError('The stable template code cannot change. Create a new template if a new code is required.', 409)
+    }
+    if (input.entity === 'policies') {
+      const fileAssetId = String(proposed.fileAssetId ?? current.fileAssetId ?? '')
+      const file = await prisma.fileAsset.findFirst({
+        where: { id: fileAssetId, virusScanStatus: 'CLEAN', mimeType: 'application/pdf' },
+        select: { id: true },
+      })
+      if (!file) throw new AuthzError('Attach an available, clean official policy PDF before submitting this change', 422)
+    }
+    if (input.entity === 'preboarding-packages' && proposed.active === true) {
+      const [forms, documents, policies, courses, tasks] = await Promise.all([
+        prisma.packageForm.count({ where: { preboardingPackageId: input.id } }),
+        prisma.packageDocumentRequirement.count({ where: { preboardingPackageId: input.id } }),
+        prisma.packagePolicy.count({ where: { preboardingPackageId: input.id } }),
+        prisma.packageCourse.count({ where: { preboardingPackageId: input.id } }),
+        prisma.packageTask.count({ where: { preboardingPackageId: input.id } }),
+      ])
+      if (forms + documents + policies + courses + tasks === 0)
+        throw new AuthzError('Add at least one form, document, policy, course or task before activating this package', 422)
+      const [inactiveForms, inactiveDocuments, inactivePolicies, inactiveCourses, inactiveTasks] = await Promise.all([
+        prisma.packageForm.count({ where: { preboardingPackageId: input.id, formTemplate: { active: false } } }),
+        prisma.packageDocumentRequirement.count({
+          where: { preboardingPackageId: input.id, documentRequirement: { active: false } },
+        }),
+        prisma.packagePolicy.count({ where: { preboardingPackageId: input.id, policyDocument: { active: false } } }),
+        prisma.packageCourse.count({ where: { preboardingPackageId: input.id, course: { active: false } } }),
+        prisma.packageTask.count({ where: { preboardingPackageId: input.id, taskTemplate: { active: false } } }),
+      ])
+      if (inactiveForms + inactiveDocuments + inactivePolicies + inactiveCourses + inactiveTasks > 0)
+        throw new AuthzError('Replace retired requirements before activating this package', 422)
+    }
+    if (input.entity === 'courses' && proposed.active === true) {
+      const [contents, questions] = await Promise.all([
+        prisma.courseContent.count({ where: { courseId: input.id } }),
+        prisma.courseQuizQuestion.count({ where: { courseId: input.id } }),
+      ])
+      if (contents + questions === 0) {
+        throw new AuthzError('Add learning content or an assessment before activating this course', 422)
+      }
+    }
+    if (input.entity === 'scorecards') {
+      if (proposed.scorecardType !== undefined && proposed.scorecardType !== current.scorecardType) {
+        const [assessments, screeningVacancies, interviewVacancies] = await Promise.all([
+          prisma.candidateScorecard.count({ where: { scorecardTemplateId: input.id } }),
+          prisma.vacancy.count({ where: { screeningScorecardTemplateId: input.id } }),
+          prisma.vacancy.count({ where: { interviewScorecardTemplateId: input.id } }),
+        ])
+        if (assessments + screeningVacancies + interviewVacancies > 0)
+          throw new AuthzError(
+            'The selection stage cannot change because this scorecard is already assigned or has recorded assessments. Create a new scorecard.',
+            409
+          )
+      }
+      if (proposed.active === true) {
+        const criteria = await prisma.scorecardCriterion.findMany({
+          where: { scorecardTemplateId: input.id },
+          select: { maximumScore: true, guidance: true },
+        })
+        if (!criteria.length) throw new AuthzError('Add at least one scored criterion before activation', 422)
+        if (criteria.some((criterion) => !criterion.guidance?.trim()))
+          throw new AuthzError('Every criterion needs scoring guidance before activation', 422)
+        if (String(proposed.scorecardType ?? current.scorecardType) === 'SCREENING') {
+          const total = criteria.reduce((sum, criterion) => sum + criterion.maximumScore, 0)
+          if (Math.abs(total - 100) > 0.001)
+            throw new AuthzError(`Screening criteria must total 100 points; the current total is ${total}`, 422)
+        }
+      }
+    }
+    if (input.entity === 'tasks' && proposed.active === true) {
+      const title = String(proposed.title ?? current.title ?? '').trim()
+      const description = String(proposed.description ?? current.description ?? '').trim()
+      if (title.length < 3 || description.length < 10)
+        throw new AuthzError('Add a clear title and candidate instruction before activation', 422)
+    }
+    if (input.entity === 'templates' && proposed.active === true) {
+      const body = String(proposed.bodyTemplate ?? current.bodyTemplate ?? '')
+      if (!body.includes('{{candidate_name}}'))
+        throw new AuthzError('Offer wording must include the candidate name before activation', 422)
+    }
+    const changed = Object.entries(proposed).some(([key, value]) => String(current[key] ?? '') !== String(value ?? ''))
+    if (!changed) throw new AuthzError('No configuration values have changed', 422)
     const release = await prisma.configurationChangeRequest.create({
       data: {
         changeType: `GENERIC_CONFIG_UPDATE:${input.entity}`,
@@ -93,13 +187,9 @@ export async function PATCH(request: Request) {
     )
     const release = await prisma.configurationChangeRequest.findUnique({ where: { id: input.releaseId } })
     if (!release) throw new AuthzError('Configuration release not found', 404)
-    const systemAdmin = user.roles.includes('SYSTEM_ADMIN')
-    const ownCourseDraft =
-      release.changeType === 'GENERIC_CONFIG_UPDATE:courses' &&
-      release.requestedBy === user.userId &&
-      (await hasPermission(user.userId, 'course.manage'))
-    if (!systemAdmin && !(input.action === 'SUBMIT' && ownCourseDraft))
-      throw new AuthzError('A system administrator must decide or publish this release', 403)
+    const entity = release.changeType.replace('GENERIC_CONFIG_UPDATE:', '')
+    const entities = await allowedReleaseEntities(user)
+    if (!entities.includes(entity)) throw new AuthzError('Forbidden', 403)
     if (release.lockVersion !== input.lockVersion)
       throw new AuthzError('This release changed while you were viewing it. Refresh and try again.', 409)
     if (input.action === 'SUBMIT') {
@@ -112,7 +202,7 @@ export async function PATCH(request: Request) {
     } else if (input.action === 'APPROVE') {
       if (release.status !== 'PENDING') throw new AuthzError('Only a pending release can be approved', 409)
       if (release.requestedBy === user.userId)
-        throw new AuthzError('A second administrator must approve this change', 409)
+        throw new AuthzError('A second authorised reviewer must approve this change', 409)
       await prisma.configurationChangeRequest.update({
         where: { id: release.id },
         data: {
@@ -128,7 +218,7 @@ export async function PATCH(request: Request) {
       if (!['PENDING', 'APPROVED'].includes(release.status))
         throw new AuthzError('This release cannot be rejected now', 409)
       if (release.requestedBy === user.userId)
-        throw new AuthzError('A second administrator must decide this release', 409)
+        throw new AuthzError('A second authorised reviewer must decide this release', 409)
       await prisma.configurationChangeRequest.update({
         where: { id: release.id },
         data: {
@@ -148,7 +238,6 @@ export async function PATCH(request: Request) {
     } else {
       if (release.status !== 'APPLIED' || !release.previousJson)
         throw new AuthzError('Only a published release with a stored previous version can be rolled back', 409)
-      const entity = release.changeType.replace('GENERIC_CONFIG_UPDATE:', '')
       const config = RELEASE_ENTITIES[entity]
       const previous = JSON.parse(release.previousJson)
       const current = await (prisma as any)[config.model].findUnique({ where: { id: release.resourceId } })

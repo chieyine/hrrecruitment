@@ -32,13 +32,27 @@ export async function GET() {
         priority: true,
         dueAt: true,
         resolution: true,
+        description: true,
         createdAt: true,
         updatedAt: true,
-        comments: { where: { internalOnly: false }, select: { id: true, body: true, createdAt: true } },
+        application: { select: { vacancy: { select: { referenceNumber: true, title: true } } } },
+        comments: {
+          where: { internalOnly: false },
+          select: { id: true, body: true, createdAt: true, authorUserId: true },
+          orderBy: { createdAt: 'asc' },
+        },
       },
       orderBy: { createdAt: 'desc' },
     })
-    return Response.json({ cases })
+    return Response.json({
+      cases: cases.map((item) => ({
+        ...item,
+        comments: item.comments.map(({ authorUserId, ...comment }) => ({
+          ...comment,
+          mine: authorUserId === user.userId,
+        })),
+      })),
+    })
   } catch (error) {
     return authzResponse(error)
   }
@@ -55,7 +69,9 @@ export async function POST(request: Request) {
     const user = await getVerifiedUser()
     const input = await parseBody(request, intakeSchema)
     const attachmentFileIds = input.attachmentFileIds ?? []
-    if (!user && !input.reporterEmail) throw new AuthzError('Email is required for anonymous submissions', 400)
+    if (input.applicationId && !user) {
+      throw new AuthzError('Sign in before linking a complaint to an application', 401)
+    }
     if (input.applicationId && user) {
       const owned = await prisma.application.findFirst({
         where: { id: input.applicationId, candidate: { userId: user.userId } },

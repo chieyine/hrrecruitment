@@ -1,21 +1,27 @@
+import { redirect } from 'next/navigation'
 import { AlertTriangle, CheckCircle2, Clock3, Database, HardDrive, Mail, ShieldCheck, Workflow } from 'lucide-react'
-import AdminCrud from '@/components/admin/AdminCrud'
+import { getVerifiedUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { formatDate } from '@/lib/utils'
 
-type Readiness = 'READY' | 'DEVELOPMENT' | 'MISSING'
+type Readiness = 'READY' | 'DEVELOPMENT' | 'MISSING' | 'OPTIONAL'
 
-function readiness(value: boolean, development = false): Readiness {
-  return value ? (development ? 'DEVELOPMENT' : 'READY') : 'MISSING'
+function readiness(value: boolean, development = false, optional = false): Readiness {
+  return value ? (development ? 'DEVELOPMENT' : 'READY') : optional ? 'OPTIONAL' : 'MISSING'
 }
 
 const statusCopy: Record<Readiness, { label: string; classes: string }> = {
   READY: { label: 'Configured', classes: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
   DEVELOPMENT: { label: 'Development setup', classes: 'border-amber-200 bg-amber-50 text-amber-800' },
   MISSING: { label: 'Needs configuration', classes: 'border-rose-200 bg-rose-50 text-rose-800' },
+  OPTIONAL: { label: 'Not enabled', classes: 'border-stone-200 bg-stone-50 text-stone-600' },
 }
 
 export default async function AdminSystemSettingsPage() {
+  const user = await getVerifiedUser()
+  if (!user) redirect('/auth/login')
+  if (!user.roles.includes('SYSTEM_ADMIN')) redirect('/recruitment/dashboard')
+
   const databaseUrl = process.env.DATABASE_URL || ''
   const virusDriver = process.env.VIRUS_SCAN_DRIVER || ''
   const checks = [
@@ -23,45 +29,67 @@ export default async function AdminSystemSettingsPage() {
       icon: Database,
       name: 'Production database',
       description: 'PostgreSQL runtime and migration connections',
-      status: readiness(databaseUrl.startsWith('postgresql:'), databaseUrl.startsWith('file:')),
+      status: readiness(/^postgres(?:ql)?:/.test(databaseUrl), databaseUrl.startsWith('file:')),
+      required: true,
     },
     {
       icon: HardDrive,
       name: 'Private file storage',
       description: 'S3-compatible bucket for candidate documents',
       status: readiness(
-        Boolean(process.env.S3_BUCKET && process.env.S3_ENDPOINT),
-        Boolean(process.env.STORAGE_LOCAL_PATH)
+        process.env.STORAGE_DRIVER === 's3' && Boolean(process.env.S3_BUCKET && process.env.S3_REGION),
+        process.env.STORAGE_DRIVER !== 's3'
       ),
+      required: true,
     },
     {
       icon: ShieldCheck,
       name: 'Malware scanning',
       description: 'ClamAV scanning before a file is released',
       status: readiness(virusDriver === 'clamav' && Boolean(process.env.CLAMAV_HOST), virusDriver === 'development'),
+      required: true,
     },
     {
       icon: Mail,
       name: 'Email delivery',
       description: 'Authenticated SMTP transport and sender address',
       status: readiness(Boolean(process.env.SMTP_HOST && process.env.SMTP_FROM)),
+      required: true,
+    },
+    {
+      icon: ShieldCheck,
+      name: 'Encryption and signing',
+      description: 'Separate keys for sessions, stored files and queued messages',
+      status: readiness(
+        Boolean(
+          (process.env.SESSION_SECRET || process.env.JWT_SECRET) &&
+            process.env.STORAGE_ENCRYPTION_KEY &&
+            process.env.OUTBOX_ENCRYPTION_KEY
+        ),
+        process.env.NODE_ENV !== 'production'
+      ),
+      required: true,
     },
     {
       icon: ShieldCheck,
       name: 'Staff single sign-on',
       description: 'OpenID Connect issuer, client and callback',
       status: readiness(
-        Boolean(process.env.OIDC_ISSUER && process.env.OIDC_CLIENT_ID && process.env.OIDC_CLIENT_SECRET)
+        Boolean(process.env.OIDC_ISSUER && process.env.OIDC_CLIENT_ID && process.env.OIDC_CLIENT_SECRET),
+        false,
+        true
       ),
+      required: false,
     },
     {
       icon: Workflow,
       name: 'Scheduled worker',
       description: 'Protected scheduler for reminders, expiry and reports',
       status: readiness(Boolean(process.env.CRON_SECRET)),
+      required: true,
     },
   ]
-  const [outboxGroups, lastJob, recentFailures] = await Promise.all([
+  const [outboxGroups, lastJob, recentFailures, retentionSettings] = await Promise.all([
     prisma.outboxMessage.groupBy({ by: ['status'], _count: true }),
     prisma.jobRun.findFirst({ orderBy: { startedAt: 'desc' } }),
     prisma.outboxMessage.findMany({
@@ -78,9 +106,50 @@ export default async function AdminSystemSettingsPage() {
       orderBy: { updatedAt: 'desc' },
       take: 10,
     }),
+    prisma.systemSetting.findMany({
+      where: {
+        key: {
+          in: [
+            'RETENTION_UNSUBMITTED_DRAFT_DAYS',
+            'RETENTION_NOTIFICATION_DAYS',
+            'RETENTION_EXPIRED_REFERENCE_DAYS',
+            'RETENTION_DELIVERED_OUTBOX_DAYS',
+          ],
+        },
+      },
+      orderBy: { key: 'asc' },
+    }),
   ])
   const outbox = Object.fromEntries(outboxGroups.map((group) => [group.status, group._count]))
-  const readyCount = checks.filter((check) => check.status === 'READY').length
+  const requiredChecks = checks.filter((check) => check.required)
+  const readyCount = requiredChecks.filter((check) => check.status === 'READY').length
+  const retentionByKey = new Map(retentionSettings.map((setting) => [setting.key, setting]))
+  const retentionRows = [
+    {
+      key: 'RETENTION_UNSUBMITTED_DRAFT_DAYS',
+      name: 'Unsubmitted applications',
+      description: 'Abandoned application drafts',
+      fallback: 90,
+    },
+    {
+      key: 'RETENTION_NOTIFICATION_DAYS',
+      name: 'Read notifications',
+      description: 'Notifications a user has already read',
+      fallback: 90,
+    },
+    {
+      key: 'RETENTION_EXPIRED_REFERENCE_DAYS',
+      name: 'Expired reference links',
+      description: 'Expired referee request tokens',
+      fallback: 365,
+    },
+    {
+      key: 'RETENTION_DELIVERED_OUTBOX_DAYS',
+      name: 'Delivered messages',
+      description: 'Successfully delivered outbox records',
+      fallback: 30,
+    },
+  ]
 
   return (
     <div className="space-y-8">
@@ -99,13 +168,13 @@ export default async function AdminSystemSettingsPage() {
               Deployment checks
             </h2>
             <p className="mt-1 text-sm text-stone-600">
-              {readyCount} of {checks.length} production services configured
+              {readyCount} of {requiredChecks.length} required production services configured
             </p>
           </div>
           <span
-            className={`status-chip ${readyCount === checks.length ? statusCopy.READY.classes : statusCopy.MISSING.classes}`}
+            className={`status-chip ${readyCount === requiredChecks.length ? statusCopy.READY.classes : statusCopy.MISSING.classes}`}
           >
-            {readyCount === checks.length ? 'Production configuration complete' : 'Not ready for production data'}
+            {readyCount === requiredChecks.length ? 'Production configuration complete' : 'Not ready for production data'}
           </span>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -204,21 +273,41 @@ export default async function AdminSystemSettingsPage() {
         </div>
       </section>
 
-      <AdminCrud
-        entity="system-settings"
-        title="Business and retention settings"
-        subtitle="Non-secret settings for retention periods, completed-vacancy visibility and other business rules."
-        columns={[
-          { name: 'key', label: 'Key' },
-          { name: 'valueJson', label: 'JSON value' },
-          { name: 'description', label: 'Description' },
-        ]}
-        fields={[
-          { name: 'key', label: 'Key', required: true },
-          { name: 'valueJson', label: 'JSON value', type: 'textarea', required: true },
-          { name: 'description', label: 'Description', type: 'textarea' },
-        ]}
-      />
+      <section aria-labelledby="retention-heading" className="overflow-hidden section-panel">
+        <div className="border-b border-stone-200 px-5 py-5 sm:px-6">
+          <h2 id="retention-heading" className="section-heading">
+            Short-lived records
+          </h2>
+          <p className="mt-1 text-sm text-stone-600">
+            Current deletion intervals used by the scheduled retention job. Active legal holds always take priority.
+          </p>
+        </div>
+        <div className="divide-y divide-stone-200">
+          {retentionRows.map((row) => {
+            const setting = retentionByKey.get(row.key)
+            const configured = Number(setting?.valueJson)
+            const days = Number.isFinite(configured) && configured > 0 ? configured : row.fallback
+            return (
+              <div key={row.key} className="grid gap-2 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_8rem] sm:px-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-navy-950">{row.name}</h3>
+                  <p className="mt-1 text-xs text-stone-500">{row.description}</p>
+                </div>
+                <p className="text-sm font-semibold text-navy-950 sm:text-right">
+                  {days} days
+                  <span className="mt-1 block text-[10px] font-medium uppercase tracking-wide text-stone-500">
+                    {setting ? 'Policy setting' : 'Product default'}
+                  </span>
+                </p>
+              </div>
+            )
+          })}
+        </div>
+        <p className="border-t border-stone-200 bg-stone-50 px-5 py-3 text-xs leading-5 text-stone-500 sm:px-6">
+          Retention periods implement an approved information-governance policy. They are not edited as arbitrary
+          system keys.
+        </p>
+      </section>
     </div>
   )
 }

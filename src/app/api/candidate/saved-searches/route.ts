@@ -18,6 +18,7 @@ const MAX_PER_USER = 10
 const criteriaSchema = z.object({
   search: z.string().trim().max(100).optional(),
   departmentId: z.string().max(100).optional(),
+  categoryId: z.string().max(100).optional(),
   dutyStationId: z.string().max(100).optional(),
   contractType: z.string().max(60).optional(),
 })
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
 
     // At least one criterion, or the alert matches every vacancy we ever open.
     const criteria = input.criteria
-    if (!criteria.search && !criteria.departmentId && !criteria.dutyStationId && !criteria.contractType) {
+    if (!criteria.search && !criteria.departmentId && !criteria.categoryId && !criteria.dutyStationId && !criteria.contractType) {
       throw new AuthzError('Add at least one filter before saving a search', 400)
     }
 

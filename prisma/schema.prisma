@@ -252,7 +252,8 @@ model CandidateEducation {
   fieldOfStudy       String
   country            String
   startYear          Int
-  completionYear     Int
+  completionYear     Int?
+  isCurrent          Boolean          @default(false)
   grade              String?
   certificateFileId  String?
   verificationStatus String           @default("UNVERIFIED") // UNVERIFIED, VERIFIED, REJECTED
@@ -480,11 +481,12 @@ model VacancyRequiredDocument {
 // ----------------------------------------------------
 
 model Application {
-  id          String           @id @default(uuid())
-  candidateId String
-  candidate   CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  vacancyId   String
-  vacancy     Vacancy          @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+  id              String           @id @default(uuid())
+  referenceNumber String?          @unique
+  candidateId     String
+  candidate       CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  vacancyId       String
+  vacancy         Vacancy          @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
 
   internalStatus         String @default("DRAFT") // DRAFT, SUBMITTED, UNDER_REVIEW, LONGLISTED, INELIGIBLE, SHORTLISTED, ASSESSMENT_INVITED, ASSESSMENT_COMPLETED, INTERVIEW_INVITED, INTERVIEW_COMPLETED, REFERENCE_CHECK, RECOMMENDED, RESERVE, NOT_SELECTED, OFFER_DRAFT, OFFER_SENT, OFFER_ACCEPTED, PREBOARDING, READY_TO_RESUME, RESUMED, TRANSFERRED_TO_ERP, WITHDRAWN, CANCELLED
   candidateVisibleStatus String @default("APPLICATION_DRAFT")
@@ -505,22 +507,24 @@ model Application {
   updatedAt   DateTime @updatedAt
   lockVersion Int      @default(1)
 
-  answers              ApplicationAnswer[]
-  files                ApplicationFile[]
-  notes                ApplicationNote[]
-  stageHistory         ApplicationStageHistory[]
-  snapshots            ApplicationProfileSnapshot[]
-  scorecards           CandidateScorecard[]
-  conflictDeclarations ConflictDeclaration[]
-  candidateAssessments CandidateAssessment[]
-  interviews           Interview[]
-  referees             Referee[]
-  selectionDecisions   SelectionDecision[]
-  offers               Offer[]
-  preboardings         CandidatePreboarding[]
-  resumptionRecord     ResumptionRecord?
-  erpTransferRecord    ERPTransferRecord?
-  messageThreads       MessageThread[]
+  answers               ApplicationAnswer[]
+  files                 ApplicationFile[]
+  notes                 ApplicationNote[]
+  stageHistory          ApplicationStageHistory[]
+  snapshots             ApplicationProfileSnapshot[]
+  scorecards            CandidateScorecard[]
+  conflictDeclarations  ConflictDeclaration[]
+  candidateAssessments  CandidateAssessment[]
+  interviews            Interview[]
+  referees              Referee[]
+  selectionDecisions    SelectionDecision[]
+  offers                Offer[]
+  preboardings          CandidatePreboarding[]
+  resumptionRecord      ResumptionRecord?
+  erpTransferRecord     ERPTransferRecord?
+  messageThreads        MessageThread[]
+  accommodationRequests AccommodationRequest[]
+  complaintCases        ComplaintCase[]
 
   @@unique([candidateId, vacancyId])
 }
@@ -941,6 +945,7 @@ model Offer {
   application                Application    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   offerTemplateId            String?
   offerTemplate              OfferTemplate? @relation(fields: [offerTemplateId], references: [id])
+  templateSnapshotJson       String?
   position                   String
   dutyStation                String
   contractType               String
@@ -1229,6 +1234,8 @@ model CourseContent {
   content      String?
   fileAssetId  String?
   displayOrder Int     @default(0)
+
+  candidateProgress CandidateCourseContentProgress[]
 }
 
 model CourseQuizQuestion {
@@ -1271,9 +1278,23 @@ model CandidateCourse {
   required               Boolean              @default(true)
   courseSnapshotJson     String?
 
-  courseAttempts CandidateCourseAttempt[]
+  courseAttempts  CandidateCourseAttempt[]
+  contentProgress CandidateCourseContentProgress[]
 
   @@unique([candidatePreboardingId, courseId])
+}
+
+model CandidateCourseContentProgress {
+  id                String          @id @default(uuid())
+  candidateCourseId String
+  candidateCourse   CandidateCourse @relation(fields: [candidateCourseId], references: [id], onDelete: Cascade)
+  courseContentId   String
+  courseContent     CourseContent   @relation(fields: [courseContentId], references: [id], onDelete: Cascade)
+  completedAt       DateTime        @default(now())
+  evidenceJson      String?
+
+  @@unique([candidateCourseId, courseContentId])
+  @@index([candidateCourseId, completedAt])
 }
 
 model CandidateCourseAttempt {
@@ -1304,6 +1325,7 @@ model PreboardingTaskTemplate {
   evidenceRequired Boolean @default(false)
   dependencyJson   String?
   active           Boolean @default(true)
+  version          Int     @default(1)
 
   packageTasks   PackageTask[]
   candidateTasks CandidatePreboardingTask[]
@@ -1496,6 +1518,7 @@ model AuditChainHead {
 
 model FraudReport {
   id              String    @id @default(uuid())
+  referenceNumber String?   @unique
   suspectContact  String
   incidentDetails String
   reporterEmail   String?
@@ -1647,13 +1670,14 @@ model TalentPoolMember {
 }
 
 model AccommodationRequest {
-  id            String    @id @default(uuid())
+  id            String      @id @default(uuid())
   applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   requestType   String
   details       String
-  status        String    @default("REQUESTED") // REQUESTED, UNDER_REVIEW, APPROVED, PARTIALLY_APPROVED, DECLINED, FULFILLED
-  confidential  Boolean   @default(true)
-  requestedAt   DateTime  @default(now())
+  status        String      @default("REQUESTED") // REQUESTED, UNDER_REVIEW, APPROVED, PARTIALLY_APPROVED, DECLINED, FULFILLED
+  confidential  Boolean     @default(true)
+  requestedAt   DateTime    @default(now())
   reviewedBy    String?
   reviewedAt    DateTime?
   decision      String?
@@ -1880,6 +1904,7 @@ model ComplaintCase {
   reporterUserId        String?
   reporterEmail         String?
   applicationId         String?
+  application           Application?          @relation(fields: [applicationId], references: [id], onDelete: SetNull)
   category              String // COMPLAINT, APPEAL, SAFEGUARDING, FRAUD, ACCOMMODATION, PRIVACY, OTHER
   subject               String
   description           String

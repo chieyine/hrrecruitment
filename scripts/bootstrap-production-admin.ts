@@ -37,15 +37,23 @@ async function main() {
       update: { description: 'System administrator' },
       create: { name: 'SYSTEM_ADMIN', description: 'System administrator' },
     })
-    const permission = await tx.permission.upsert({
-      where: { code: '*' },
-      update: { description: 'All platform permissions' },
-      create: { code: '*', description: 'All platform permissions' },
-    })
-    await tx.rolePermission.upsert({
-      where: { roleId_permissionId: { roleId: role.id, permissionId: permission.id } },
-      update: {},
-      create: { roleId: role.id, permissionId: permission.id },
+    const permissionDefinitions = [
+      { code: 'admin.manage', description: 'Administer configuration' },
+      { code: 'audit.read', description: 'Read audit logs' },
+      { code: 'governance.manage', description: 'Manage legal holds, retention and access reviews' },
+    ]
+    const permissions = await Promise.all(
+      permissionDefinitions.map((permission) =>
+        tx.permission.upsert({
+          where: { code: permission.code },
+          update: { description: permission.description },
+          create: permission,
+        })
+      )
+    )
+    await tx.rolePermission.createMany({
+      data: permissions.map((permission) => ({ roleId: role.id, permissionId: permission.id })),
+      skipDuplicates: true,
     })
     const user = await tx.user.upsert({
       where: { email },

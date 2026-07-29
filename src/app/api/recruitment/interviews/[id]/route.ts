@@ -1,11 +1,12 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { requirePermission, requireUser, authzResponse, AuthzError } from '@/lib/authz'
+import { requireRole, requireUser, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 import { expectedVersion, staleRecord } from '@/lib/concurrency'
 import { hasPermission } from '@/lib/rbac'
 import { applicationAccess } from '@/lib/recruitment-access'
+import { canRunRecruitmentOperations } from '@/lib/recruitment-role-policy'
 
 const updateSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
@@ -38,12 +39,32 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
   const params = await context.params
   try {
     const user = await requireUser()
-    const canManage = await hasPermission(user.userId, 'interview.manage')
+    const canManage = canRunRecruitmentOperations(user.roles) && (await hasPermission(user.userId, 'interview.manage'))
     const interview = await prisma.interview.findUnique({
       where: { id: params.id },
       include: {
         application: {
-          include: { candidate: { include: { user: { select: { email: true, phone: true } } } }, vacancy: true },
+          select: {
+            id: true,
+            internalStatus: true,
+            candidate: {
+              select: {
+                id: true,
+                legalFirstName: true,
+                middleName: true,
+                lastName: true,
+                preferredName: true,
+                ...(canManage
+                  ? {
+                      primaryPhone: true,
+                      preferredContactMethod: true,
+                      user: { select: { email: true, phone: true } },
+                    }
+                  : {}),
+              },
+            },
+            vacancy: { select: { id: true, referenceNumber: true, title: true } },
+          },
         },
         panelMembers: { include: { user: { select: { id: true, email: true } }, submission: true } },
         questions: { orderBy: { displayOrder: 'asc' } },
@@ -70,7 +91,7 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
   try {
-    const user = await requirePermission('interview.manage')
+    const user = await requireRole('RECRUITMENT_OFFICER', 'HR_MANAGER')
     const input = await parseBody(request, updateSchema)
     const existing = await prisma.interview.findUnique({
       where: { id: params.id },

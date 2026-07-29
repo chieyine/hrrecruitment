@@ -1,17 +1,38 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Loader2, RefreshCw, Search, Copy, History } from 'lucide-react'
+import { Plus, Pencil, Archive, Loader2, RefreshCw, Search, Copy, History } from 'lucide-react'
 import { useToast } from '@/components/ui/Toaster'
 import { Dialog, ReasonDialog } from '@/components/ui/Dialog'
+import FormSchemaEditor from '@/components/admin/FormSchemaEditor'
+import MessageTemplateBodyEditor from '@/components/admin/MessageTemplateBodyEditor'
+import PolicyFileEditor from '@/components/admin/PolicyFileEditor'
+import OfferTemplateBodyEditor from '@/components/admin/OfferTemplateBodyEditor'
 
 export interface CrudField {
   name: string
   label: string
-  type?: 'text' | 'textarea' | 'number' | 'checkbox' | 'date' | 'select'
+  type?:
+    | 'text'
+    | 'textarea'
+    | 'number'
+    | 'checkbox'
+    | 'date'
+    | 'select'
+    | 'form-schema'
+    | 'message-body'
+    | 'policy-file'
+    | 'offer-body'
   options?: { value: string; label: string }[]
   required?: boolean
   placeholder?: string
+  defaultValue?: string | number | boolean
+  helpText?: string
+  scale?: number
+  suffix?: string
+  min?: number
+  max?: number
+  step?: number
 }
 
 interface AdminCrudProps {
@@ -48,7 +69,7 @@ export default function AdminCrud({ entity, title, subtitle, fields, columns, re
   const visibleItems = query.trim()
     ? items.filter((item) =>
         columns.some((column) =>
-          String(item[column.name] ?? '')
+          String(readValue(item, column.name) ?? '')
             .toLowerCase()
             .includes(query.trim().toLowerCase())
         )
@@ -77,7 +98,7 @@ export default function AdminCrud({ entity, title, subtitle, fields, columns, re
   function openCreate() {
     setEditing(null)
     const blank: Record<string, any> = {}
-    for (const f of fields) blank[f.name] = f.type === 'checkbox' ? true : ''
+    for (const f of fields) blank[f.name] = f.defaultValue ?? (f.type === 'checkbox' ? true : '')
     try {
       const saved = JSON.parse(localStorage.getItem(`frad-admin-draft:${entity}:new`) || '{}')
       setForm(saved.form || blank)
@@ -94,6 +115,7 @@ export default function AdminCrud({ entity, title, subtitle, fields, columns, re
     for (const f of fields) {
       let v = item[f.name]
       if (f.type === 'date' && v) v = new Date(v).toISOString().slice(0, 10)
+      if (f.scale && typeof v === 'number') v /= f.scale
       populated[f.name] = v ?? (f.type === 'checkbox' ? false : '')
     }
     try {
@@ -115,6 +137,7 @@ export default function AdminCrud({ entity, title, subtitle, fields, columns, re
     for (const field of fields) {
       let value = item[field.name]
       if (field.type === 'date' && value) value = new Date(value).toISOString().slice(0, 10)
+      if (field.scale && typeof value === 'number') value /= field.scale
       if (['name', 'title'].includes(field.name) && value) value = `${value} — copy`
       if (field.name === 'code' && value) value = `${value}_COPY_${String(Date.now()).slice(-6)}`
       populated[field.name] = value ?? (field.type === 'checkbox' ? false : '')
@@ -174,7 +197,13 @@ export default function AdminCrud({ entity, title, subtitle, fields, columns, re
       if (controlledDraft && draftReason.trim().length < 10)
         throw new Error('Explain the reason for this configuration change (at least 10 characters).')
       const method = controlledDraft ? 'POST' : editing ? 'PUT' : 'POST'
-      const body: any = { entity, data: form }
+      const submittedForm = Object.fromEntries(
+        fields.map((field) => [
+          field.name,
+          field.scale && form[field.name] !== '' ? Number(form[field.name]) * field.scale : form[field.name],
+        ])
+      )
+      const body: any = { entity, data: submittedForm }
       if (editing) body.id = editing.id
       if (controlledDraft)
         Object.assign(body, {
@@ -204,12 +233,12 @@ export default function AdminCrud({ entity, title, subtitle, fields, columns, re
     }
   }
 
-  async function remove(item: any) {
+  async function remove(item: any, reason: string) {
     try {
       const res = await fetch('/api/admin/generic', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entity, id: item.id }),
+        body: JSON.stringify({ entity, id: item.id, reason }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Delete failed')
@@ -298,7 +327,7 @@ export default function AdminCrud({ entity, title, subtitle, fields, columns, re
                 <tr key={item.id} className="hover:bg-slate-50">
                   {columns.map((c) => (
                     <td key={c.name} className="px-4 py-3 text-slate-700">
-                      {renderCell(item[c.name])}
+                      {renderCell(readValue(item, c.name))}
                     </td>
                   ))}
                   {!readOnly && (
@@ -332,12 +361,12 @@ export default function AdminCrud({ entity, title, subtitle, fields, columns, re
                         </button>
                       )}
                       <button
-                        aria-label="Delete"
-                        title="Delete"
+                        aria-label="Retire"
+                        title="Retire"
                         onClick={() => void prepareRemove(item)}
                         className="text-slate-500 hover:text-rose-600"
                       >
-                        <Trash2 className="inline h-4 w-4" />
+                        <Archive className="inline h-4 w-4" />
                       </button>
                     </td>
                   )}
@@ -360,7 +389,28 @@ export default function AdminCrud({ entity, title, subtitle, fields, columns, re
                 <label htmlFor={`${entity}-${f.name}`} className="block text-xs font-semibold text-slate-600 mb-1">
                   {f.label}
                 </label>
-                {f.type === 'textarea' ? (
+                {f.type === 'offer-body' ? (
+                  <OfferTemplateBodyEditor
+                    value={String(form[f.name] || '')}
+                    onChange={(value) => setForm({ ...form, [f.name]: value })}
+                  />
+                ) : f.type === 'policy-file' ? (
+                  <PolicyFileEditor
+                    value={String(form[f.name] || '')}
+                    onChange={(value) => setForm({ ...form, [f.name]: value })}
+                  />
+                ) : f.type === 'message-body' ? (
+                  <MessageTemplateBodyEditor
+                    value={String(form[f.name] || '')}
+                    subject={String(form.subject || '')}
+                    onChange={(value) => setForm({ ...form, [f.name]: value })}
+                  />
+                ) : f.type === 'form-schema' ? (
+                  <FormSchemaEditor
+                    value={String(form[f.name] || '{"fields":[]}')}
+                    onChange={(value) => setForm({ ...form, [f.name]: value })}
+                  />
+                ) : f.type === 'textarea' ? (
                   <textarea
                     id={`${entity}-${f.name}`}
                     name={f.name}
@@ -402,12 +452,19 @@ export default function AdminCrud({ entity, title, subtitle, fields, columns, re
                     name={f.name}
                     required={f.required}
                     type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
+                    min={f.min}
+                    max={f.max}
+                    step={f.step}
                     value={form[f.name] ?? ''}
                     onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
                     placeholder={f.placeholder}
                     className="field-control"
                   />
                 )}
+                {f.suffix && f.type === 'number' && (
+                  <p className="mt-1 text-xs font-medium text-stone-500">Measured in {f.suffix}.</p>
+                )}
+                {f.helpText && <p className="mt-1 text-xs leading-5 text-stone-500">{f.helpText}</p>}
               </div>
             ))}
             {editing?.version !== undefined && (
@@ -455,7 +512,7 @@ export default function AdminCrud({ entity, title, subtitle, fields, columns, re
                   </label>
                 </div>
                 <p className="text-xs leading-5 text-slate-500">
-                  Saving creates a draft. A different system administrator must approve it before publication.
+                  Saving creates a draft. A different authorised reviewer must approve it before publication.
                 </p>
               </div>
             )}
@@ -470,7 +527,7 @@ export default function AdminCrud({ entity, title, subtitle, fields, columns, re
             <button
               onClick={save}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+              className="btn-primary min-h-10 px-4 py-2 disabled:opacity-60"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}{' '}
               {editing?.version !== undefined ? 'Create draft' : 'Save'}
@@ -482,19 +539,20 @@ export default function AdminCrud({ entity, title, subtitle, fields, columns, re
       <ReasonDialog
         open={deleting !== null}
         onClose={() => setDeleting(null)}
-        onConfirm={() => {
-          if (deleting) return remove(deleting)
+        onConfirm={(reason) => {
+          if (deleting) return remove(deleting, reason)
         }}
-        title={`Remove "${deleting?.name || deleting?.title || deleting?.code || 'record'}"?`}
-        description={`Records with an active flag are deactivated rather than permanently deleted.${
+        title={`Retire "${deleting?.name || deleting?.title || deleting?.code || 'record'}"?`}
+        description={`This removes the option from new work without changing existing records.${
           Object.keys(deletingImpact).length
             ? ` Current dependencies: ${Object.entries(deletingImpact)
                 .map(([label, count]) => `${label}: ${count}`)
                 .join('; ')}.`
             : ' No linked operational records were found by the impact check.'
         }`}
-        confirmLabel="Remove"
-        reasonLabel="Note"
+        confirmLabel="Retire"
+        reasonLabel="Reason for retiring this option"
+        reasonRequired
         tone="danger"
       />
       <Dialog open={history !== null} onClose={() => setHistory(null)} title="Version history">
@@ -542,4 +600,8 @@ function renderCell(v: any) {
   if (typeof v === 'object') return <span className="text-slate-400">…</span>
   const s = String(v)
   return s.length > 60 ? s.slice(0, 60) + '…' : s
+}
+
+function readValue(item: any, path: string) {
+  return path.split('.').reduce((value, key) => value?.[key], item)
 }

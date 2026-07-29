@@ -13,6 +13,7 @@ const actionSchema = z.object({
     'FORM_SUBMIT',
     'DOCUMENT_SUBMIT',
     'POLICY_SIGN',
+    'COURSE_CONTENT_COMPLETE',
     'COURSE_SUBMIT',
     'TASK_SUBMIT',
     'INFO_ACKNOWLEDGE',
@@ -39,6 +40,7 @@ function answerMatches(actual: unknown, expectedJson: string) {
 type CourseSnapshot = {
   allowedAttempts?: number
   passMark?: number
+  contents?: Array<{ id: string }>
   quizQuestions?: Array<{ id: string; score: number; correctAnswerJson: string }>
 }
 
@@ -74,9 +76,10 @@ function validateFormResponses(responses: unknown, fields: FormField[], submitti
   for (const field of fields) {
     const value = values[field.name]
     const empty = value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)
-    if (submitting && field.required && empty) throw new AuthzError(`${field.name} is required`, 400)
-    if (empty) continue
     const type = String(field.type || 'text').toLowerCase()
+    if (submitting && field.required && (empty || (type === 'declaration' && value !== true)))
+      throw new AuthzError(`${field.name} is required`, 400)
+    if (empty) continue
     if (['number', 'rating'].includes(type) && (typeof value !== 'number' || !Number.isFinite(value))) {
       throw new AuthzError(`${field.name} must be a number`, 400)
     }
@@ -86,6 +89,17 @@ function validateFormResponses(responses: unknown, fields: FormField[], submitti
     if (type === 'multiselect' && (!Array.isArray(value) || value.some((item) => typeof item !== 'string'))) {
       throw new AuthzError(`${field.name} must contain selected options`, 400)
     }
+    if (
+      ['select', 'dropdown', 'singleselect'].includes(type) &&
+      (!field.options?.length || !field.options.includes(String(value)))
+    )
+      throw new AuthzError(`${field.name} contains an unavailable choice`, 400)
+    if (
+      type === 'multiselect' &&
+      Array.isArray(value) &&
+      (!field.options?.length || value.some((item) => !field.options?.includes(String(item))))
+    )
+      throw new AuthzError(`${field.name} contains an unavailable choice`, 400)
     if (
       !['number', 'rating', 'yesno', 'boolean', 'checkbox', 'declaration', 'multiselect'].includes(type) &&
       typeof value !== 'string'
@@ -145,7 +159,8 @@ export async function POST(request: Request) {
         include: { formTemplate: { select: { schemaJson: true } } },
       })
       if (!item) throw new AuthzError('Form not found', 404)
-      if (['APPROVED', 'WAIVED'].includes(item.status)) throw new AuthzError('This form is locked', 409)
+      if (['SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'WAIVED'].includes(item.status))
+        throw new AuthzError('This form is locked while it is with FRAD', 409)
       const fields = readFormFields(item.templateSnapshotJson, item.formTemplate.schemaJson)
       const responses = validateFormResponses(payload.responses ?? {}, fields, action === 'FORM_SUBMIT')
       preboardingId = item.candidatePreboardingId
@@ -163,15 +178,24 @@ export async function POST(request: Request) {
         include: { documentRequirement: true },
       })
       if (!item) throw new AuthzError('Document requirement not found', 404)
-      if (['APPROVED', 'WAIVED'].includes(item.status)) throw new AuthzError('This approved document is locked', 409)
+      let requirement = item.documentRequirement
+      if (item.requirementSnapshotJson) {
+        try {
+          requirement = { ...requirement, ...JSON.parse(item.requirementSnapshotJson) }
+        } catch {
+          // Old malformed snapshots fall back to the linked definition.
+        }
+      }
+      if (['SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'WAIVED'].includes(item.status))
+        throw new AuthzError('This document is locked while it is with FRAD', 409)
       const fileAssetId = String(payload.fileAssetId || '')
       const asset = await prisma.fileAsset.findFirst({
         where: { id: fileAssetId, ownerUserId: user.userId, virusScanStatus: 'CLEAN' },
       })
       if (!asset) throw new AuthzError('A clean uploaded file owned by you is required', 400)
-      if (asset.sizeBytes > item.documentRequirement.maximumFileSize)
+      if (asset.sizeBytes > requirement.maximumFileSize)
         throw new AuthzError('File exceeds this requirement’s size limit', 400)
-      const allowed = item.documentRequirement.allowedFileTypes
+      const allowed = requirement.allowedFileTypes
         .toLowerCase()
         .split(',')
         .map((value) => value.trim())
@@ -179,14 +203,14 @@ export async function POST(request: Request) {
       if (!allowed.includes(extension)) throw new AuthzError(`File must be one of: ${allowed.join(', ')}`, 400)
       const expiryDate = payload.expiryDate ? new Date(String(payload.expiryDate)) : null
       if (
-        item.documentRequirement.expiryRequired &&
+        requirement.expiryRequired &&
         (!expiryDate || Number.isNaN(expiryDate.getTime()) || expiryDate <= new Date())
       )
         throw new AuthzError('A future expiry date is required', 400)
       preboardingId = item.candidatePreboardingId
       await prisma.$transaction(async (tx) => {
         const sensitivityRank: Record<string, number> = { STANDARD: 0, CONFIDENTIAL: 1, RESTRICTED: 2 }
-        const requiredSensitivity = item.documentRequirement.sensitivityClass
+        const requiredSensitivity = requirement.sensitivityClass
         if ((sensitivityRank[asset.sensitivityClass] ?? 0) < (sensitivityRank[requiredSensitivity] ?? 0)) {
           await tx.fileAsset.update({
             where: { id: asset.id },
@@ -212,7 +236,7 @@ export async function POST(request: Request) {
             status: 'SUBMITTED',
             submittedAt: new Date(),
             rejectionReason: null,
-            versionNumber: { increment: 1 },
+            versionNumber: item.fileAssetId ? { increment: 1 } : item.versionNumber,
           },
         })
         if (updated.count !== 1) throw new AuthzError('Document changed; refresh and try again', 409)
@@ -223,15 +247,29 @@ export async function POST(request: Request) {
         include: { policyDocument: true },
       })
       if (!item) throw new AuthzError('Policy acknowledgement not found', 404)
+      if (['SIGNED', 'APPROVED', 'SUPERSEDED', 'WAIVED'].includes(item.status))
+        throw new AuthzError('This policy acknowledgement is already complete', 409)
       let snapshot: { acknowledgementMethod?: string } | null = null
       try {
         snapshot = item.policySnapshotJson ? JSON.parse(item.policySnapshotJson) : null
       } catch {
         snapshot = null
       }
-      const method = snapshot?.acknowledgementMethod || item.policyDocument.acknowledgementMethod || 'TYPED_NAME'
+      const configuredMethod =
+        snapshot?.acknowledgementMethod || item.policyDocument.acknowledgementMethod || 'TYPED_NAME'
+      const method = configuredMethod === 'SIGNATURE' ? 'TYPED_NAME' : configuredMethod
       if (!['ACKNOWLEDGE', 'TYPED_NAME', 'DRAWN_SIGNATURE', 'UPLOAD_SIGNED'].includes(method))
         throw new AuthzError('Policy signature configuration is invalid', 409)
+      let assignedFileId = item.policyDocument.fileAssetId
+      try {
+        assignedFileId = JSON.parse(item.policySnapshotJson || '{}').fileAssetId || assignedFileId
+      } catch {}
+      if (!assignedFileId) throw new AuthzError('The official policy PDF is not available; contact HR', 409)
+      const assignedFile = await prisma.fileAsset.findFirst({
+        where: { id: assignedFileId, virusScanStatus: 'CLEAN' },
+        select: { id: true },
+      })
+      if (!assignedFile) throw new AuthzError('The official policy PDF is unavailable or unsafe; contact HR', 409)
       const signatureData = String(payload.signatureData || payload.typedName || '').trim()
       const signedFileId = String(payload.signedFileId || '')
       if (method === 'TYPED_NAME' && !signatureData) throw new AuthzError('Your typed legal name is required', 400)
@@ -262,10 +300,44 @@ export async function POST(request: Request) {
           signatureUserAgent: request.headers.get('user-agent'),
         },
       })
+    } else if (action === 'COURSE_CONTENT_COMPLETE') {
+      const item = await prisma.candidateCourse.findFirst({
+        where: { id: resourceId, candidatePreboarding: { application: { candidate: { userId: user.userId } } } },
+        include: { course: { include: { contents: true } } },
+      })
+      if (!item) throw new AuthzError('Course not found', 404)
+      if (['COMPLETED', 'WAIVED'].includes(item.status)) throw new AuthzError('This course is already complete', 409)
+      const contentId = String(payload.contentId || '')
+      const content = item.course.contents.find((entry) => entry.id === contentId)
+      if (!content) throw new AuthzError('Course module not found', 404)
+      const completionMethod = String(payload.completionMethod || 'CONFIRMED')
+      if (!['CONFIRMED', 'VIDEO_ENDED', 'DOCUMENT_VIEWED', 'LINK_VISITED'].includes(completionMethod)) {
+        throw new AuthzError('Invalid module completion evidence', 400)
+      }
+      preboardingId = item.candidatePreboardingId
+      await prisma.$transaction([
+        prisma.candidateCourseContentProgress.upsert({
+          where: { candidateCourseId_courseContentId: { candidateCourseId: item.id, courseContentId: content.id } },
+          update: {},
+          create: {
+            candidateCourseId: item.id,
+            courseContentId: content.id,
+            evidenceJson: JSON.stringify({
+              method: completionMethod,
+              recordedAt: new Date().toISOString(),
+              userAgent: request.headers.get('user-agent'),
+            }),
+          },
+        }),
+        prisma.candidateCourse.update({
+          where: { id: item.id },
+          data: { status: 'IN_PROGRESS', startedAt: item.startedAt ?? new Date() },
+        }),
+      ])
     } else if (action === 'COURSE_SUBMIT') {
       const item = await prisma.candidateCourse.findFirst({
         where: { id: resourceId, candidatePreboarding: { application: { candidate: { userId: user.userId } } } },
-        include: { course: { include: { quizQuestions: true } } },
+        include: { course: { include: { contents: true, quizQuestions: true } } },
       })
       if (!item) throw new AuthzError('Course not found', 404)
       let snapshot: CourseSnapshot | null = null
@@ -276,9 +348,32 @@ export async function POST(request: Request) {
       }
       const allowedAttempts = snapshot?.allowedAttempts ?? item.course.allowedAttempts
       const passMark = snapshot?.passMark ?? item.course.passMark
+      const courseContents = Array.isArray(snapshot?.contents) ? snapshot.contents : item.course.contents
       const quizQuestions = Array.isArray(snapshot?.quizQuestions) ? snapshot.quizQuestions : item.course.quizQuestions
+      const contentIds = courseContents.map((content) => content.id)
+      const completedContent = contentIds.length
+        ? await prisma.candidateCourseContentProgress.count({
+            where: { candidateCourseId: item.id, courseContentId: { in: contentIds } },
+          })
+        : 0
+      if (completedContent !== contentIds.length) {
+        throw new AuthzError('Complete every course module before taking the final assessment', 409)
+      }
+      if (contentIds.length === 0 && quizQuestions.length === 0) {
+        throw new AuthzError('This course has no learning material or assessment; contact HR', 409)
+      }
       if (item.attempts >= allowedAttempts) throw new AuthzError('No course attempts remain', 409)
       const answers = (payload.answers ?? {}) as Record<string, unknown>
+      const questionIds = new Set(quizQuestions.map((question) => question.id))
+      const unknownAnswer = Object.keys(answers).find((questionId) => !questionIds.has(questionId))
+      if (unknownAnswer) throw new AuthzError('The course answers do not match this assigned assessment', 400)
+      const unanswered = quizQuestions.find((question) => {
+        const answer = answers[question.id]
+        return (
+          answer === undefined || answer === null || answer === '' || (Array.isArray(answer) && answer.length === 0)
+        )
+      })
+      if (unanswered) throw new AuthzError('Answer every question before submitting the assessment', 400)
       const possible = quizQuestions.reduce((sum, q) => sum + q.score, 0)
       const earned = quizQuestions.reduce(
         (sum, q) => sum + (answerMatches(answers[q.id], q.correctAnswerJson) ? q.score : 0),
@@ -320,9 +415,14 @@ export async function POST(request: Request) {
       if (['SUBMITTED', 'AWAITING_REVIEW', 'APPROVED', 'COMPLETED', 'WAIVED', 'CANCELLED'].includes(item.status)) {
         throw new AuthzError('This task can no longer be submitted', 409)
       }
+      let taskConfiguration = item.taskTemplate
+      try {
+        const snapshot = JSON.parse(item.taskSnapshotJson || 'null')
+        if (snapshot && typeof snapshot === 'object') taskConfiguration = snapshot
+      } catch {}
       const comment = String(payload.comment || '').trim()
       const evidenceFileId = payload.evidenceFileId ? String(payload.evidenceFileId) : null
-      if (item.taskTemplate.evidenceRequired && !evidenceFileId)
+      if (taskConfiguration.evidenceRequired && !evidenceFileId)
         throw new AuthzError('Upload supporting evidence before submitting this task', 400)
       if (evidenceFileId) {
         const ownedFile = await prisma.fileAsset.findFirst({
@@ -331,10 +431,10 @@ export async function POST(request: Request) {
         })
         if (!ownedFile) throw new AuthzError('The supporting file is unavailable or has not passed safety checks', 400)
       }
-      if (item.taskTemplate.dependencyJson) {
+      if (taskConfiguration.dependencyJson) {
         let dependencies: string[] = []
         try {
-          dependencies = JSON.parse(item.taskTemplate.dependencyJson)
+          dependencies = JSON.parse(taskConfiguration.dependencyJson)
         } catch {
           throw new AuthzError('Task dependency configuration is invalid', 409)
         }
@@ -355,8 +455,8 @@ export async function POST(request: Request) {
           candidateComment: comment || null,
           evidenceFileId,
           submittedAt: new Date(),
-          completedAt: item.taskTemplate.reviewRequired ? null : new Date(),
-          status: item.taskTemplate.reviewRequired ? 'SUBMITTED' : 'COMPLETED',
+          completedAt: taskConfiguration.reviewRequired ? null : new Date(),
+          status: taskConfiguration.reviewRequired ? 'SUBMITTED' : 'COMPLETED',
         },
       })
     } else if (action === 'INFO_ACKNOWLEDGE') {
@@ -364,6 +464,8 @@ export async function POST(request: Request) {
         where: { id: resourceId, candidatePreboarding: { application: { candidate: { userId: user.userId } } } },
       })
       if (!item) throw new AuthzError('Information item not found', 404)
+      if (!item.acknowledgementRequired) throw new AuthzError('This information does not require confirmation', 409)
+      if (item.acknowledgedAt) throw new AuthzError('You have already confirmed this information', 409)
       preboardingId = item.candidatePreboardingId
       await prisma.candidateInformationItem.update({ where: { id: item.id }, data: { acknowledgedAt: new Date() } })
     } else {
@@ -377,11 +479,16 @@ export async function POST(request: Request) {
       const response = String(payload.response || '')
       if (!['CONFIRMED', 'DECLINED', 'RESCHEDULE_REQUESTED'].includes(response))
         throw new AuthzError('Choose confirm, decline, or request another time', 400)
+      const reason = String(payload.reason || '').trim()
+      if (['DECLINED', 'RESCHEDULE_REQUESTED'].includes(response) && reason.length < 3)
+        throw new AuthzError('Give a reason so the recruitment team can respond', 400)
+      if (reason.length > 2000) throw new AuthzError('The meeting response is too long', 400)
       preboardingId = item.candidatePreboardingId
       await prisma.preboardingMeeting.update({
         where: { id: item.id },
         data: {
           candidateResponse: response,
+          attendanceComment: reason || null,
           status:
             response === 'CONFIRMED'
               ? 'CONFIRMED'

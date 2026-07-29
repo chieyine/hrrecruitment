@@ -15,9 +15,7 @@ const candidatePages = [
   '/candidate/profile/licences',
   '/candidate/profile/documents',
   '/candidate/applications',
-  '/candidate/assessments',
   '/candidate/interviews',
-  '/candidate/offers',
   '/candidate/preboarding',
   '/candidate/preboarding/forms',
   '/candidate/preboarding/documents',
@@ -36,7 +34,6 @@ const candidatePages = [
 const recruitmentPages = [
   '/recruitment/dashboard',
   '/recruitment/work',
-  '/recruitment/operations',
   '/recruitment/vacancies',
   '/recruitment/vacancies/new',
   '/recruitment/applications',
@@ -53,14 +50,20 @@ const recruitmentPages = [
   '/recruitment/talent-pools',
   '/recruitment/reports',
   '/recruitment/quality',
-  '/recruitment/insights',
   '/recruitment/audit',
 ]
 
-const adminPages = [
+const systemAdminPages = [
   '/admin/users',
   '/admin/roles',
   '/admin/permissions',
+  '/admin/system-settings',
+  '/admin/operating-model',
+  '/admin/governance',
+  '/admin/deletion-requests',
+]
+
+const recruitmentSetupPages = [
   '/admin/departments',
   '/admin/projects',
   '/admin/duty-stations',
@@ -70,20 +73,16 @@ const adminPages = [
   '/admin/templates',
   '/admin/notification-templates',
   '/admin/scorecards',
-  '/admin/assessment-bank',
-  '/admin/interview-questions',
-  '/admin/courses',
   '/admin/policies',
   '/admin/forms',
   '/admin/tasks',
   '/admin/preboarding-packages',
-  '/admin/system-settings',
-  '/admin/operating-model',
-  '/admin/governance',
-  '/admin/deletion-requests',
-  '/admin/automations',
   '/admin/configuration-releases',
 ]
+
+const courseAdminPages = ['/admin/courses', '/admin/configuration-releases']
+
+const officerOperationsPages = ['/admin/automations', '/admin/fraud-reports']
 
 test('all candidate workspace pages render for the candidate role', async ({ page }) => {
   await login(page, 'candidate@example.com')
@@ -109,5 +108,20 @@ test('all recruitment workspace pages render for HR', async ({ page }) => {
 
 test('all administration pages render for the system administrator', async ({ page }) => {
   await login(page, 'admin@frad.org')
-  for (const path of adminPages) await assertPageRenders(page, path)
+  for (const path of systemAdminPages) await assertPageRenders(page, path)
+})
+
+test('recruitment setup pages render for the HR manager', async ({ page }) => {
+  await login(page, 'hrmanager@frad.org')
+  for (const path of recruitmentSetupPages) await assertPageRenders(page, path)
+})
+
+test('learning setup pages render for the course administrator', async ({ page }) => {
+  await login(page, 'course.admin@frad.org')
+  for (const path of courseAdminPages) await assertPageRenders(page, path)
+})
+
+test('recruitment operations pages render for the Recruitment / HR Officer', async ({ page }) => {
+  await login(page, 'recruitment.officer@frad.org')
+  for (const path of officerOperationsPages) await assertPageRenders(page, path)
 })

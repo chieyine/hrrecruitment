@@ -5,17 +5,21 @@ import { useRouter } from 'next/navigation'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import { Clock, CheckCircle2, Send } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/Dialog'
+import { formatDateTime } from '@/lib/utils'
 
 export default function CandidateAssessmentRunnerPage(props: { params: Promise<{ id: string }> }) {
   const params = use(props.params)
   const router = useRouter()
   const [timeLeft, setTimeLeft] = useState(0)
+  const [endsAt, setEndsAt] = useState<number | null>(null)
   const [answers, setAnswers] = useState<Record<string, any>>({})
   const [submitting, setSubmitting] = useState(false)
   const [completed, setCompleted] = useState(false)
-  const [result, setResult] = useState<any>(null)
   const [assessment, setAssessment] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [formError, setFormError] = useState('')
   const [saveStatus, setSaveStatus] = useState('')
   const [starting, setStarting] = useState(false)
   const [currentQuestion, setCurrentQuestion] = useState(0)
@@ -30,6 +34,7 @@ export default function CandidateAssessmentRunnerPage(props: { params: Promise<{
       if (!response.ok) throw new Error(data.error || 'Could not start assessment')
       setAssessment(data.assessment)
       setTimeLeft(data.assessment.secondsRemaining)
+      setEndsAt(Date.now() + data.assessment.secondsRemaining * 1000)
       setAnswers(data.assessment.savedAnswers ?? {})
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'Could not start assessment')
@@ -39,14 +44,22 @@ export default function CandidateAssessmentRunnerPage(props: { params: Promise<{
   }, [params.id])
 
   useEffect(() => {
-    fetch(`/api/candidate/assessments/${params.id}`)
+    const controller = new AbortController()
+    fetch(`/api/candidate/assessments/${params.id}`, { signal: controller.signal })
       .then(async (response) => {
         const data = await response.json()
         if (!response.ok) throw new Error(data.error || 'Could not open assessment')
         setAssessment(data.assessment)
         if (data.assessment.status === 'IN_PROGRESS') await startAssessment()
+        if (['SUBMITTED', 'AUTO_SUBMITTED', 'MARKED', 'PASSED', 'FAILED'].includes(data.assessment.status))
+          setCompleted(true)
       })
-      .catch((error) => setLoadError(error.message))
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        setLoadError(error instanceof Error ? error.message : 'Could not open assessment')
+      })
+      .finally(() => setLoading(false))
+    return () => controller.abort()
   }, [params.id, startAssessment])
 
   useEffect(() => {
@@ -78,7 +91,6 @@ export default function CandidateAssessmentRunnerPage(props: { params: Promise<{
         const data = await res.json()
         if (res.ok) {
           setCompleted(true)
-          setResult(data)
         } else setLoadError(data.error || 'Assessment submission failed')
       } catch {
         setLoadError('Assessment submission failed. Your draft answers remain saved; please retry.')
@@ -90,14 +102,19 @@ export default function CandidateAssessmentRunnerPage(props: { params: Promise<{
   )
 
   useEffect(() => {
-    if (!assessment || assessment.status !== 'IN_PROGRESS' || completed) return
-    if (timeLeft <= 0) {
-      void handleSubmit(true)
-      return
+    if (!assessment || assessment.status !== 'IN_PROGRESS' || completed || !endsAt) return
+    const update = () => {
+      const remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000))
+      setTimeLeft(remaining)
+      if (remaining === 0) {
+        if (assessment.autoSubmit) void handleSubmit(true)
+        else setLoadError('The assessment time has ended. Your saved answers cannot be submitted after the deadline.')
+      }
     }
-    const timer = setTimeout(() => setTimeLeft((time) => Math.max(0, time - 1)), 1000)
-    return () => clearTimeout(timer)
-  }, [assessment, completed, handleSubmit, timeLeft])
+    update()
+    const timer = window.setInterval(update, 1000)
+    return () => window.clearInterval(timer)
+  }, [assessment, completed, endsAt, handleSubmit])
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60)
@@ -107,84 +124,94 @@ export default function CandidateAssessmentRunnerPage(props: { params: Promise<{
 
   const uploadAssessmentFile = async (questionId: string, file?: File) => {
     if (!file) return
-    setSaveStatus('Uploading file…')
-    const form = new FormData()
-    form.append('file', file)
-    form.append('sensitivityClass', 'CONFIDENTIAL')
-    const response = await fetch('/api/assets/upload', { method: 'POST', body: form })
-    const body = await response.json()
-    if (response.ok) {
-      setAnswers({ ...answers, [questionId]: body.fileAssetId })
-      setSaveStatus(`${file.name} uploaded`)
-    } else setSaveStatus(body.error || 'File upload failed')
+    try {
+      setSaveStatus('Uploading file…')
+      const form = new FormData()
+      form.append('file', file)
+      form.append('sensitivityClass', 'CONFIDENTIAL')
+      const response = await fetch('/api/assets/upload', { method: 'POST', body: form })
+      const body = await response.json()
+      if (response.ok) {
+        setAnswers({ ...answers, [questionId]: body.fileAssetId })
+        setSaveStatus(`${file.name} uploaded`)
+      } else setSaveStatus(body.error || 'File upload failed')
+    } catch {
+      setSaveStatus('File upload failed. Check your connection and try again.')
+    }
   }
 
+  const unansweredQuestions =
+    assessment?.questions?.filter(
+      (question: any) =>
+        answers[question.id] === undefined ||
+        answers[question.id] === '' ||
+        (Array.isArray(answers[question.id]) && !answers[question.id].length)
+    ) || []
+
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-surface-50">
       <Header />
 
-      <main id="main-content" className="flex-1 py-10">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 space-y-8">
-          {/* Header & Timer Bar */}
-          <div className="rounded-2xl bg-slate-900 p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <main id="main-content" className="flex-1 py-7 sm:py-9">
+        <div className="page-shell max-w-4xl space-y-6">
+          <section className="section-panel flex flex-col justify-between gap-4 px-5 py-5 md:flex-row md:items-center sm:px-6">
             <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-brand-400 bg-brand-500/20 px-3 py-1 rounded-full border border-brand-400/30">
-                FRAD Online Candidate Assessment
-              </span>
-              <h1 className="text-2xl font-extrabold mt-2">{assessment?.title || 'Candidate Assessment'}</h1>
+              <p className="editorial-kicker">Assessment</p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-[-.025em] text-navy-900">
+                {assessment?.title || 'Candidate assessment'}
+              </h1>
             </div>
 
             {!completed && assessment?.status === 'IN_PROGRESS' && (
-              <div className="flex items-center gap-2 rounded-2xl bg-amber-500/20 border border-amber-400/40 px-4 py-2 text-amber-300 font-mono font-bold text-lg">
-                <Clock className="h-5 w-5 text-amber-400" />
-                Time Remaining: {formatTime(timeLeft)}
+              <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 font-mono text-lg font-semibold text-amber-900">
+                <Clock className="h-5 w-5 text-amber-700" />
+                <span>
+                  <span className="sr-only">Time remaining: </span>
+                  {formatTime(timeLeft)}
+                </span>
               </div>
             )}
-          </div>
+          </section>
 
-          {loadError ? (
+          {loading ? (
+            <div className="section-panel px-6 py-14 text-center text-sm text-stone-500">Loading assessment…</div>
+          ) : loadError ? (
             <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-800">
               {loadError}
             </div>
           ) : completed ? (
-            <div className="rounded-2xl bg-white p-8 border border-slate-200 shadow-sm text-center space-y-4">
+            <div className="section-panel space-y-4 p-8 text-center">
               <CheckCircle2 className="mx-auto h-16 w-16 text-emerald-600" />
               <h2 className="text-2xl font-extrabold text-slate-900">Assessment submitted</h2>
-              <p className="text-xs text-slate-500 max-w-md mx-auto">
-                {result?.requiresMarking ? (
-                  'Your answers were recorded and are awaiting HR marking.'
-                ) : (
-                  <>
-                    Your response score of <strong>{result?.score}%</strong> has been recorded.
-                  </>
-                )}
+              <p className="mx-auto max-w-md text-sm leading-6 text-slate-600">
+                Your answers were recorded. The recruitment team will contact you when there is an update.
               </p>
-              <button
-                onClick={() => router.push('/candidate/dashboard')}
-                className="rounded-xl bg-brand-600 px-6 py-2.5 text-xs font-bold text-white shadow hover:bg-brand-700 transition-all"
-              >
-                Return to Candidate Dashboard
+              <button onClick={() => router.push('/candidate/tasks')} className="btn-primary">
+                Back to To do
               </button>
             </div>
           ) : assessment?.status !== 'IN_PROGRESS' ? (
-            <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-              <p className="text-sm text-slate-600">
+            <div className="section-panel space-y-5 p-6 sm:p-8">
+              <h2 className="text-lg font-semibold text-navy-900">Before you begin</h2>
+              <p className="text-sm leading-6 text-stone-600">
                 {assessment?.description || 'Read the instructions carefully before starting.'}
               </p>
-              <p className="text-xs font-semibold text-slate-500">
-                Once started, you have {assessment?.durationMinutes} minutes. Your timer continues if you leave this
-                page.
+              <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                You will have {assessment?.durationMinutes} minutes. The timer continues if you close or leave this
+                page, and your draft answers save as you work.
+                {assessment?.closesAt ? ` This assessment closes ${formatDateTime(assessment.closesAt)}.` : ''}
               </p>
-              <button
-                onClick={startAssessment}
-                disabled={starting || !assessment}
-                className="rounded-xl bg-brand-600 px-8 py-3 text-sm font-bold text-white disabled:opacity-50"
-              >
+              <button onClick={startAssessment} disabled={starting || !assessment} className="btn-primary">
                 {starting ? 'Starting…' : 'Start assessment'}
               </button>
             </div>
           ) : (
-            <div className="rounded-2xl bg-white p-8 border border-slate-200 shadow-sm space-y-6">
+            <div className="section-panel space-y-6 p-5 sm:p-8">
+              {formError && (
+                <div role="alert" className="border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                  {formError}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2 border-b pb-4" aria-label="Question navigator">
                 {assessment?.questions?.map((question: any, index: number) => (
                   <button
@@ -207,10 +234,11 @@ export default function CandidateAssessmentRunnerPage(props: { params: Promise<{
                   if (question.questionType === 'TRUEFALSE' && options.length === 0) options = ['True', 'False']
                   if (index !== currentQuestion) return null
                   return (
-                    <div key={question.id} className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-                      <h4 className="font-bold text-slate-900 text-sm">
-                        Question {index + 1} of {assessment.questions.length}: {question.prompt}
-                      </h4>
+                    <div key={question.id} className="space-y-4 rounded-xl border border-stone-200 bg-stone-50 p-5">
+                      <p className="text-xs font-semibold text-stone-500">
+                        Question {index + 1} of {assessment.questions.length}
+                      </p>
+                      <h2 className="text-base font-semibold leading-6 text-navy-900">{question.prompt}</h2>
                       {['MCQ', 'TRUEFALSE'].includes(question.questionType) ? (
                         <div className="space-y-1.5">
                           {options.map((option) => (
@@ -274,7 +302,7 @@ export default function CandidateAssessmentRunnerPage(props: { params: Promise<{
                           rows={3}
                           value={answers[question.id] || ''}
                           onChange={(e) => setAnswers({ ...answers, [question.id]: e.target.value })}
-                          placeholder="Type your response..."
+                          placeholder="Your answer"
                           className="w-full rounded-xl border border-slate-300 p-3 text-xs focus:border-brand-600 focus:outline-none"
                         />
                       )}
@@ -306,61 +334,49 @@ export default function CandidateAssessmentRunnerPage(props: { params: Promise<{
                   {saveStatus}
                 </span>
                 <button
-                  onClick={() => setConfirmingSubmission(true)}
+                  onClick={() => {
+                    if (unansweredQuestions.length) {
+                      const firstMissing = assessment.questions.findIndex(
+                        (question: any) => question.id === unansweredQuestions[0].id
+                      )
+                      setCurrentQuestion(Math.max(0, firstMissing))
+                      setFormError(
+                        `Answer all questions before submitting. ${unansweredQuestions.length} ${
+                          unansweredQuestions.length === 1 ? 'question is' : 'questions are'
+                        } incomplete.`
+                      )
+                      return
+                    }
+                    setFormError('')
+                    setConfirmingSubmission(true)
+                  }}
                   disabled={submitting}
-                  className="flex items-center gap-2 rounded-xl bg-brand-600 px-8 py-3 text-sm font-bold text-white shadow-lg hover:bg-brand-700 disabled:opacity-50 transition-all"
+                  className="btn-primary"
                 >
                   {submitting ? 'Submitting…' : 'Review and submit'}
                   <Send className="h-4 w-4" />
                 </button>
               </div>
-              {confirmingSubmission && (
-                <div
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby="submit-assessment-title"
-                  className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
-                >
-                  <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-                    <h2 id="submit-assessment-title" className="text-lg font-bold">
-                      Submit your assessment?
-                    </h2>
-                    <p className="mt-2 text-sm text-slate-600">
-                      {
-                        assessment.questions.filter(
-                          (question: any) =>
-                            answers[question.id] === undefined ||
-                            answers[question.id] === '' ||
-                            (Array.isArray(answers[question.id]) && !answers[question.id].length)
-                        ).length
-                      }{' '}
-                      question(s) are unanswered. After submission, you cannot change your answers.
-                    </p>
-                    <div className="mt-5 flex justify-end gap-2">
-                      <button type="button" onClick={() => setConfirmingSubmission(false)} className="btn-secondary">
-                        Keep reviewing
-                      </button>
-                      <button
-                        type="button"
-                        disabled={submitting}
-                        onClick={() => {
-                          setConfirmingSubmission(false)
-                          void handleSubmit(false)
-                        }}
-                        className="btn-primary"
-                      >
-                        Submit assessment
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
       </main>
 
       <Footer />
+      <ConfirmDialog
+        open={confirmingSubmission}
+        onClose={() => {
+          if (!submitting) setConfirmingSubmission(false)
+        }}
+        onConfirm={async () => {
+          setConfirmingSubmission(false)
+          await handleSubmit(false)
+        }}
+        title="Submit assessment?"
+        description="All answers are complete. You cannot change them after submission."
+        confirmLabel="Submit assessment"
+        busy={submitting}
+      />
     </div>
   )
 }

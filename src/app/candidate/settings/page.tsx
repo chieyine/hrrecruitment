@@ -19,7 +19,7 @@ export default async function CandidateSettingsPage() {
   })
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-surface-50">
       <Header currentUser={user} />
 
       <main id="main-content" className="flex-1 py-10">
@@ -28,13 +28,13 @@ export default async function CandidateSettingsPage() {
             href="/candidate/dashboard"
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-brand-700"
           >
-            <ArrowLeft className="h-4 w-4" /> Back to your account
+            <ArrowLeft className="h-4 w-4" /> Your account
           </Link>
 
           <PageIntro
             eyebrow="Your account"
-            title="Account, notifications and privacy"
-            description="Keep your contact details current, choose whether we may contact you about future roles, or exercise your privacy rights."
+            title="Account settings"
+            description="Manage sign-in security, email, vacancy alerts, optional talent-pool contact and privacy requests."
           />
 
           <section className="section-panel" aria-labelledby="delivery-heading">

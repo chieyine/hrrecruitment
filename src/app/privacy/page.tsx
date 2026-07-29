@@ -7,13 +7,14 @@ const sections = [
     paragraphs: [
       'We collect the information needed to assess your application and, if you are appointed, prepare you to start work. This can include your contact details, education, work history, licences, application answers, identity documents, references and preboarding information.',
       'Some preboarding forms contain more sensitive information, such as bank, pension, medical, accessibility or next-of-kin details. Access to those records is restricted.',
+      'We also record sign-ins, security events, downloads, browser or device information and relevant network addresses where needed to protect accounts and investigate misuse.',
     ],
   },
   {
     title: 'How we use your information',
     paragraphs: [
       'We use your information to manage applications, assess suitability, arrange assessments and interviews, obtain references, issue offers, complete preboarding and prepare an approved handover to FRAD’s personnel system.',
-      'The portal does not make final recruitment decisions using artificial intelligence and does not transfer candidates automatically into payroll.',
+      'Final recruitment decisions are made by people. A successful candidate is transferred to FRAD’s personnel system only after the required approval and readiness checks.',
     ],
   },
   {
@@ -27,6 +28,7 @@ const sections = [
     paragraphs: [
       'Access depends on a person’s role and assignment. Recruitment staff can see records needed to run the process. Hiring managers and panel members see only the vacancies, applications or interviews assigned to them. Authorized HR staff can see restricted preboarding records when their work requires it.',
       'A referee receives a time-limited, single-use link and cannot see your application or account.',
+      'FRAD may use approved service providers for hosting, file storage and message delivery. They may process information only to provide those services under FRAD’s instructions. FRAD does not sell candidate information.',
     ],
   },
   {

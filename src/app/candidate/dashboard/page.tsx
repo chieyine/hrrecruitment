@@ -1,24 +1,16 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import {
-  ArrowRight,
-  Bell,
-  BriefcaseBusiness,
-  ChevronRight,
-  Clock3,
-  FileText,
-  MessageSquareText,
-  UserRound,
-} from 'lucide-react'
+import { ArrowRight, CheckCircle2, FileText, MessageSquareText, UserRound } from 'lucide-react'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
-import NotificationInbox from '@/components/shared/NotificationInbox'
 import { EmptyState } from '@/components/ui/PageElements'
 import { prisma } from '@/lib/prisma'
 import { getVerifiedUser } from '@/lib/auth'
 import { formatDate } from '@/lib/utils'
 import { profileCompletion } from '@/lib/profile-completion'
 import { candidateFacingStatus, candidateStatusLabel } from '@/lib/candidate-status'
+import { getCandidateTasks } from '@/lib/candidate-tasks'
+import { homeRouteForRoles } from '@/lib/home-route'
 
 const TERMINAL_APPLICATIONS = [
   'DRAFT',
@@ -34,6 +26,7 @@ const TERMINAL_APPLICATIONS = [
 export default async function CandidateDashboardPage() {
   const user = await getVerifiedUser()
   if (!user) redirect('/auth/login')
+  if (!user.roles.includes('CANDIDATE')) redirect(homeRouteForRoles(user.roles))
 
   const profile = await prisma.candidateProfile.findUnique({
     where: { userId: user.userId },
@@ -48,63 +41,29 @@ export default async function CandidateDashboardPage() {
     },
   })
 
-  const applications = profile
-    ? await prisma.application.findMany({
-        where: { candidateId: profile.id },
-        include: {
-          vacancy: { include: { department: true, dutyStation: true } },
-          preboardings: { include: { readinessConfirmation: true } },
-          candidateAssessments: {
-            where: { status: { in: ['INVITED', 'NOT_STARTED', 'IN_PROGRESS'] } },
-            include: { assessment: { select: { title: true, closesAt: true } } },
-          },
-          interviews: {
-            where: { status: { in: ['SCHEDULED', 'CONFIRMED', 'RESCHEDULED'] } },
-            select: { id: true, title: true, scheduledStart: true },
-          },
-          offers: {
-            where: { status: { in: ['SENT', 'VIEWED'] } },
-            select: { id: true, acceptanceDeadline: true },
-          },
-          messageThreads: {
-            include: {
-              messages: {
-                where: { readAt: null, senderUserId: { not: user.userId } },
-                select: { id: true },
+  const [applications, tasks] = await Promise.all([
+    profile
+      ? prisma.application.findMany({
+          where: { candidateId: profile.id },
+          include: {
+            vacancy: { include: { department: true, dutyStation: true } },
+            preboardings: { include: { readinessConfirmation: true } },
+            messageThreads: {
+              include: {
+                messages: {
+                  where: { readAt: null, senderUserId: { not: user.userId } },
+                  select: { id: true },
+                },
               },
             },
           },
-        },
-        orderBy: { updatedAt: 'desc' },
-      })
-    : []
+          orderBy: { updatedAt: 'desc' },
+        })
+      : Promise.resolve([]),
+    getCandidateTasks(user.userId),
+  ])
 
   const completion = profileCompletion(profile)
-  const actions = applications.flatMap((application) => [
-    ...application.candidateAssessments.map((assessment) => ({
-      key: `assessment-${assessment.id}`,
-      type: 'Assessment',
-      label: assessment.assessment.title,
-      detail: assessment.assessment.closesAt
-        ? `Complete by ${formatDate(assessment.assessment.closesAt)}`
-        : 'Ready when you are',
-      href: `/candidate/assessments/${assessment.id}`,
-    })),
-    ...application.interviews.map((interview) => ({
-      key: `interview-${interview.id}`,
-      type: 'Interview',
-      label: interview.title,
-      detail: `Scheduled for ${formatDate(interview.scheduledStart)}`,
-      href: '/candidate/interviews',
-    })),
-    ...application.offers.map((offer) => ({
-      key: `offer-${offer.id}`,
-      type: 'Offer',
-      label: 'Your offer is ready to review',
-      detail: `Please respond by ${formatDate(offer.acceptanceDeadline)}`,
-      href: `/candidate/offers/${offer.id}`,
-    })),
-  ])
   const unreadMessages = applications.reduce(
     (sum, application) =>
       sum + application.messageThreads.reduce((threadSum, thread) => threadSum + thread.messages.length, 0),
@@ -115,41 +74,49 @@ export default async function CandidateDashboardPage() {
     (application) => !TERMINAL_APPLICATIONS.includes(application.internalStatus)
   ).length
   const displayName = profile?.preferredName || profile?.legalFirstName || user.email.split('@')[0]
+  const nextTask = tasks[0]
 
   return (
     <div className="flex min-h-screen flex-col bg-surface-50">
       <Header currentUser={user} />
 
       <main id="main-content" className="flex-1 py-7 sm:py-9">
-        <div className="page-shell space-y-7">
+        <div className="page-shell space-y-6">
           <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-soft">
-            <div className="grid lg:grid-cols-[1.35fr_.65fr]">
-              <div className="px-6 py-8 sm:px-8">
-                <p className="text-[10px] font-bold uppercase tracking-[.16em] text-brand-700">Candidate overview</p>
-                <h1 className="mt-3 text-3xl font-semibold tracking-[-.04em] text-navy-900 sm:text-4xl">
-                  Welcome back, {displayName}.
+            <div className="grid lg:grid-cols-[1.45fr_.55fr]">
+              <div className="px-6 py-8 sm:px-8 sm:py-10">
+                <p className="text-sm font-semibold text-brand-800">Hello, {displayName}</p>
+                <h1 className="mt-2 max-w-2xl text-3xl font-semibold tracking-[-.04em] text-navy-900 sm:text-4xl">
+                  {nextTask
+                    ? `${tasks.length} ${tasks.length === 1 ? 'thing needs' : 'things need'} your attention.`
+                    : 'You are up to date.'}
                 </h1>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-stone-600">
-                  Your applications and anything FRAD needs from you are collected here.
+                  {nextTask
+                    ? `Start with “${nextTask.title}”.`
+                    : 'There is nothing you need to complete right now. You can still check an application or look for another role.'}
                 </p>
                 <div className="mt-6 flex flex-wrap gap-2">
-                  <Link href="/candidate/tasks" className="btn-primary">
-                    View my actions{' '}
-                    {actions.length > 0 && (
-                      <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px]">{actions.length}</span>
-                    )}
-                  </Link>
+                  {nextTask ? (
+                    <Link href={nextTask.href} className="btn-primary">
+                      Open next task <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  ) : (
+                    <Link href="/candidate/applications" className="btn-primary">
+                      View applications <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  )}
                   <Link href="/careers" className="btn-secondary">
-                    Browse open roles
+                    Find a role
                   </Link>
                 </div>
               </div>
 
-              <div className="border-t border-stone-200 bg-[#f1eee5] p-6 lg:border-l lg:border-t-0">
+              <div className="border-t border-stone-200 bg-[#f1eee5] p-6 lg:border-l lg:border-t-0 lg:p-7">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[.13em] text-stone-500">Your profile</p>
-                    <p className="mt-2 text-3xl font-semibold tracking-[-.04em] text-navy-900">
+                    <p className="text-xs font-semibold text-stone-600">Profile</p>
+                    <p className="mt-1 text-3xl font-semibold tracking-[-.04em] text-navy-900">
                       {completion.percentage}%
                     </p>
                   </div>
@@ -157,103 +124,92 @@ export default async function CandidateDashboardPage() {
                     <UserRound className="h-5 w-5" />
                   </span>
                 </div>
-                <div className="mt-5 h-2 overflow-hidden rounded-full bg-stone-300/70">
+                <div
+                  className="mt-5 h-1.5 overflow-hidden rounded-full bg-stone-300/70"
+                  aria-label={`Profile ${completion.percentage}% complete`}
+                >
                   <div className="h-full rounded-full bg-brand-700" style={{ width: `${completion.percentage}%` }} />
                 </div>
                 <p className="mt-3 text-xs leading-5 text-stone-600">
                   {completion.missing.length
-                    ? `Next: add ${completion.missing[0]}.`
-                    : 'Your core profile information is complete.'}
+                    ? `Add ${completion.missing[0]} when you are ready.`
+                    : 'Your main profile details are complete.'}
                 </p>
                 <Link
                   href="/candidate/profile"
                   className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-brand-800 hover:underline"
                 >
-                  Review profile <ArrowRight className="h-3.5 w-3.5" />
+                  Open profile <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
             </div>
+
+            <div className="grid border-t border-stone-200 sm:grid-cols-3 sm:divide-x sm:divide-stone-200">
+              {[
+                ['Applications sent', submitted],
+                ['Still in progress', inProgress],
+                ['Unread messages', unreadMessages],
+              ].map(([label, value]) => (
+                <div
+                  key={String(label)}
+                  className="flex items-center justify-between border-b border-stone-100 px-6 py-4 last:border-b-0 sm:border-b-0"
+                >
+                  <p className="text-xs font-semibold text-stone-600">{label}</p>
+                  <p className="text-lg font-semibold text-navy-900">{value}</p>
+                </div>
+              ))}
+            </div>
           </section>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              { label: 'Applications sent', value: submitted, detail: 'Received by FRAD', icon: BriefcaseBusiness },
-              { label: 'In progress', value: inProgress, detail: 'Still moving through recruitment', icon: Clock3 },
-              {
-                label: 'Unread messages',
-                value: unreadMessages,
-                detail: 'Updates from the recruitment team',
-                icon: MessageSquareText,
-              },
-            ].map(({ label, value, detail, icon: Icon }) => (
-              <div key={label} className="metric-card">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold uppercase tracking-[.11em] text-stone-500">{label}</p>
-                  <Icon className="h-4 w-4 text-brand-700" />
-                </div>
-                <p className="mt-3 text-3xl font-semibold tracking-[-.04em] text-navy-900">{value}</p>
-                <p className="mt-1 text-xs text-stone-500">{detail}</p>
-              </div>
-            ))}
-          </div>
-
-          {(actions.length > 0 || unreadMessages > 0) && (
-            <section aria-labelledby="actions-heading" className="section-panel">
+          {tasks.length > 0 && (
+            <section aria-labelledby="tasks-heading" className="section-panel">
               <div className="section-heading">
                 <div>
-                  <h2 id="actions-heading" className="text-lg font-semibold text-navy-900">
-                    Waiting for you
+                  <h2 id="tasks-heading" className="text-lg font-semibold text-navy-900">
+                    To do
                   </h2>
-                  <p className="mt-1 text-sm text-stone-600">Deadlines and new messages that need a response.</p>
+                  <p className="mt-1 text-sm text-stone-600">The most urgent item is first.</p>
                 </div>
-                {unreadMessages > 0 && (
-                  <Link href="/candidate/messages" className="text-xs font-bold text-brand-800 hover:underline">
-                    {unreadMessages} unread
-                  </Link>
-                )}
+                <Link href="/candidate/tasks" className="text-xs font-bold text-brand-800 hover:underline">
+                  See all {tasks.length}
+                </Link>
               </div>
-              <div className="grid gap-px bg-stone-200 md:grid-cols-2">
-                {actions.map((action) => (
+              <div className="divide-y divide-stone-100">
+                {tasks.slice(0, 4).map((task, index) => (
                   <Link
-                    key={action.key}
-                    href={action.href}
-                    className="group flex items-center justify-between gap-4 bg-white p-5 hover:bg-stone-50"
+                    key={task.key}
+                    href={task.href}
+                    className="group grid gap-3 px-5 py-4 hover:bg-stone-50 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:px-6"
                   >
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[.11em] text-brand-700">{action.type}</p>
-                      <p className="mt-1 text-sm font-semibold text-navy-900">{action.label}</p>
-                      <p className="mt-1 text-xs text-stone-500">{action.detail}</p>
+                    <span
+                      className={`grid h-8 w-8 place-items-center rounded-full text-xs font-bold ${
+                        index === 0 ? 'bg-brand-700 text-white' : 'bg-stone-100 text-stone-600'
+                      }`}
+                    >
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-navy-900">{task.title}</p>
+                      <p className="mt-1 text-xs text-stone-500">
+                        {task.context}
+                        {task.dueAt ? ` · Due ${formatDate(task.dueAt)}` : ''}
+                      </p>
                     </div>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-brand-700" />
+                    <ArrowRight className="h-4 w-4 text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-brand-700" />
                   </Link>
                 ))}
-                {unreadMessages > 0 && (
-                  <Link
-                    href="/candidate/messages"
-                    className="group flex items-center justify-between gap-4 bg-white p-5 hover:bg-stone-50"
-                  >
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[.11em] text-brand-700">Messages</p>
-                      <p className="mt-1 text-sm font-semibold text-navy-900">
-                        You have {unreadMessages} new message{unreadMessages === 1 ? '' : 's'}
-                      </p>
-                      <p className="mt-1 text-xs text-stone-500">Open your inbox to read the latest update.</p>
-                    </div>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-brand-700" />
-                  </Link>
-                )}
               </div>
             </section>
           )}
 
-          <div className="grid gap-5 xl:grid-cols-[1.4fr_.8fr]">
+          <div className="grid gap-5 xl:grid-cols-[1.45fr_.55fr]">
             <section aria-labelledby="applications-heading" className="section-panel">
               <div className="section-heading">
                 <div>
                   <h2 id="applications-heading" className="text-lg font-semibold text-navy-900">
-                    Your applications
+                    Applications
                   </h2>
-                  <p className="mt-1 text-sm text-stone-600">Drafts and submitted applications, most recent first.</p>
+                  <p className="mt-1 text-sm text-stone-600">Your latest applications and their current status.</p>
                 </div>
                 <Link href="/candidate/applications" className="text-xs font-bold text-brand-800 hover:underline">
                   View all
@@ -265,8 +221,8 @@ export default async function CandidateDashboardPage() {
                   <EmptyState
                     icon={FileText}
                     title="No applications yet"
-                    description="When a role feels right, start an application and it will appear here."
-                    action={{ href: '/careers', label: 'Explore open roles' }}
+                    description="Open a role to read the details and start an application."
+                    action={{ href: '/careers', label: 'View open roles' }}
                   />
                 </div>
               ) : (
@@ -292,7 +248,11 @@ export default async function CandidateDashboardPage() {
                                 {application.vacancy.referenceNumber}
                               </span>
                               <span
-                                className={`status-chip ${isDraft ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-brand-200 bg-brand-50 text-brand-800'}`}
+                                className={`status-chip ${
+                                  isDraft
+                                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                    : 'border-brand-200 bg-brand-50 text-brand-800'
+                                }`}
                               >
                                 {candidateStatusLabel(status)}
                               </span>
@@ -301,22 +261,18 @@ export default async function CandidateDashboardPage() {
                               {application.vacancy.title}
                             </h3>
                             <p className="mt-1 text-xs text-stone-500">
-                              {application.vacancy.department.name} · {application.vacancy.dutyStation.name},{' '}
-                              {application.vacancy.dutyStation.state}
+                              {application.vacancy.department.name} · {application.vacancy.dutyStation.name}
                             </p>
                           </div>
                           <div className="shrink-0 sm:text-right">
                             <p className="text-xs font-semibold text-stone-700">
-                              {isDraft ? 'Last saved' : 'Last updated'} {formatDate(application.updatedAt)}
+                              {isDraft ? 'Saved' : 'Updated'} {formatDate(application.updatedAt)}
                             </p>
                             {preboarding && (
                               <p className="mt-1 text-[11px] text-brand-700">
-                                Preboarding {preboarding.overallCompletionPercentage}% complete
+                                Starting steps {preboarding.overallCompletionPercentage}% complete
                               </p>
                             )}
-                            <p className="mt-2 text-[11px] font-bold text-brand-800">
-                              {isDraft ? 'Continue application' : 'Open application'} →
-                            </p>
                           </div>
                         </div>
                       </Link>
@@ -326,30 +282,39 @@ export default async function CandidateDashboardPage() {
               )}
             </section>
 
-            <div className="space-y-5">
-              <NotificationInbox />
-              <aside className="rounded-2xl border border-stone-200 bg-[#f1eee5] p-5">
-                <div className="flex items-start gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-brand-700 shadow-sm">
-                    <Bell className="h-4 w-4" />
-                  </span>
-                  <div>
-                    <h2 className="text-sm font-bold text-navy-900">Need to tell us something?</h2>
-                    <p className="mt-1 text-xs leading-5 text-stone-600">
-                      Ask a question, request an adjustment or report a problem from your account.
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs font-bold text-brand-800">
-                      <Link href="/candidate/messages" className="hover:underline">
-                        Message FRAD
-                      </Link>
-                      <Link href="/candidate/accommodations" className="hover:underline">
-                        Request an adjustment
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              </aside>
-            </div>
+            <aside className="space-y-4">
+              <Link
+                href="/candidate/messages"
+                className="group block rounded-2xl border border-stone-200 bg-white p-5 shadow-soft hover:border-brand-300"
+              >
+                <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-50 text-brand-700">
+                  <MessageSquareText className="h-4 w-4" />
+                </span>
+                <h2 className="mt-4 text-base font-semibold text-navy-900">Messages</h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {unreadMessages
+                    ? `${unreadMessages} unread ${unreadMessages === 1 ? 'message' : 'messages'} from the recruitment team.`
+                    : 'Ask a question or read an update from the recruitment team.'}
+                </p>
+                <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-brand-800">
+                  Open messages <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+                </span>
+              </Link>
+
+              <div className="rounded-2xl border border-stone-200 bg-[#f1eee5] p-5">
+                <CheckCircle2 className="h-5 w-5 text-brand-700" />
+                <h2 className="mt-3 text-sm font-semibold text-navy-900">Need an adjustment?</h2>
+                <p className="mt-1 text-xs leading-5 text-stone-600">
+                  Tell us what would help you take part in an interview or assessment.
+                </p>
+                <Link
+                  href="/candidate/accommodations"
+                  className="mt-3 inline-flex text-xs font-bold text-brand-800 hover:underline"
+                >
+                  Request an adjustment
+                </Link>
+              </div>
+            </aside>
           </div>
         </div>
       </main>

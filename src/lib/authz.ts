@@ -59,11 +59,21 @@ export async function requireStaff(): Promise<UserSession> {
   return user
 }
 
+export function hasRequiredRole(userRoles: readonly string[], requiredRoles: readonly string[]): boolean {
+  // System administrators do not inherit operational authority. If a system
+  // administrator account also has an HR role by mistake, it may still enter
+  // only handlers that explicitly name SYSTEM_ADMIN.
+  if (userRoles.includes('SYSTEM_ADMIN') && !requiredRoles.includes('SYSTEM_ADMIN')) return false
+  return requiredRoles.some((role) => userRoles.includes(role))
+}
+
 /** Require one of the given role names. */
 export async function requireRole(...roles: string[]): Promise<UserSession> {
   const user = await requireUser()
-  if (user.roles.includes('SYSTEM_ADMIN')) return user
-  if (!roles.some((r) => user.roles.includes(r))) {
+  if (!hasRequiredRole(user.roles, roles)) {
+    if (user.roles.includes('SYSTEM_ADMIN')) {
+      throw new AuthzError('This action requires a separate operational account', 403)
+    }
     throw new AuthzError('Forbidden', 403)
   }
   return user

@@ -21,7 +21,7 @@ const schema = z
     supervisorName: z.string().max(200).optional().nullable(),
     supervisorEmail: z.string().email().optional().or(z.literal('')).nullable(),
     supervisorPhone: z.string().max(30).optional().nullable(),
-    permissionToContact: z.boolean().default(true),
+    permissionToContact: z.boolean().default(false),
   })
   .superRefine((v, ctx) => {
     const now = new Date()

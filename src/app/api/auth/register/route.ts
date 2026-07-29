@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hashPassword, createEmailVerifyToken } from '@/lib/auth'
-import { issueSession, attachSession } from '@/lib/session'
 import { parseBody, registerSchema } from '@/lib/validation'
 import { authzResponse } from '@/lib/authz'
 import { rateLimitDistributed, clientIp } from '@/lib/rate-limit'
@@ -21,10 +20,8 @@ export async function POST(request: Request) {
       )
     }
 
-    const { legalFirstName, lastName, email, phone, password, privacyAccepted, termsAccepted } = await parseBody(
-      request,
-      registerSchema
-    )
+    const { legalFirstName, lastName, email, phone, password, privacyAccepted, termsAccepted, nextPath } =
+      await parseBody(request, registerSchema)
 
     const normalizedEmail = email.toLowerCase().trim()
 
@@ -38,6 +35,7 @@ export async function POST(request: Request) {
         const appUrl = process.env.APP_URL
         if (!appUrl) throw new Error('APP_URL is required to send verification links')
         const verificationLink = new URL('/verify-email', appUrl)
+        if (nextPath) verificationLink.searchParams.set('next', nextPath)
         verificationLink.hash = `token=${encodeURIComponent(verificationToken)}`
         const resendWindow = new Date().toISOString().slice(0, 13)
         await enqueueEmail({
@@ -100,6 +98,7 @@ export async function POST(request: Request) {
     const appUrl = process.env.APP_URL
     if (!appUrl) throw new Error('APP_URL is required to send verification links')
     const verificationLink = new URL('/verify-email', appUrl)
+    if (nextPath) verificationLink.searchParams.set('next', nextPath)
     verificationLink.hash = `token=${encodeURIComponent(verificationToken)}`
     await enqueueEmail({
       recipient: user.email,
@@ -108,18 +107,9 @@ export async function POST(request: Request) {
       deduplicationKey: `email-verification:${user.id}:${new Date().toISOString().slice(0, 13)}`,
     })
 
-    const roles = ['CANDIDATE']
-    const { token } = await issueSession(request, {
-      userId: user.id,
-      email: user.email,
-      roles,
-      sessionVersion: user.sessionVersion,
-    })
-
     // The body must be byte-identical to the already-registered response so
     // the endpoint cannot be used to enumerate registered email addresses.
-    // The session cookie is what tells a genuinely new user they are signed in.
-    return attachSession(NextResponse.json({ success: true, message: REGISTRATION_MESSAGE }), token)
+    return NextResponse.json({ success: true, message: REGISTRATION_MESSAGE })
   } catch (err) {
     return authzResponse(err)
   }

@@ -7,19 +7,26 @@ import { z } from 'zod'
 import { parseBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 
+const rating = z.enum(['Exceptional', 'Strong', 'Satisfactory', 'Concern', 'Not observed'])
+const referenceAnswers = z.object({
+  refereeAuthorityConfirmed: z.literal(true),
+  confirmDates: z.string().trim().min(3).max(1000),
+  responsibilities: z.string().trim().min(10).max(5000),
+  workQuality: rating,
+  integrity: rating,
+  teamwork: rating,
+  management: rating,
+  reasonForLeaving: z.string().trim().min(2).max(2000),
+  strengths: z.string().trim().min(5).max(3000),
+  developmentAreas: z.string().trim().max(3000).default(''),
+  rehire: z.enum(['Yes', 'No', 'Conditional', 'Not known']),
+  safeguardingConcerns: z.string().trim().min(3).max(3000),
+})
 const schema = z.object({
   token: z.string().min(20).max(1000),
-  answers: z.record(z.string(), z.unknown()).default({}),
-  outcome: z.enum(['SATISFACTORY', 'SATISFACTORY_WITH_CONCERNS', 'UNSATISFACTORY']),
+  answers: referenceAnswers,
   confidentialComment: z.string().trim().max(5000).optional(),
 })
-
-function aggregateReferenceStatus(outcomes: string[], outstanding: number) {
-  if (outcomes.includes('UNSATISFACTORY')) return 'UNSATISFACTORY'
-  if (outstanding > 0) return 'PENDING'
-  if (outcomes.includes('SATISFACTORY_WITH_CONCERNS')) return 'SATISFACTORY_WITH_CONCERNS'
-  return outcomes.length > 0 ? 'SATISFACTORY' : 'NOT_REQUIRED'
-}
 
 export async function POST(request: Request) {
   try {
@@ -29,7 +36,7 @@ export async function POST(request: Request) {
         { error: 'Too many attempts' },
         { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } }
       )
-    const { token, answers, outcome, confidentialComment } = await parseBody(request, schema)
+    const { token, answers, confidentialComment } = await parseBody(request, schema)
 
     // Look up by the HASH of the presented token, and enforce not-expired.
     const refRequest = await prisma.referenceRequest.findFirst({
@@ -58,19 +65,13 @@ export async function POST(request: Request) {
         data: {
           referenceRequestId: refRequest.id,
           answersJson: JSON.stringify(answers),
-          outcome,
+          outcome: 'PENDING_REVIEW',
           confidentialComment: confidentialComment || null,
         },
       })
-      const requests = await tx.referenceRequest.findMany({
-        where: { referee: { applicationId: refRequest.referee.applicationId } },
-        select: { status: true, response: { select: { outcome: true } } },
-      })
-      const outcomes = requests.flatMap((item) => (item.response ? [item.response.outcome] : []))
-      const outstanding = requests.filter((item) => !['COMPLETED', 'EXPIRED'].includes(item.status)).length
       await tx.application.update({
         where: { id: refRequest.referee.applicationId },
-        data: { referenceStatus: aggregateReferenceStatus(outcomes, outstanding) },
+        data: { referenceStatus: 'PENDING' },
       })
       return created
     })
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
       action: 'REFERENCE_SUBMITTED',
       resourceType: 'ReferenceResponse',
       resourceId: response.id,
-      newValue: { outcome },
+      newValue: { status: 'PENDING_REVIEW' },
     })
 
     return NextResponse.json({ success: true })

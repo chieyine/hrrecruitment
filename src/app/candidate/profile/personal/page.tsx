@@ -1,350 +1,309 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import Link from 'next/link'
-import { ArrowLeft, Save, CheckCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Save } from 'lucide-react'
+import { PageIntro } from '@/components/ui/PageElements'
+
+const emptyForm = {
+  legalFirstName: '',
+  middleName: '',
+  lastName: '',
+  preferredName: '',
+  countryOfResidence: '',
+  state: '',
+  city: '',
+  primaryPhone: '',
+  alternatePhone: '',
+  willingnessToRelocate: false,
+  earliestStartDate: '',
+}
 
 export default function PersonalDetailsPage() {
-  const [formData, setFormData] = useState({
-    legalFirstName: '',
-    middleName: '',
-    lastName: '',
-    preferredName: '',
-    nationality: 'Nigerian',
-    countryOfResidence: 'Nigeria',
-    state: '',
-    lga: '',
-    city: '',
-    address: '',
-    primaryPhone: '',
-    alternatePhone: '',
-    preferredContactMethod: 'EMAIL',
-    willingnessToRelocate: false,
-    earliestStartDate: '',
-    preferredDutyLocations: [] as string[],
-  })
-  const [loading, setLoading] = useState(false)
+  const [formData, setFormData] = useState(emptyForm)
+  const [preferredLocationsText, setPreferredLocationsText] = useState('')
+  const [saving, setSaving] = useState(false)
   const [profileLoading, setProfileLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/candidate/profile')
-      .then(async (res) => {
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || 'Unable to load your profile')
-        if (data.profile) {
-          setFormData((prev) => ({
-            ...prev,
-            ...data.profile,
-            earliestStartDate: data.profile.earliestStartDate
-              ? new Date(data.profile.earliestStartDate).toISOString().slice(0, 10)
-              : '',
-            preferredDutyLocations: (() => {
-              try {
-                return JSON.parse(data.profile.preferredDutyLocationsJson || '[]')
-              } catch {
-                return []
-              }
-            })(),
-          }))
+    const controller = new AbortController()
+    fetch('/api/candidate/profile', { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'Unable to load your profile.')
+        if (!data.profile) return
+        setFormData({
+          legalFirstName: data.profile.legalFirstName || '',
+          middleName: data.profile.middleName || '',
+          lastName: data.profile.lastName || '',
+          preferredName: data.profile.preferredName || '',
+          countryOfResidence: data.profile.countryOfResidence || '',
+          state: data.profile.state || '',
+          city: data.profile.city || '',
+          primaryPhone: data.profile.primaryPhone || '',
+          alternatePhone: data.profile.alternatePhone || '',
+          willingnessToRelocate: Boolean(data.profile.willingnessToRelocate),
+          earliestStartDate: data.profile.earliestStartDate
+            ? new Date(data.profile.earliestStartDate).toISOString().slice(0, 10)
+            : '',
+        })
+        try {
+          const locations = JSON.parse(data.profile.preferredDutyLocationsJson || '[]')
+          setPreferredLocationsText(Array.isArray(locations) ? locations.join(', ') : '')
+        } catch {
+          setPreferredLocationsText('')
         }
-        return data
       })
-      .catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load your profile'))
-      .finally(() => setProfileLoading(false))
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === 'AbortError') return
+        setError(reason instanceof Error ? reason.message : 'Unable to load your profile.')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setProfileLoading(false)
+      })
+    return () => controller.abort()
   }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    setSaving(true)
     setMessage('')
     setError('')
     try {
       const response = await fetch('/api/candidate/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, earliestStartDate: formData.earliestStartDate || null }),
+        body: JSON.stringify({
+          ...formData,
+          alternatePhone: formData.alternatePhone || null,
+          earliestStartDate: formData.earliestStartDate || null,
+          preferredDutyLocations: preferredLocationsText
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean),
+        }),
       })
       const body = await response.json()
-      if (!response.ok) throw new Error(body.error || 'Unable to update personal information')
+      if (!response.ok) throw new Error(body.error || 'Unable to save your details.')
       setMessage('Changes saved.')
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to update personal information')
+      setError(reason instanceof Error ? reason.message : 'Unable to save your details.')
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
+  const update = (field: keyof typeof emptyForm, value: string | boolean) =>
+    setFormData((current) => ({ ...current, [field]: value }))
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+    <div className="flex min-h-screen flex-col bg-surface-50">
       <Header />
-      <main id="main-content" className="max-w-4xl mx-auto px-4 py-8 flex-1 w-full">
-        <div className="flex items-center gap-3 mb-6">
-          <Link href="/candidate/profile" className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">
-            <ArrowLeft className="w-4 h-4 text-slate-600" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Personal details</h1>
-            <p className="text-slate-600 text-sm">Names, contact details and availability.</p>
-          </div>
-        </div>
-
-        {message && (
-          <div
-            role="status"
-            className="mb-6 p-4 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 flex items-center gap-2"
+      <main id="main-content" className="flex-1 py-7 sm:py-9">
+        <div className="page-shell max-w-5xl space-y-6">
+          <Link
+            href="/candidate/profile"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-stone-600 hover:text-brand-800"
           >
-            <CheckCircle className="w-5 h-5 text-emerald-600" />
-            {message}
-          </div>
-        )}
-        {error && (
-          <div role="alert" className="mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-            {error}
-          </div>
-        )}
+            <ArrowLeft className="h-4 w-4" /> Profile
+          </Link>
 
-        {profileLoading ? (
-          <div role="status" className="rounded-xl border bg-white p-8 text-sm text-slate-600">
-            Loading your profile…
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label htmlFor="legalFirstName" className="block text-sm font-medium text-slate-700 mb-1">
-                  Legal First Name *
-                </label>
-                <input
-                  id="legalFirstName"
-                  type="text"
-                  required
-                  value={formData.legalFirstName}
-                  onChange={(e) => setFormData({ ...formData, legalFirstName: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-              <div>
-                <label htmlFor="middleName" className="block text-sm font-medium text-slate-700 mb-1">
-                  Middle Name
-                </label>
-                <input
-                  id="middleName"
-                  type="text"
-                  value={formData.middleName || ''}
-                  onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-              <div>
-                <label htmlFor="lastName" className="block text-sm font-medium text-slate-700 mb-1">
-                  Last Name *
-                </label>
-                <input
-                  id="lastName"
-                  type="text"
-                  required
-                  value={formData.lastName}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
+          <PageIntro
+            eyebrow="Your profile"
+            title="Personal details"
+            description="Keep your name, phone number, current location and availability accurate."
+          />
+
+          {message && (
+            <div
+              role="status"
+              className="flex items-center gap-2 border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"
+            >
+              <CheckCircle2 className="h-5 w-5" /> {message}
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label htmlFor="preferredName" className="block text-sm font-medium text-slate-700 mb-1">
-                  Preferred Name
-                </label>
-                <input
-                  id="preferredName"
-                  value={formData.preferredName || ''}
-                  onChange={(e) => setFormData({ ...formData, preferredName: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label htmlFor="nationality" className="block text-sm font-medium text-slate-700 mb-1">
-                  Nationality
-                </label>
-                <input
-                  id="nationality"
-                  value={formData.nationality || ''}
-                  onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label htmlFor="countryOfResidence" className="block text-sm font-medium text-slate-700 mb-1">
-                  Country of Residence
-                </label>
-                <input
-                  id="countryOfResidence"
-                  value={formData.countryOfResidence || ''}
-                  onChange={(e) => setFormData({ ...formData, countryOfResidence: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-                />
-              </div>
+          )}
+          {error && (
+            <div role="alert" className="border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+              {error}
             </div>
+          )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="primaryPhone" className="block text-sm font-medium text-slate-700 mb-1">
-                  Primary Phone *
-                </label>
-                <input
-                  id="primaryPhone"
-                  type="tel"
-                  required
-                  value={formData.primaryPhone || ''}
-                  onChange={(e) => setFormData({ ...formData, primaryPhone: e.target.value })}
-                  placeholder="+234 800 000 0000"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-              <div>
-                <label htmlFor="alternatePhone" className="block text-sm font-medium text-slate-700 mb-1">
-                  Alternative Phone
-                </label>
-                <input
-                  id="alternatePhone"
-                  type="tel"
-                  value={formData.alternatePhone || ''}
-                  onChange={(e) => setFormData({ ...formData, alternatePhone: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
+          {profileLoading ? (
+            <div role="status" className="section-panel p-10 text-center text-sm text-stone-500">
+              Loading your profile…
             </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <FormSection title="Name" description="Use the name shown on your identity documents.">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <Field label="Legal first name">
+                    <input
+                      required
+                      autoComplete="given-name"
+                      value={formData.legalFirstName}
+                      onChange={(event) => update('legalFirstName', event.target.value)}
+                      className="field-control"
+                    />
+                  </Field>
+                  <Field label="Middle name (optional)">
+                    <input
+                      autoComplete="additional-name"
+                      value={formData.middleName}
+                      onChange={(event) => update('middleName', event.target.value)}
+                      className="field-control"
+                    />
+                  </Field>
+                  <Field label="Last name">
+                    <input
+                      required
+                      autoComplete="family-name"
+                      value={formData.lastName}
+                      onChange={(event) => update('lastName', event.target.value)}
+                      className="field-control"
+                    />
+                  </Field>
+                  <Field label="Preferred name (optional)">
+                    <input
+                      value={formData.preferredName}
+                      onChange={(event) => update('preferredName', event.target.value)}
+                      className="field-control"
+                    />
+                  </Field>
+                </div>
+              </FormSection>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label htmlFor="state" className="block text-sm font-medium text-slate-700 mb-1">
-                  State of Residence
-                </label>
-                <input
-                  id="state"
-                  type="text"
-                  value={formData.state || ''}
-                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                  placeholder="FCT - Abuja"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-              <div>
-                <label htmlFor="lga" className="block text-sm font-medium text-slate-700 mb-1">
-                  LGA
-                </label>
-                <input
-                  id="lga"
-                  type="text"
-                  value={formData.lga || ''}
-                  onChange={(e) => setFormData({ ...formData, lga: e.target.value })}
-                  placeholder="Abuja Municipal"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-              <div>
-                <label htmlFor="city" className="block text-sm font-medium text-slate-700 mb-1">
-                  City / Town
-                </label>
-                <input
-                  id="city"
-                  type="text"
-                  value={formData.city || ''}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-            </div>
+              <FormSection title="Contact" description="Recruitment updates are also sent to your account email.">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Primary phone number">
+                    <input
+                      type="tel"
+                      required
+                      autoComplete="tel"
+                      value={formData.primaryPhone}
+                      onChange={(event) => update('primaryPhone', event.target.value)}
+                      placeholder="+234 800 000 0000"
+                      className="field-control"
+                    />
+                  </Field>
+                  <Field label="Alternative phone number (optional)">
+                    <input
+                      type="tel"
+                      value={formData.alternatePhone}
+                      onChange={(event) => update('alternatePhone', event.target.value)}
+                      className="field-control"
+                    />
+                  </Field>
+                </div>
+              </FormSection>
 
-            <div>
-              <label htmlFor="address" className="block text-sm font-medium text-slate-700 mb-1">
-                Residential Address
-              </label>
-              <textarea
-                id="address"
-                rows={2}
-                value={formData.address || ''}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label htmlFor="preferredContactMethod" className="text-sm font-medium text-slate-700">
-                Preferred Contact Method
-                <select
-                  id="preferredContactMethod"
-                  value={formData.preferredContactMethod || 'EMAIL'}
-                  onChange={(e) => setFormData({ ...formData, preferredContactMethod: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-4 py-2"
-                >
-                  <option value="EMAIL">Email</option>
-                  <option value="PHONE">Phone</option>
-                  <option value="SMS">SMS</option>
-                </select>
-              </label>
-              <label htmlFor="earliestStartDate" className="text-sm font-medium text-slate-700">
-                Earliest Available Start Date
-                <input
-                  id="earliestStartDate"
-                  type="date"
-                  value={formData.earliestStartDate || ''}
-                  onChange={(e) => setFormData({ ...formData, earliestStartDate: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-4 py-2"
-                />
-              </label>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="relocate"
-                checked={formData.willingnessToRelocate}
-                onChange={(e) => setFormData({ ...formData, willingnessToRelocate: e.target.checked })}
-                className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
-              />
-              <label htmlFor="relocate" className="text-sm text-slate-700">
-                Willing to relocate to field duty stations
-              </label>
-            </div>
-            <label htmlFor="preferredDutyLocations" className="block text-sm font-medium text-slate-700">
-              Preferred duty locations
-              <input
-                id="preferredDutyLocations"
-                value={formData.preferredDutyLocations.join(', ')}
-                onChange={(event) =>
-                  setFormData({
-                    ...formData,
-                    preferredDutyLocations: event.target.value
-                      .split(',')
-                      .map((value) => value.trim())
-                      .filter(Boolean),
-                  })
-                }
-                placeholder="For example: Abuja, Maiduguri, Yola"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-4 py-2"
-              />
-              <span className="mt-1 block text-xs font-normal text-slate-500">Separate locations with commas.</span>
-            </label>
-
-            <div className="flex justify-end pt-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-6 py-2.5 rounded-lg transition"
+              <FormSection
+                title="Current location"
+                description="A broad location is enough during recruitment. FRAD will request a full address later if it is needed."
               >
-                <Save className="w-4 h-4" />
-                {loading ? 'Saving...' : 'Save Personal Details'}
-              </button>
-            </div>
-          </form>
-        )}
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Field label="Country of residence">
+                    <input
+                      required
+                      autoComplete="country-name"
+                      value={formData.countryOfResidence}
+                      onChange={(event) => update('countryOfResidence', event.target.value)}
+                      className="field-control"
+                    />
+                  </Field>
+                  <Field label="State or region (optional)">
+                    <input
+                      autoComplete="address-level1"
+                      value={formData.state}
+                      onChange={(event) => update('state', event.target.value)}
+                      className="field-control"
+                    />
+                  </Field>
+                  <Field label="City or town">
+                    <input
+                      required
+                      autoComplete="address-level2"
+                      value={formData.city}
+                      onChange={(event) => update('city', event.target.value)}
+                      className="field-control"
+                    />
+                  </Field>
+                </div>
+              </FormSection>
+
+              <FormSection title="Availability" description="These preferences can be changed for a specific offer.">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Earliest available start date (optional)">
+                    <input
+                      type="date"
+                      min={new Date().toISOString().slice(0, 10)}
+                      value={formData.earliestStartDate}
+                      onChange={(event) => update('earliestStartDate', event.target.value)}
+                      className="field-control"
+                    />
+                  </Field>
+                  <Field label="Preferred duty locations (optional)">
+                    <input
+                      value={preferredLocationsText}
+                      onChange={(event) => setPreferredLocationsText(event.target.value)}
+                      placeholder="Abuja, Maiduguri, Yola"
+                      className="field-control"
+                    />
+                    <span className="field-help">Separate locations with commas.</span>
+                  </Field>
+                </div>
+                <label className="mt-4 flex items-start gap-3 text-sm text-stone-700">
+                  <input
+                    type="checkbox"
+                    checked={formData.willingnessToRelocate}
+                    onChange={(event) => update('willingnessToRelocate', event.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-brand-700"
+                  />
+                  I am open to relocating for a role.
+                </label>
+              </FormSection>
+
+              <div className="flex justify-end">
+                <button type="submit" disabled={saving} className="btn-primary">
+                  <Save className="h-4 w-4" />
+                  {saving ? 'Saving…' : 'Save changes'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </main>
       <Footer />
     </div>
+  )
+}
+
+function FormSection({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="section-panel p-5 sm:p-6">
+      <h2 className="text-lg font-semibold text-navy-900">{title}</h2>
+      <p className="mt-1 text-sm text-stone-600">{description}</p>
+      <div className="mt-5">{children}</div>
+    </section>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="field-label">{label}</span>
+      <span className="mt-1.5 block">{children}</span>
+    </label>
   )
 }

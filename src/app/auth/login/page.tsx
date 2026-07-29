@@ -40,6 +40,12 @@ export default function LoginPage() {
     router.replace(nextPath || homeRouteForRoles(roles))
   }
 
+  const withNextPath = (path: string) => {
+    if (!nextPath) return path
+    const params = new URLSearchParams({ next: nextPath })
+    return `${path}?${params.toString()}`
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -116,13 +122,14 @@ export default function LoginPage() {
         <div className="mx-auto grid min-h-[calc(100vh-80px)] max-w-7xl lg:grid-cols-[.9fr_1.1fr]">
           <section className="hidden bg-brand-900 px-12 py-16 text-white lg:flex lg:flex-col lg:justify-between">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-200">Your FRAD account</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-200">
+                FRAD Foundation recruitment
+              </span>
               <h1 className="mt-8 max-w-md font-display text-5xl leading-[1.05] tracking-[-0.035em]">
-                Pick up where you left off.
+                Your recruitment account
               </h1>
               <p className="mt-6 max-w-sm text-sm leading-7 text-brand-100">
-                Check an application, reply to an interview invitation or complete the next item requested by our
-                recruitment team.
+                Apply for a role, check an application, reply to an interview invitation or complete a requested task.
               </p>
             </div>
             <div className="border-t border-brand-700 pt-6 text-xs leading-5 text-brand-200">
@@ -247,7 +254,7 @@ export default function LoginPage() {
                     </div>
                     <div className="mt-2 text-right">
                       <Link
-                        href="/forgot-password"
+                        href={withNextPath('/forgot-password')}
                         className="text-xs font-bold text-brand-700 underline decoration-brand-300 underline-offset-4 hover:text-brand-600"
                       >
                         Forgot your password?
@@ -264,7 +271,7 @@ export default function LoginPage() {
                     FRAD staff
                     <span className="h-px flex-1 bg-surface-200" />
                   </div>
-                  <a href="/api/auth/sso/start" className="btn-secondary flex h-12 w-full">
+                  <a href={withNextPath('/api/auth/sso/start')} className="btn-secondary flex h-12 w-full">
                     <ShieldCheck className="mr-2 h-4 w-4 text-brand-700" />
                     Continue with FRAD SSO
                   </a>
@@ -274,7 +281,7 @@ export default function LoginPage() {
               <div className="mt-7 border-t border-surface-200 pt-6 text-sm text-muted">
                 New candidate?{' '}
                 <Link
-                  href="/auth/register"
+                  href={withNextPath('/auth/register')}
                   className="font-bold text-brand-700 underline decoration-brand-300 underline-offset-4 hover:text-brand-600"
                 >
                   Create an account

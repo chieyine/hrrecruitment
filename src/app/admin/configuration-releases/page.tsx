@@ -4,14 +4,14 @@ import { getVerifiedUser } from '@/lib/auth'
 
 export default async function ConfigurationReleasesPage() {
   const user = await getVerifiedUser()
-  if (!user?.roles.includes('SYSTEM_ADMIN')) redirect('/auth/login')
+  if (!user) redirect('/auth/login')
+  if (!user.roles.some((role) => role === 'HR_MANAGER' || role === 'COURSE_ADMIN')) redirect('/recruitment/dashboard')
   return (
     <div className="page-shell space-y-7">
       <div className="page-intro">
-        <p className="editorial-kicker">Controlled configuration</p>
-        <h1 className="page-title">Configuration releases</h1>
+        <h1 className="page-title">Review drafts</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Compare drafts, obtain independent approval, publish on an effective date, and roll back safely.
+          Compare proposed template or course changes with the current version before they take effect.
         </p>
       </div>
       <ConfigurationReleaseManager userId={user.userId} />

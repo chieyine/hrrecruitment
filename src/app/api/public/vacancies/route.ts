@@ -23,6 +23,7 @@ export async function GET(request: Request) {
     const id = searchParams.get('id')
     const departmentId = searchParams.get('departmentId')
     const dutyStationId = searchParams.get('dutyStationId')
+    const categoryId = searchParams.get('categoryId')
     const contractType = searchParams.get('contractType')
     // Cap the search term: an unbounded string becomes an unbounded LIKE scan.
     const search = searchParams.get('search')?.trim().slice(0, MAX_SEARCH_LENGTH) || ''
@@ -43,6 +44,7 @@ export async function GET(request: Request) {
     if (id) where.id = id
     if (departmentId) where.departmentId = departmentId
     if (dutyStationId) where.dutyStationId = dutyStationId
+    if (categoryId) where.categoryId = categoryId
     if (contractType) where.contractType = contractType
     if (search) {
       where.OR = [
@@ -59,6 +61,7 @@ export async function GET(request: Request) {
           department: true,
           dutyStation: true,
           project: true,
+          category: true,
           questions: { orderBy: { displayOrder: 'asc' } },
           requiredDocuments: true,
         },

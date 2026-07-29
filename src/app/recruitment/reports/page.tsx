@@ -1,38 +1,45 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { Download, FileArchive, LockKeyhole } from 'lucide-react'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
-import { prisma } from '@/lib/prisma'
-import { getVerifiedUser } from '@/lib/auth'
-import { Download, ArrowLeft } from 'lucide-react'
-import { hasPermission } from '@/lib/rbac'
 import ReportScheduler from '@/components/admin/ReportScheduler'
+import RecruitmentInsightsOverview from '@/components/recruitment/RecruitmentInsightsOverview'
 import { PageIntro } from '@/components/ui/PageElements'
+import { getVerifiedUser } from '@/lib/auth'
+import { hasPermission } from '@/lib/rbac'
 import { hasStaffRole } from '@/lib/roles'
 
 const REPORTS = [
-  ['pipeline', 'Vacancy pipeline'],
-  ['candidate-stages', 'Candidate stage history'],
-  ['assessments', 'Assessment outcomes'],
-  ['interviews', 'Interview activity'],
-  ['references', 'Reference checks'],
-  ['offers', 'Offer outcomes'],
-  ['preboarding', 'Preboarding completion'],
-  ['outstanding', 'Outstanding preboarding'],
-  ['courses', 'Course completion'],
-  ['readiness', 'Readiness checks'],
-  ['resumption', 'Resumption outcomes'],
-  ['erp', 'ERP handovers'],
-  ['waivers', 'Waiver audit'],
-  ['work-items', 'Work queue and SLA history'],
-  ['communications', 'Communication register'],
-  ['approvals', 'Approval decisions'],
-  ['audit', 'System audit trail'],
-  ['complaints', 'Complaint and appeal register'],
-  ['privacy-deletions', 'Privacy and deletion requests'],
-  ['configuration-changes', 'Configuration change approvals'],
-  ['delivery', 'Message delivery and failures'],
-  ['data-quality', 'Data-quality exceptions'],
+  ['pipeline', 'Vacancy pipeline', 'Recruitment'],
+  ['candidate-stages', 'Candidate stage history', 'Recruitment'],
+  ['assessments', 'Assessment outcomes', 'Recruitment'],
+  ['interviews', 'Interview activity', 'Recruitment'],
+  ['references', 'Reference checks', 'Recruitment'],
+  ['offers', 'Offer outcomes', 'Offer and start'],
+  ['preboarding', 'Pre-start completion', 'Offer and start'],
+  ['outstanding', 'Outstanding pre-start items', 'Offer and start'],
+  ['courses', 'Course completion', 'Offer and start'],
+  ['readiness', 'Readiness checks', 'Offer and start'],
+  ['resumption', 'Start outcomes', 'Offer and start'],
+  ['erp', 'ERP handovers', 'Offer and start'],
+  ['waivers', 'Waiver audit', 'Governance'],
+  ['approvals', 'Approval decisions', 'Governance'],
+  ['audit', 'System audit trail', 'Governance'],
+  ['complaints', 'Complaint and appeal register', 'Governance'],
+  ['privacy-deletions', 'Privacy and deletion requests', 'Governance'],
+  ['configuration-changes', 'Configuration change approvals', 'Governance'],
+  ['work-items', 'Work queue and service history', 'Operations'],
+  ['communications', 'Communication register', 'Operations'],
+  ['delivery', 'Message delivery and failures', 'Operations'],
+  ['data-quality', 'Data-quality exceptions', 'Operations'],
+] as const
+
+const REPORT_GROUPS = ['Recruitment', 'Offer and start', 'Governance', 'Operations'] as const
+const VIEWS = [
+  ['overview', 'Overview'],
+  ['downloads', 'Downloads'],
+  ['scheduled', 'Scheduled'],
 ] as const
 
 export default async function RecruitmentReportsPage({
@@ -43,18 +50,40 @@ export default async function RecruitmentReportsPage({
   const query = searchParams ? await searchParams : {}
   const user = await getVerifiedUser()
 
-  if (!user || !hasStaffRole(user.roles)) {
-    redirect('/auth/login')
-  }
+  if (!user || !hasStaffRole(user.roles)) redirect('/auth/login')
   if (!(await hasPermission(user.userId, 'report.export'))) redirect('/recruitment/dashboard')
-  const [canExportComplaints, canExportAudit, canExportGovernance] = await Promise.all([
+
+  const view = ['overview', 'downloads', 'scheduled'].includes(String(query.view)) ? String(query.view) : 'overview'
+  const [
+    canExportComplaints,
+    canExportAudit,
+    canExportGovernance,
+    canExportReferences,
+    canExportOffers,
+    canExportPreboarding,
+  ] = await Promise.all([
     hasPermission(user.userId, 'complaint.manage'),
     hasPermission(user.userId, 'audit.read'),
     hasPermission(user.userId, 'governance.manage'),
+    hasPermission(user.userId, 'reference.manage'),
+    hasPermission(user.userId, 'offer.manage'),
+    hasPermission(user.userId, 'preboarding.manage'),
   ])
-  const visibleReports = REPORTS.filter(([code]) => code !== 'complaints' || canExportComplaints)
-    .filter(([code]) => code !== 'audit' || canExportAudit)
-    .filter(([code]) => code !== 'configuration-changes' || canExportGovernance)
+  const auditor = user.roles.includes('AUDITOR')
+  const canAccessReport = (code: string) => {
+    if (auditor && !['complaints', 'configuration-changes'].includes(code)) return true
+    if (code === 'complaints') return canExportComplaints
+    if (code === 'audit') return canExportAudit
+    if (['configuration-changes', 'privacy-deletions', 'delivery', 'data-quality'].includes(code))
+      return canExportGovernance
+    if (code === 'references') return canExportReferences
+    if (code === 'offers') return canExportOffers
+    if (['preboarding', 'outstanding', 'courses', 'readiness', 'resumption', 'erp', 'waivers'].includes(code))
+      return canExportPreboarding
+    return true
+  }
+  const visibleReports = REPORTS.filter(([code]) => canAccessReport(code))
+
   const exportFilters = new URLSearchParams()
   for (const key of ['vacancy', 'department', 'status', 'search', 'dateFrom', 'dateTo']) {
     const value = query[key]
@@ -62,167 +91,165 @@ export default async function RecruitmentReportsPage({
   }
   const filterSuffix = exportFilters.toString() ? `&${exportFilters.toString()}` : ''
 
-  const vacancies = await prisma.vacancy.findMany({
-    include: {
-      department: true,
-      dutyStation: true,
-      applications: true,
-    },
-  })
-
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-[#f4f1ea]">
       <Header currentUser={user} />
-
-      <main id="main-content" className="flex-1 py-10">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-8">
-          <Link
-            href="/recruitment/dashboard"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" /> Back to dashboard
-          </Link>
-
+      <main id="main-content" className="flex-1 py-7 sm:py-9">
+        <div className="page-shell space-y-6">
           <PageIntro
-            eyebrow="Evidence and documentation"
             title="Reports"
-            description="Download individual registers or create one complete, dated documentation pack for controlled record-keeping."
+            description="Review recruitment performance and produce controlled operational records."
             actions={
-              <>
-                <Link href="/recruitment/insights" className="btn-secondary">
-                  Open management insight
-                </Link>
+              view === 'downloads' ? (
                 <a href="/api/recruitment/reports/export?report=all&format=zip" className="btn-primary">
-                  <Download className="h-4 w-4" />
-                  Download complete report pack
+                  <FileArchive className="h-4 w-4" />
+                  Download report pack
                 </a>
-              </>
+              ) : undefined
             }
           />
 
-          <div className="border-l-4 border-amber-500 bg-amber-50 p-4 text-sm text-amber-950">
-            <p className="font-semibold">Exports contain personal and operational information.</p>
-            <p className="mt-1">
-              Every download is recorded in the audit trail. Store, share and dispose of exported files under FRAD
-              privacy and retention rules.
-            </p>
-          </div>
-          <form method="get" className="grid gap-3 border border-slate-200 bg-white p-4 md:grid-cols-3 xl:grid-cols-6">
-            <input
-              name="search"
-              defaultValue={typeof query.search === 'string' ? query.search : ''}
-              placeholder="Candidate or reference"
-              className="field-control"
-            />
-            <input
-              name="vacancy"
-              defaultValue={typeof query.vacancy === 'string' ? query.vacancy : ''}
-              placeholder="Vacancy"
-              className="field-control"
-            />
-            <input
-              name="department"
-              defaultValue={typeof query.department === 'string' ? query.department : ''}
-              placeholder="Department"
-              className="field-control"
-            />
-            <input
-              name="status"
-              defaultValue={typeof query.status === 'string' ? query.status : ''}
-              placeholder="Status"
-              className="field-control"
-            />
-            <input
-              aria-label="From date"
-              name="dateFrom"
-              type="date"
-              defaultValue={typeof query.dateFrom === 'string' ? query.dateFrom : ''}
-              className="field-control"
-            />
-            <input
-              aria-label="To date"
-              name="dateTo"
-              type="date"
-              defaultValue={typeof query.dateTo === 'string' ? query.dateTo : ''}
-              className="field-control"
-            />
-            <div className="flex gap-2 md:col-span-3 xl:col-span-6">
-              <button className="btn-primary">Apply export filters</button>
-              <Link href="/recruitment/reports" className="btn-secondary">
-                Clear
+          <nav aria-label="Report sections" className="flex gap-7 border-b border-stone-300">
+            {VIEWS.map(([value, label]) => (
+              <Link
+                key={value}
+                href={`/recruitment/reports?view=${value}`}
+                aria-current={view === value ? 'page' : undefined}
+                className={`border-b-2 px-0.5 pb-3 text-sm font-semibold ${
+                  view === value
+                    ? 'border-brand-700 text-navy-950'
+                    : 'border-transparent text-stone-500 hover:border-stone-400 hover:text-navy-900'
+                }`}
+              >
+                {label}
               </Link>
-            </div>
-          </form>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {visibleReports.map(([code, label]) => (
-              <section key={code} className="border border-slate-200 bg-white p-4">
-                <h2 className="font-semibold text-slate-950">{label}</h2>
-                <div className="mt-3 flex gap-2">
-                  {['csv', 'xlsx', 'pdf'].map((format) => (
-                    <a
-                      key={format}
-                      href={`/api/recruitment/reports/export?report=${code}&format=${format}${filterSuffix}`}
-                      className="btn-secondary min-h-9 px-3 py-1.5 text-xs"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      {format.toUpperCase()}
-                    </a>
-                  ))}
-                </div>
-              </section>
             ))}
-          </div>
-          <ReportScheduler defaultEmail={user.email} reportTypes={visibleReports.map(([code]) => code)} />
+          </nav>
 
-          {/* Vacancy Pipeline Summary Table */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm space-y-6">
-            <h2 className="text-base font-bold text-slate-900 uppercase tracking-wider text-xs border-b border-slate-100 pb-2">
-              Vacancy pipeline
-            </h2>
+          {view === 'overview' && <RecruitmentInsightsOverview />}
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 uppercase tracking-wider font-bold">
-                    <th className="py-3 px-4">Reference</th>
-                    <th className="py-3 px-4">Vacancy Title</th>
-                    <th className="py-3 px-4">Department</th>
-                    <th className="py-3 px-4">Duty Station</th>
-                    <th className="py-3 px-4">Total Applicants</th>
-                    <th className="py-3 px-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-                  {vacancies.map((v) => (
-                    <tr key={v.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-bold text-brand-700">
-                        <Link href={`/recruitment/vacancies/${v.id}/applications`} className="hover:underline">
-                          {v.referenceNumber}
-                        </Link>
-                      </td>
-                      <td className="py-3.5 px-4 font-bold text-slate-900">
-                        <Link href={`/recruitment/vacancies/${v.id}/applications`} className="hover:text-brand-700">
-                          {v.title}
-                        </Link>
-                      </td>
-                      <td className="py-3.5 px-4">{v.department.name}</td>
-                      <td className="py-3.5 px-4">{v.dutyStation.name}</td>
-                      <td className="py-3.5 px-4 font-bold text-slate-900">{v.applications.length}</td>
-                      <td className="py-3.5 px-4">
-                        <span className="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold text-[10px] border border-emerald-300">
-                          {v.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {view === 'downloads' && (
+            <>
+              <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-sm text-amber-950">
+                <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                <p>
+                  Downloads may contain personal information. Every export is recorded. Store and share files under
+                  FRAD’s privacy and retention rules.
+                </p>
+              </div>
+
+              <details className="section-panel">
+                <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-navy-900 sm:px-6 [&::-webkit-details-marker]:hidden">
+                  Filter downloads
+                  {exportFilters.size > 0 && (
+                    <span className="ml-2 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] text-brand-800">
+                      {exportFilters.size} active
+                    </span>
+                  )}
+                </summary>
+                <form
+                  method="get"
+                  className="grid gap-3 border-t border-stone-200 bg-stone-50/70 p-5 md:grid-cols-3 xl:grid-cols-6 sm:p-6"
+                >
+                  <input type="hidden" name="view" value="downloads" />
+                  <input
+                    name="search"
+                    defaultValue={typeof query.search === 'string' ? query.search : ''}
+                    placeholder="Candidate or reference"
+                    className="field-control"
+                  />
+                  <input
+                    name="vacancy"
+                    defaultValue={typeof query.vacancy === 'string' ? query.vacancy : ''}
+                    placeholder="Vacancy"
+                    className="field-control"
+                  />
+                  <input
+                    name="department"
+                    defaultValue={typeof query.department === 'string' ? query.department : ''}
+                    placeholder="Department"
+                    className="field-control"
+                  />
+                  <input
+                    name="status"
+                    defaultValue={typeof query.status === 'string' ? query.status : ''}
+                    placeholder="Status"
+                    className="field-control"
+                  />
+                  <input
+                    aria-label="From date"
+                    name="dateFrom"
+                    type="date"
+                    defaultValue={typeof query.dateFrom === 'string' ? query.dateFrom : ''}
+                    className="field-control"
+                  />
+                  <input
+                    aria-label="To date"
+                    name="dateTo"
+                    type="date"
+                    defaultValue={typeof query.dateTo === 'string' ? query.dateTo : ''}
+                    className="field-control"
+                  />
+                  <div className="flex gap-2 md:col-span-3 xl:col-span-6">
+                    <button className="btn-primary">Apply filters</button>
+                    <Link href="/recruitment/reports?view=downloads" className="btn-secondary">
+                      Clear
+                    </Link>
+                  </div>
+                </form>
+              </details>
+
+              <section aria-labelledby="registers-heading" className="section-panel">
+                <div className="section-heading">
+                  <div>
+                    <h2 id="registers-heading" className="text-lg font-semibold text-navy-900">
+                      Registers
+                    </h2>
+                    <p className="mt-1 text-sm text-stone-600">Choose a format from the row you need.</p>
+                  </div>
+                </div>
+                {REPORT_GROUPS.map((group) => {
+                  const reports = visibleReports.filter(([, , category]) => category === group)
+                  if (!reports.length) return null
+                  return (
+                    <div key={group} className="border-b border-stone-200 last:border-b-0">
+                      <h3 className="bg-stone-50 px-5 py-2.5 text-[10px] font-bold uppercase tracking-[.12em] text-stone-500 sm:px-6">
+                        {group}
+                      </h3>
+                      <div className="divide-y divide-stone-100">
+                        {reports.map(([code, label]) => (
+                          <div
+                            key={code}
+                            className="flex flex-col justify-between gap-3 px-5 py-3.5 sm:flex-row sm:items-center sm:px-6"
+                          >
+                            <p className="text-sm font-semibold text-navy-900">{label}</p>
+                            <div className="flex gap-2">
+                              {['csv', 'xlsx', 'pdf'].map((format) => (
+                                <a
+                                  key={format}
+                                  href={`/api/recruitment/reports/export?report=${code}&format=${format}${filterSuffix}`}
+                                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 hover:border-brand-300 hover:text-brand-800"
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                  {format.toUpperCase()}
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </section>
+            </>
+          )}
+
+          {view === 'scheduled' && (
+            <ReportScheduler defaultEmail={user.email} reportTypes={visibleReports.map(([code]) => code)} />
+          )}
         </div>
       </main>
-
       <Footer />
     </div>
   )

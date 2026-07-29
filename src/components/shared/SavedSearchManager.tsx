@@ -14,7 +14,13 @@ import { formatDate } from '@/lib/utils'
 interface SavedSearch {
   id: string
   name: string
-  criteria: { search?: string; departmentId?: string; dutyStationId?: string; contractType?: string }
+  criteria: {
+    search?: string
+    departmentId?: string
+    categoryId?: string
+    dutyStationId?: string
+    contractType?: string
+  }
   alertsEnabled: boolean
   frequency: string
   lastAlertAt: string | null
@@ -23,12 +29,20 @@ interface SavedSearch {
 export default function SavedSearchManager() {
   const [searches, setSearches] = useState<SavedSearch[]>([])
   const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([])
+  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([])
   const [dutyStations, setDutyStations] = useState<Array<{ id: string; name: string }>>([])
   const [maximum, setMaximum] = useState(10)
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [adding, setAdding] = useState(false)
-  const [draft, setDraft] = useState({ name: '', search: '', departmentId: '', dutyStationId: '', frequency: 'DAILY' })
+  const [draft, setDraft] = useState({
+    name: '',
+    search: '',
+    departmentId: '',
+    categoryId: '',
+    dutyStationId: '',
+    frequency: 'DAILY',
+  })
 
   const load = useCallback(async () => {
     const [saved, reference] = await Promise.all([
@@ -47,7 +61,7 @@ export default function SavedSearchManager() {
       if (all.ok) {
         const data = await all.json()
         const vacancies = data.vacancies ?? []
-        const uniqueBy = (key: 'department' | 'dutyStation') => {
+        const uniqueBy = (key: 'department' | 'category' | 'dutyStation') => {
           const map = new Map<string, string>()
           for (const vacancy of vacancies) {
             if (vacancy[key]?.id) map.set(vacancy[key].id, vacancy[key].name)
@@ -55,6 +69,7 @@ export default function SavedSearchManager() {
           return [...map].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
         }
         setDepartments(uniqueBy('department'))
+        setCategories(uniqueBy('category'))
         setDutyStations(uniqueBy('dutyStation'))
       }
     }
@@ -89,10 +104,11 @@ export default function SavedSearchManager() {
     const criteria = {
       search: draft.search.trim() || undefined,
       departmentId: draft.departmentId || undefined,
+      categoryId: draft.categoryId || undefined,
       dutyStationId: draft.dutyStationId || undefined,
     }
     if (await call('POST', { name: draft.name, criteria, frequency: draft.frequency, alertsEnabled: true }, 'create')) {
-      setDraft({ name: '', search: '', departmentId: '', dutyStationId: '', frequency: 'DAILY' })
+      setDraft({ name: '', search: '', departmentId: '', categoryId: '', dutyStationId: '', frequency: 'DAILY' })
       setAdding(false)
       setMessage('Saved. We will email you when a matching vacancy opens.')
     }
@@ -103,6 +119,9 @@ export default function SavedSearchManager() {
     if (search.criteria.search) parts.push(`"${search.criteria.search}"`)
     if (search.criteria.departmentId) {
       parts.push(departments.find((item) => item.id === search.criteria.departmentId)?.name ?? 'a department')
+    }
+    if (search.criteria.categoryId) {
+      parts.push(categories.find((item) => item.id === search.criteria.categoryId)?.name ?? 'a job family')
     }
     if (search.criteria.dutyStationId) {
       parts.push(dutyStations.find((item) => item.id === search.criteria.dutyStationId)?.name ?? 'a location')
@@ -169,6 +188,21 @@ export default function SavedSearchManager() {
               </select>
             </label>
             <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              Job family
+              <select
+                value={draft.categoryId}
+                onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}
+                className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm"
+              >
+                <option value="">Any job family</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
               Location
               <select
                 value={draft.dutyStationId}
@@ -202,7 +236,7 @@ export default function SavedSearchManager() {
               disabled={
                 !draft.name.trim() ||
                 busy !== null ||
-                (!draft.search.trim() && !draft.departmentId && !draft.dutyStationId)
+                (!draft.search.trim() && !draft.departmentId && !draft.categoryId && !draft.dutyStationId)
               }
               className="btn-primary inline-flex items-center gap-2 text-xs disabled:opacity-50"
             >
@@ -213,7 +247,7 @@ export default function SavedSearchManager() {
               Cancel
             </button>
           </div>
-          <p className="mt-2 text-xs text-slate-500">Add at least one keyword, department or location.</p>
+          <p className="mt-2 text-xs text-slate-500">Add at least one keyword, team, job family or location.</p>
         </div>
       )}
 

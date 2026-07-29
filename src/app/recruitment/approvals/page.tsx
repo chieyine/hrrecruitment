@@ -8,6 +8,7 @@ import { ArrowLeft, CheckCircle2, XCircle, ShieldCheck, Undo2 } from 'lucide-rea
 import { useToast } from '@/components/ui/Toaster'
 import { ReasonDialog } from '@/components/ui/Dialog'
 import { PageSkeleton } from '@/components/ui/Skeleton'
+import { EmptyState, PageIntro } from '@/components/ui/PageElements'
 
 export default function ApprovalsPage() {
   const { toast } = useToast()
@@ -83,26 +84,27 @@ export default function ApprovalsPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-[#f4f1ea]">
       <Header />
       <main id="main-content" className="flex-1 py-10">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 space-y-8">
+        <div className="page-shell max-w-5xl space-y-8">
           <Link
             href="/recruitment/dashboard"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-600 hover:text-brand-700"
           >
-            <ArrowLeft className="h-4 w-4" /> Back to Dashboard
+            <ArrowLeft className="h-4 w-4" /> Back to recruitment
           </Link>
 
-          <div className="rounded-2xl bg-slate-900 p-8 text-white shadow-xl">
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/20 px-3 py-1 rounded-full border border-emerald-400/30">
-              <ShieldCheck className="h-3.5 w-3.5" /> Approvals
-            </span>
-            <h1 className="text-3xl font-extrabold mt-2">Pending Approvals</h1>
-            <p className="text-slate-300 text-sm mt-1">
-              Vacancies, selections, and offers awaiting independent sign-off.
-            </p>
-          </div>
+          <PageIntro
+            title="Items awaiting your decision"
+            description="Check the source record before you approve. Return anything that is incomplete or unclear."
+            actions={
+              <div className="flex items-center gap-3 border-l-2 border-[#bc6747] pl-4">
+                <ShieldCheck className="h-5 w-5 text-brand-700" />
+                <span className="text-sm text-stone-600">{approvals.length} waiting</span>
+              </div>
+            }
+          />
 
           {error && (
             <div role="alert" className="rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800">
@@ -113,31 +115,87 @@ export default function ApprovalsPage() {
           {loading ? (
             <PageSkeleton />
           ) : approvals.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-              No pending approvals.
-            </div>
+            <EmptyState
+              icon={CheckCircle2}
+              title="Nothing waiting for your decision"
+              description="New requests assigned to you will appear here."
+            />
           ) : (
             <div className="space-y-3">
               {approvals.map((a) => (
-                <div
-                  key={a.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div className="text-xs space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      {a.resourceType}
-                    </span>
+                <article key={a.id} className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+                  <div className="p-5 sm:p-6">
+                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                      <div>
+                        <span className="status-chip border-stone-200 bg-stone-100 text-stone-700">
+                          {a.resourceType.toLowerCase()}
+                          {a.stage > 1 ? ` · stage ${a.stage}` : ''}
+                        </span>
+                        {a.detail ? (
+                          <>
+                            <h2 className="mt-3 text-lg font-semibold text-stone-950">
+                              {a.detail.candidate} · {a.detail.vacancy}
+                            </h2>
+                            {a.detail.href && (
+                              <div className="mt-2 flex flex-wrap gap-4">
+                                <Link
+                                  href={a.detail.href}
+                                  className="inline-flex text-sm font-semibold text-brand-800 hover:underline"
+                                >
+                                  {a.detail.hrefLabel || 'Review source record'}
+                                </Link>
+                                {a.detail.documentHref && (
+                                  <a
+                                    href={a.detail.documentHref}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex text-sm font-semibold text-brand-800 hover:underline"
+                                  >
+                                    Preview offer letter
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <h2 className="mt-3 text-lg font-semibold text-stone-950">Approval {a.id.slice(0, 8)}</h2>
+                        )}
+                      </div>
+                      <p className="text-xs text-stone-500">
+                        Submitted {new Date(a.createdAt).toLocaleDateString('en-GB')}
+                      </p>
+                    </div>
                     {a.detail ? (
                       <>
-                        <h4 className="font-bold text-slate-900 text-sm">
-                          {a.detail.candidate} — {a.detail.vacancy}
-                        </h4>
-                        <p className="text-slate-500">
-                          Outcome: <strong>{a.detail.outcome}</strong>
-                          {a.detail.rank ? ` • Rank ${a.detail.rank}` : ''}
-                          {a.detail.overrideFlag ? ' • Ranking override' : ''}
-                        </p>
-                        {a.detail.justification && <p className="text-slate-500 italic">“{a.detail.justification}”</p>}
+                        {a.detail.fields?.length > 0 && (
+                          <dl className="mt-5 grid gap-px overflow-hidden rounded-xl border border-stone-200 bg-stone-200 sm:grid-cols-3">
+                            {a.detail.fields.map((field: any) => (
+                              <div key={field.label} className="bg-white p-3">
+                                <dt className="text-xs text-stone-500">{field.label}</dt>
+                                <dd className="mt-1 text-sm font-semibold capitalize text-stone-950">{field.value}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        )}
+                        {a.detail.overrideFlag && (
+                          <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
+                            The proposed selection is outside the funded ranking.
+                          </p>
+                        )}
+                        {a.detail.justification && (
+                          <div className="mt-4">
+                            <p className="text-xs font-medium text-stone-500">
+                              {a.resourceType === 'VACANCY'
+                                ? 'Role summary'
+                                : a.resourceType === 'OFFER'
+                                  ? 'Conditions'
+                                  : 'Decision reason'}
+                            </p>
+                            <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-stone-700">
+                              {a.detail.justification}
+                            </p>
+                          </div>
+                        )}
                         {a.conditions?.map((condition: any) => (
                           <div
                             key={condition.id}
@@ -154,11 +212,9 @@ export default function ApprovalsPage() {
                           </div>
                         ))}
                       </>
-                    ) : (
-                      <h4 className="font-bold text-slate-900 text-sm">Approval {a.id.slice(0, 8)}</h4>
-                    )}
+                    ) : null}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 bg-stone-50 px-5 py-4 sm:px-6">
                     {a.decision === 'CONDITIONS_PENDING' ? (
                       <button
                         onClick={() => setSatisfying(a.id)}
@@ -200,7 +256,7 @@ export default function ApprovalsPage() {
                       </>
                     )}
                   </div>
-                </div>
+                </article>
               ))}
             </div>
           )}
@@ -218,6 +274,7 @@ export default function ApprovalsPage() {
         description="This returns the item to the responsible recruitment team."
         confirmLabel="Reject"
         reasonLabel="Reason for rejection"
+        reasonRequired
         tone="danger"
         busy={busyId === rejecting}
       />
@@ -244,6 +301,7 @@ export default function ApprovalsPage() {
         description="The requester can revise the item and submit it again."
         confirmLabel="Return"
         reasonLabel="Clarification required"
+        reasonRequired
         busy={busyId === returning}
       />
       <ReasonDialog
@@ -256,6 +314,7 @@ export default function ApprovalsPage() {
         description="Record the conditions that must be satisfied."
         confirmLabel="Approve with conditions"
         reasonLabel="Conditions"
+        reasonRequired
         busy={busyId === conditioning}
       />
     </div>

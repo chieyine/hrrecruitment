@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermission, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
+import { canRunRecruitmentOperations } from '@/lib/recruitment-role-policy'
 
 const schema = z.discriminatedUnion('action', [
   z.object({
@@ -28,7 +29,9 @@ const schema = z.discriminatedUnion('action', [
 
 export async function GET() {
   try {
-    await requirePermission('application.read.all')
+    const user = await requirePermission('application.read.all')
+    if (!canRunRecruitmentOperations(user.roles))
+      throw new AuthzError('Talent pools are restricted to the recruitment HR team', 403)
     const [pools, eligibleCandidates] = await Promise.all([
       prisma.talentPool.findMany({
         where: { active: true },
@@ -55,6 +58,9 @@ export async function GET() {
         where: {
           consentRecords: { some: { consentType: 'TALENT_POOL', decision: true, withdrawnAt: null } },
           user: { accountStatus: 'ACTIVE' },
+          applications: {
+            some: { internalStatus: { in: ['RESERVE', 'NOT_SELECTED', 'INTERVIEW_COMPLETED', 'REFERENCE_CHECK'] } },
+          },
         },
         select: {
           id: true,
@@ -96,8 +102,15 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const user = await requirePermission('application.read.all')
+    if (!canRunRecruitmentOperations(user.roles))
+      throw new AuthzError('Talent pools are restricted to the recruitment HR team', 403)
     const input = await parseBody(request, schema)
     if (input.action === 'CREATE_POOL') {
+      const duplicate = await prisma.talentPool.findFirst({
+        where: { name: { equals: input.name, mode: 'insensitive' }, active: true },
+        select: { id: true },
+      })
+      if (duplicate) throw new AuthzError('An active talent pool already uses this name', 409)
       const pool = await prisma.talentPool.create({
         data: {
           name: input.name,
@@ -116,10 +129,33 @@ export async function POST(request: Request) {
       return Response.json({ success: true, pool }, { status: 201 })
     }
     if (input.action === 'ADD_MEMBER') {
-      const consent = await prisma.consentRecord.findFirst({
-        where: { candidateId: input.candidateId, consentType: 'TALENT_POOL', decision: true, withdrawnAt: null },
-      })
-      if (!consent) throw new AuthzError('This candidate has not consented to future-opportunity contact', 409)
+      const [pool, candidate] = await Promise.all([
+        prisma.talentPool.findFirst({ where: { id: input.talentPoolId, active: true }, select: { id: true } }),
+        prisma.candidateProfile.findFirst({
+          where: {
+            id: input.candidateId,
+            user: { accountStatus: 'ACTIVE' },
+            consentRecords: { some: { consentType: 'TALENT_POOL', decision: true, withdrawnAt: null } },
+            applications: {
+              some: { internalStatus: { in: ['RESERVE', 'NOT_SELECTED', 'INTERVIEW_COMPLETED', 'REFERENCE_CHECK'] } },
+            },
+          },
+          select: { id: true },
+        }),
+      ])
+      if (!pool) throw new AuthzError('Talent pool not found or inactive', 404)
+      if (!candidate) throw new AuthzError('This candidate is not eligible for future-opportunity contact', 409)
+      if (input.sourceApplicationId) {
+        const source = await prisma.application.findFirst({
+          where: {
+            id: input.sourceApplicationId,
+            candidateId: input.candidateId,
+            internalStatus: { in: ['RESERVE', 'NOT_SELECTED', 'INTERVIEW_COMPLETED', 'REFERENCE_CHECK'] },
+          },
+          select: { id: true },
+        })
+        if (!source) throw new AuthzError('The source application does not belong to this eligible candidate', 422)
+      }
       const member = await prisma.talentPoolMember.upsert({
         where: { talentPoolId_candidateId: { talentPoolId: input.talentPoolId, candidateId: input.candidateId } },
         update: {

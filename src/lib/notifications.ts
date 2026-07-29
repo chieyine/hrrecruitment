@@ -7,6 +7,7 @@ export interface CreateNotificationParams {
   title: string
   body: string
   deliveryChannels?: string[]
+  applicationId?: string
 }
 
 export async function createNotification(params: CreateNotificationParams) {
@@ -31,6 +32,7 @@ export async function createNotification(params: CreateNotificationParams) {
           channel: 'EMAIL',
           recipient: user.email,
           subject: params.title,
+          applicationId: params.applicationId || null,
           payloadJson: protectOutboxPayload({
             html: `<p>${params.body.replace(/[<&]/g, (char) => (char === '<' ? '&lt;' : '&amp;'))}</p>`,
           }),

@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { ReasonDialog } from '@/components/ui/Dialog'
 
 type RequestRecord = {
   id: string
+  applicationId: string
   requestType: string
   details: string
   status: string
@@ -14,10 +16,17 @@ type RequestRecord = {
   vacancy: string
 }
 
-export default function AccommodationManager({ requests }: { requests: RequestRecord[] }) {
+export default function AccommodationManager({
+  requests,
+  canDecide,
+}: {
+  requests: RequestRecord[]
+  canDecide: boolean
+}) {
   const router = useRouter()
   const [busy, setBusy] = useState('')
   const [message, setMessage] = useState('')
+  const [messageIsError, setMessageIsError] = useState(false)
   const [pending, setPending] = useState<{ id: string; status: string } | null>(null)
   async function decide(id: string, status: string, decision: string) {
     setBusy(id)
@@ -28,6 +37,7 @@ export default function AccommodationManager({ requests }: { requests: RequestRe
     })
     const data = await response.json()
     setBusy('')
+    setMessageIsError(!response.ok)
     setMessage(response.ok ? 'Request updated and the candidate was notified.' : data.error || 'Update failed')
     if (response.ok) {
       setPending(null)
@@ -46,7 +56,12 @@ export default function AccommodationManager({ requests }: { requests: RequestRe
         <span className="text-sm font-semibold text-stone-500">{requests.length} open</span>
       </div>
       {message && (
-        <p role="status" className="border-b border-brand-200 bg-brand-50 px-5 py-3 text-sm font-medium text-brand-900">
+        <p
+          role={messageIsError ? 'alert' : 'status'}
+          className={`border-b px-5 py-3 text-sm font-medium ${
+            messageIsError ? 'border-red-200 bg-red-50 text-red-900' : 'border-brand-200 bg-brand-50 text-brand-900'
+          }`}
+        >
           {message}
         </p>
       )}
@@ -68,9 +83,24 @@ export default function AccommodationManager({ requests }: { requests: RequestRe
               <div className="mt-4 border-l-2 border-stone-300 pl-4">
                 <p className="text-sm leading-6 text-stone-700">{request.details}</p>
               </div>
+              <Link
+                href={`/recruitment/applications/${request.applicationId}`}
+                className="mt-4 inline-flex text-sm font-semibold text-brand-800 hover:underline"
+              >
+                Open application
+              </Link>
             </div>
             <div className="flex shrink-0 flex-wrap items-start gap-2 lg:max-w-72 lg:justify-end">
-              {!['APPROVED', 'PARTIALLY_APPROVED'].includes(request.status) && (
+              {request.status === 'REQUESTED' && (
+                <button
+                  disabled={busy === request.id}
+                  onClick={() => setPending({ id: request.id, status: 'UNDER_REVIEW' })}
+                  className="rounded-lg border border-stone-300 bg-white px-3.5 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                >
+                  Start review
+                </button>
+              )}
+              {canDecide && ['REQUESTED', 'UNDER_REVIEW'].includes(request.status) && (
                 <>
                   <button
                     disabled={busy === request.id}
@@ -121,13 +151,27 @@ export default function AccommodationManager({ requests }: { requests: RequestRe
         title={
           pending?.status === 'FULFILLED'
             ? 'Confirm adjustment provided'
-            : pending?.status === 'DECLINED'
-              ? 'Decline adjustment request'
-              : 'Record adjustment decision'
+            : pending?.status === 'UNDER_REVIEW'
+              ? 'Start reviewing this request'
+              : pending?.status === 'DECLINED'
+                ? 'Decline adjustment request'
+                : 'Record adjustment decision'
         }
-        description="Write down what FRAD agreed to provide. The candidate will receive this wording."
-        confirmLabel="Save decision"
-        reasonLabel="Response to the candidate"
+        description={
+          pending?.status === 'UNDER_REVIEW'
+            ? 'Tell the candidate what will happen next. This message will be visible to them.'
+            : pending?.status === 'FULFILLED'
+              ? 'Record how the agreed adjustment was put in place. This note is retained in the audit record.'
+              : 'Write down what FRAD agreed to provide. The candidate will receive this wording.'
+        }
+        confirmLabel={
+          pending?.status === 'UNDER_REVIEW'
+            ? 'Start review'
+            : pending?.status === 'FULFILLED'
+              ? 'Confirm ready'
+              : 'Save decision'
+        }
+        reasonLabel={pending?.status === 'FULFILLED' ? 'Fulfilment note' : 'Response to the candidate'}
         reasonRequired
         busy={Boolean(pending && busy === pending.id)}
         tone={pending?.status === 'DECLINED' ? 'danger' : 'default'}

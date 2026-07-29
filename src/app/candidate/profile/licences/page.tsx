@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from 'react'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Award, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, Award, Pencil, Trash2, CheckCircle2, FileCheck2 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/Dialog'
+import { EmptyState, PageIntro } from '@/components/ui/PageElements'
 
 type Licence = {
   id: string
@@ -38,6 +39,7 @@ export default function CandidateLicencesPage() {
   const [error, setError] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<Licence | null>(null)
   const [evidence, setEvidence] = useState<File | null>(null)
+  const [removeEvidence, setRemoveEvidence] = useState(false)
 
   const loadData = useCallback(async () => {
     const response = await fetch('/api/candidate/profile')
@@ -52,7 +54,11 @@ export default function CandidateLicencesPage() {
   const openAdd = () => {
     setEditingId(null)
     setFormData(emptyForm)
+    setEvidence(null)
+    setRemoveEvidence(false)
     setShowForm(true)
+    setEvidence(null)
+    setRemoveEvidence(false)
     setMessage('')
     setError('')
   }
@@ -77,7 +83,7 @@ export default function CandidateLicencesPage() {
     setBusy(true)
     setError('')
     try {
-      let evidenceFileId = formData.evidenceFileId || undefined
+      let evidenceFileId: string | null | undefined = removeEvidence ? null : formData.evidenceFileId || undefined
       if (evidence) {
         const uploadData = new FormData()
         uploadData.append('file', evidence)
@@ -110,158 +116,196 @@ export default function CandidateLicencesPage() {
   const remove = async (licence: Licence) => {
     setBusy(true)
     setError('')
-    const response = await fetch(`/api/candidate/licences/${licence.id}`, { method: 'DELETE' })
-    const body = await response.json()
-    if (!response.ok) setError(body.error || 'Unable to delete licence')
-    else {
+    try {
+      const response = await fetch(`/api/candidate/licences/${licence.id}`, { method: 'DELETE' })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error || 'Unable to delete licence')
       setMessage('Licence deleted.')
       await loadData()
       setDeleteTarget(null)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to delete licence')
+    } finally {
+      setBusy(false)
     }
-    setBusy(false)
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+    <div className="flex min-h-screen flex-col bg-surface-50">
       <Header />
-      <main id="main-content" className="max-w-4xl mx-auto px-4 py-8 flex-1 w-full">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link aria-label="Back to profile" href="/candidate/profile" className="rounded-lg border bg-white p-2">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold">Licences and memberships</h1>
-              <p className="text-sm text-slate-600">Add professional licences and memberships.</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={openAdd}
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white"
+      <main id="main-content" className="flex-1 py-7 sm:py-9">
+        <div className="page-shell max-w-5xl space-y-6">
+          <Link
+            href="/candidate/profile"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-stone-600 hover:text-brand-800"
           >
-            <Plus className="h-4 w-4" /> Add Licence
-          </button>
-        </div>
-
-        {message && (
-          <p
-            role="status"
-            className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
-          >
-            {message}
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-            {error}
-          </p>
-        )}
-
-        {showForm && (
-          <form onSubmit={save} className="mb-6 space-y-4 rounded-xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold">
-              {editingId ? 'Edit Professional Licence' : 'Add Professional Licence'}
-            </h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field
-                label="Professional Body"
-                value={formData.professionalBody}
-                onChange={(professionalBody) => setFormData({ ...formData, professionalBody })}
-                required
-              />
-              <Field
-                label="Licence / Membership Type"
-                value={formData.licenceType}
-                onChange={(licenceType) => setFormData({ ...formData, licenceType })}
-                required
-              />
-              <Field
-                label="Licence Number"
-                value={formData.licenceNumber}
-                onChange={(licenceNumber) => setFormData({ ...formData, licenceNumber })}
-                required
-              />
-              <Field
-                label="Licence Issue Date"
-                type="date"
-                value={formData.issueDate}
-                onChange={(issueDate) => setFormData({ ...formData, issueDate })}
-                required
-              />
-              <Field
-                label="Licence Expiry Date"
-                type="date"
-                value={formData.expiryDate}
-                onChange={(expiryDate) => setFormData({ ...formData, expiryDate })}
-              />
-              <label className="text-sm font-medium md:col-span-2">
-                Licence or membership evidence
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-                  onChange={(event) => setEvidence(event.target.files?.[0] || null)}
-                  className="mt-1 block w-full text-sm"
-                />
-                {formData.evidenceFileId && !evidence && (
-                  <span className="mt-1 block text-xs font-normal text-emerald-700">
-                    Evidence already attached. Choose a file only to replace it.
-                  </span>
-                )}
-              </label>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm">
-                Cancel
+            <ArrowLeft className="h-4 w-4" /> Profile
+          </Link>
+          <PageIntro
+            eyebrow="Your profile"
+            title="Professional licences"
+            description="Add a current registration or licence when it is required for the work you do."
+            actions={
+              <button type="button" onClick={openAdd} className="btn-primary">
+                <Plus className="h-4 w-4" /> Add a licence
               </button>
-              <button
-                disabled={busy}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-              >
-                {busy ? 'Saving…' : editingId ? 'Update Licence' : 'Save Licence'}
-              </button>
-            </div>
-          </form>
-        )}
+            }
+          />
 
-        <div className="space-y-4">
-          {!licences.length && (
-            <div className="rounded-xl border bg-white p-8 text-center text-slate-500">
-              No professional licences added yet.
+          {message && (
+            <div
+              role="status"
+              className="flex items-center gap-2 border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"
+            >
+              <CheckCircle2 className="h-5 w-5" /> {message}
             </div>
           )}
-          {licences.map((licence) => (
-            <article key={licence.id} className="flex items-start gap-4 rounded-xl border bg-white p-6 shadow-sm">
-              <div className="rounded-xl bg-purple-50 p-3 text-purple-600">
-                <Award className="h-6 w-6" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-lg font-bold">{licence.licenceType}</h3>
-                <p className="text-sm text-slate-600">{licence.professionalBody}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Reg No: {licence.licenceNumber} • {licence.verificationStatus}
+          {error && (
+            <p role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+              {error}
+            </p>
+          )}
+
+          {showForm && (
+            <form onSubmit={save} className="section-panel space-y-5">
+              <div>
+                <h2 className="text-lg font-bold text-stone-950">{editingId ? 'Edit licence' : 'Add a licence'}</h2>
+                <p className="mt-1 text-sm text-stone-600">
+                  Use the details issued by the regulator or professional body.
                 </p>
               </div>
-              <div className="flex gap-2">
-                <button
-                  aria-label={`Edit licence ${licence.licenceNumber}`}
-                  type="button"
-                  onClick={() => openEdit(licence)}
-                  className="rounded-lg border p-2 text-brand-700"
-                >
-                  <Pencil className="h-4 w-4" />
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field
+                  label="Regulator or professional body"
+                  value={formData.professionalBody}
+                  onChange={(professionalBody) => setFormData({ ...formData, professionalBody })}
+                  required
+                />
+                <Field
+                  label="Licence or registration"
+                  value={formData.licenceType}
+                  onChange={(licenceType) => setFormData({ ...formData, licenceType })}
+                  required
+                />
+                <Field
+                  label="Registration or licence number"
+                  value={formData.licenceNumber}
+                  onChange={(licenceNumber) => setFormData({ ...formData, licenceNumber })}
+                  required
+                />
+                <Field
+                  label="Issue date"
+                  type="date"
+                  value={formData.issueDate}
+                  onChange={(issueDate) => setFormData({ ...formData, issueDate })}
+                  required
+                />
+                <Field
+                  label="Expiry date (optional)"
+                  type="date"
+                  value={formData.expiryDate}
+                  onChange={(expiryDate) => setFormData({ ...formData, expiryDate })}
+                />
+                <label className="text-sm font-medium md:col-span-2">
+                  Evidence (optional)
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                    onChange={(event) => {
+                      setEvidence(event.target.files?.[0] || null)
+                      if (event.target.files?.[0]) setRemoveEvidence(false)
+                    }}
+                    className="mt-1 block w-full text-sm"
+                  />
+                  {formData.evidenceFileId && !evidence && !removeEvidence && (
+                    <span className="mt-2 flex flex-wrap items-center gap-3 text-xs font-normal">
+                      <a
+                        href={`/api/assets/download/${formData.evidenceFileId}`}
+                        className="font-semibold text-brand-800 underline underline-offset-4"
+                      >
+                        View attached evidence
+                      </a>
+                      <button type="button" onClick={() => setRemoveEvidence(true)} className="text-rose-700 underline">
+                        Remove evidence
+                      </button>
+                    </span>
+                  )}
+                  {removeEvidence && (
+                    <span className="mt-2 block text-xs font-normal text-stone-600">
+                      The evidence will be removed when you save.
+                    </span>
+                  )}
+                </label>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">
+                  Cancel
                 </button>
-                <button
-                  aria-label={`Delete licence ${licence.licenceNumber}`}
-                  type="button"
-                  onClick={() => setDeleteTarget(licence)}
-                  className="rounded-lg border p-2 text-rose-700"
-                >
-                  <Trash2 className="h-4 w-4" />
+                <button disabled={busy} className="btn-primary">
+                  {busy ? 'Saving…' : editingId ? 'Save changes' : 'Save licence'}
                 </button>
               </div>
-            </article>
-          ))}
+            </form>
+          )}
+
+          <div className="space-y-4">
+            {!licences.length && (
+              <EmptyState
+                icon={Award}
+                title="No professional licences"
+                description="You can leave this blank unless a vacancy requires a registration or practising licence."
+              />
+            )}
+            {licences.map((licence) => (
+              <article key={licence.id} className="section-panel flex items-start gap-4">
+                <div className="rounded-full bg-brand-50 p-3 text-brand-700">
+                  <Award className="h-6 w-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-lg font-bold text-stone-950">{licence.licenceType}</h2>
+                  <p className="text-sm text-stone-600">{licence.professionalBody}</p>
+                  <p className="mt-1 text-xs font-medium text-stone-500">Registration {licence.licenceNumber}</p>
+                  <p className="mt-2 text-xs text-stone-600">
+                    Issued {new Date(licence.issueDate).toLocaleDateString()}
+                    {licence.expiryDate ? ` · Expires ${new Date(licence.expiryDate).toLocaleDateString()}` : ''}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold">
+                    {licence.evidenceFileId && (
+                      <a
+                        href={`/api/assets/download/${licence.evidenceFileId}`}
+                        className="inline-flex items-center gap-1 text-brand-800 underline underline-offset-4"
+                      >
+                        <FileCheck2 className="h-3.5 w-3.5" /> View evidence
+                      </a>
+                    )}
+                    {licence.verificationStatus === 'VERIFIED' && (
+                      <span className="inline-flex items-center gap-1 text-emerald-700">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Checked by FRAD
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    aria-label={`Edit licence ${licence.licenceNumber}`}
+                    type="button"
+                    onClick={() => openEdit(licence)}
+                    className="btn-icon"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    aria-label={`Delete licence ${licence.licenceNumber}`}
+                    type="button"
+                    onClick={() => setDeleteTarget(licence)}
+                    className="btn-icon text-rose-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
         </div>
       </main>
       <ConfirmDialog
@@ -302,7 +346,7 @@ function Field({
         required={required}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 w-full rounded-lg border p-2.5"
+        className="field-control"
       />
     </label>
   )

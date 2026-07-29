@@ -37,6 +37,7 @@ export function formatDateTime(dateStr: string | Date | null | undefined): strin
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZoneName: 'short',
     timeZone: DISPLAY_TIME_ZONE,
   })
 }

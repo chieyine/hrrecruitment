@@ -1,290 +1,257 @@
-'use client'
-
-import { use, useState, useEffect, useCallback } from 'react'
+import { redirect, notFound } from 'next/navigation'
+import Link from 'next/link'
+import { ArrowLeft, Download, Edit3, Users } from 'lucide-react'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
-import Link from 'next/link'
-import { ArrowLeft, Users, CheckCircle, PauseCircle, XCircle, Download, Edit } from 'lucide-react'
-import { ReasonDialog } from '@/components/ui/Dialog'
+import VacancyLifecycleActions from '@/components/recruitment/VacancyLifecycleActions'
+import { PageIntro } from '@/components/ui/PageElements'
+import { getVerifiedUser } from '@/lib/auth'
+import { hasPermission } from '@/lib/rbac'
+import { prisma } from '@/lib/prisma'
+import { formatDate, getStatusBadgeClass } from '@/lib/utils'
+import { canMakeHrManagerDecision } from '@/lib/recruitment-role-policy'
 
-export default function VacancyDetailPage(props: { params: Promise<{ id: string }> }) {
-  const params = use(props.params)
-  const [vacancy, setVacancy] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState('')
+const TERMINAL_APPLICATIONS = ['DRAFT']
 
-  const loadData = useCallback(() => {
-    fetch(`/api/recruitment/vacancies/${params.id}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.vacancy) setVacancy(data.vacancy)
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [params.id])
+export default async function VacancyDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const user = await getVerifiedUser()
+  if (!user) redirect(`/auth/login?next=/recruitment/vacancies/${id}`)
+  const [readAll, readAssigned, canUpdate, canExport] = await Promise.all([
+    hasPermission(user.userId, 'vacancy.read.all'),
+    hasPermission(user.userId, 'vacancy.read.assigned'),
+    hasPermission(user.userId, 'vacancy.update.all'),
+    hasPermission(user.userId, 'report.export'),
+  ])
+  if (!readAll && !readAssigned) redirect('/recruitment/dashboard')
 
-  useEffect(() => {
-    loadData()
-  }, [loadData])
+  const vacancy = await prisma.vacancy.findUnique({
+    where: { id },
+    include: {
+      department: true,
+      project: true,
+      category: true,
+      dutyStation: true,
+      questions: { orderBy: { displayOrder: 'asc' } },
+      requiredDocuments: true,
+    },
+  })
+  if (!vacancy || (!readAll && vacancy.ownerUserId !== user.userId)) notFound()
 
-  const [pendingAction, setPendingAction] = useState<string | null>(null)
-
-  const handleAction = async (action: string, reason = '') => {
-    if (['CANCEL', 'APPROVE'].includes(action) && !reason && pendingAction !== action) {
-      setPendingAction(action)
-      return
-    }
-    try {
-      const response = await fetch(`/api/recruitment/vacancies/${params.id}/actions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, reason }),
-      })
-      const data = await response.json()
-      setMessage(response.ok ? 'Vacancy action completed.' : data.error || 'Action failed.')
-      setPendingAction(null)
-      loadData()
-    } catch (err) {
-      console.error(err)
-    }
+  const [approval, groupedApplications] = await Promise.all([
+    prisma.approval.findFirst({
+      where: { resourceType: 'VACANCY', resourceId: vacancy.id },
+      orderBy: { id: 'desc' },
+    }),
+    prisma.application.groupBy({
+      by: ['internalStatus'],
+      where: { vacancyId: vacancy.id, internalStatus: { notIn: TERMINAL_APPLICATIONS } },
+      _count: true,
+    }),
+  ])
+  const counts = Object.fromEntries(groupedApplications.map((item) => [item.internalStatus, item._count]))
+  const applicationCount = groupedApplications.reduce((sum, item) => sum + item._count, 0)
+  const manager = canMakeHrManagerDecision(user.roles)
+  const canSubmit = canUpdate && vacancy.status === 'DRAFT' && (vacancy.ownerUserId === user.userId || manager)
+  const canPublish =
+    canUpdate &&
+    vacancy.status === 'PENDING_APPROVAL' &&
+    ['APPROVED', 'APPROVED_WITH_CONDITIONS'].includes(approval?.decision || '')
+  const capabilities = {
+    edit: canUpdate && vacancy.status === 'DRAFT',
+    submit: canSubmit,
+    reviewApproval:
+      approval?.decision === 'PENDING' &&
+      approval.approverUserId === user.userId &&
+      approval.requestedBy !== user.userId,
+    publish: canPublish,
+    pause: canUpdate && vacancy.status === 'OPEN',
+    resume: canUpdate && vacancy.status === 'PAUSED',
+    close: canUpdate && ['OPEN', 'PAUSED'].includes(vacancy.status),
+    cancel: manager && ['DRAFT', 'PENDING_APPROVAL', 'SCHEDULED', 'OPEN', 'PAUSED'].includes(vacancy.status),
   }
 
+  const pipeline = [
+    { label: 'New review', value: (counts.SUBMITTED || 0) + (counts.UNDER_REVIEW || 0) },
+    {
+      label: 'Shortlist',
+      value: ['LONGLISTED', 'SHORTLISTED', 'ASSESSMENT_INVITED', 'ASSESSMENT_COMPLETED'].reduce(
+        (sum, status) => sum + (counts[status] || 0),
+        0
+      ),
+    },
+    {
+      label: 'Interview',
+      value: ['INTERVIEW_INVITED', 'INTERVIEW_COMPLETED', 'REFERENCE_CHECK'].reduce(
+        (sum, status) => sum + (counts[status] || 0),
+        0
+      ),
+    },
+    {
+      label: 'Offer / start',
+      value: [
+        'RECOMMENDED',
+        'RESERVE',
+        'OFFER_DRAFT',
+        'OFFER_SENT',
+        'OFFER_ACCEPTED',
+        'PREBOARDING',
+        'READY_TO_RESUME',
+        'RESUMED',
+        'TRANSFERRED_TO_ERP',
+      ].reduce((sum, status) => sum + (counts[status] || 0), 0),
+    },
+  ]
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
-      <Header />
-      <main id="main-content" className="max-w-6xl mx-auto px-4 py-8 flex-1 w-full">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/recruitment/vacancies"
-              className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-            >
-              <ArrowLeft className="w-4 h-4 text-slate-600" />
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Vacancy Workspace</h1>
-              <p className="text-slate-600 text-sm">
-                Specification, approvals, applicant pipeline, and accountable work in one place.
-              </p>
-            </div>
-          </div>
-          {vacancy && (
-            <div className="flex flex-wrap items-center gap-2">
-              {vacancy.capabilities?.exportDocumentation && (
-                <a href={`/api/recruitment/vacancies/${params.id}/documentation`} className="btn-secondary">
-                  <Download className="h-4 w-4" />
-                  Export vacancy file
-                </a>
-              )}
-              <Link
-                href={`/recruitment/vacancies/${params.id}/applications`}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg text-sm inline-flex items-center gap-2"
-              >
-                <Users className="w-4 h-4" /> View Applicants ({vacancy.applications?.length || 0})
+    <div className="flex min-h-screen flex-col bg-surface-50">
+      <Header currentUser={user} />
+      <main id="main-content" className="flex-1 py-7 sm:py-9">
+        <div className="page-shell space-y-6">
+          <Link
+            href="/recruitment/vacancies"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-stone-600 hover:text-brand-800"
+          >
+            <ArrowLeft className="h-4 w-4" /> Vacancies
+          </Link>
+          <PageIntro
+            eyebrow={vacancy.referenceNumber}
+            title={vacancy.title}
+            description={`${vacancy.department.name} · ${vacancy.dutyStation.name}`}
+            actions={
+              <>
+                {canExport && (
+                  <a href={`/api/recruitment/vacancies/${vacancy.id}/documentation`} className="btn-secondary">
+                    <Download className="h-4 w-4" /> Export file
+                  </a>
+                )}
+                <Link href={`/recruitment/vacancies/${vacancy.id}/applications`} className="btn-primary">
+                  <Users className="h-4 w-4" /> Applications ({applicationCount})
+                </Link>
+              </>
+            }
+          />
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {pipeline.map((item) => (
+              <Link key={item.label} href={`/recruitment/vacancies/${vacancy.id}/applications`} className="metric-card">
+                <p className="text-[10px] font-bold uppercase tracking-[.11em] text-stone-500">{item.label}</p>
+                <p className="mt-3 text-3xl font-semibold tracking-[-.04em] text-navy-900">{item.value}</p>
               </Link>
+            ))}
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-[1fr_320px]">
+            <div className="space-y-5">
+              <section className="section-panel">
+                <div className="section-heading">
+                  <div>
+                    <h2 className="text-lg font-semibold text-navy-900">Role specification</h2>
+                    <p className="mt-1 text-sm text-stone-600">
+                      {vacancy.contractType.replaceAll('_', ' ').toLowerCase()} · {vacancy.numberOfPositions}{' '}
+                      {vacancy.numberOfPositions === 1 ? 'position' : 'positions'} · closes{' '}
+                      {formatDate(vacancy.closingAt)}
+                    </p>
+                  </div>
+                  {capabilities.edit && (
+                    <Link href={`/recruitment/vacancies/${vacancy.id}/edit`} className="btn-secondary">
+                      <Edit3 className="h-4 w-4" /> Edit draft
+                    </Link>
+                  )}
+                </div>
+                <Specification title="Summary">{vacancy.summary}</Specification>
+                <Specification title="Responsibilities">{vacancy.responsibilities}</Specification>
+                <Specification title="Essential requirements">{vacancy.essentialQualifications}</Specification>
+                {vacancy.desirableQualifications && (
+                  <Specification title="Desirable requirements">{vacancy.desirableQualifications}</Specification>
+                )}
+              </section>
+
+              <section className="section-panel">
+                <div className="section-heading">
+                  <div>
+                    <h2 className="text-lg font-semibold text-navy-900">Application setup</h2>
+                    <p className="mt-1 text-sm text-stone-600">Questions and files requested from each candidate.</p>
+                  </div>
+                </div>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <SetupList
+                    title="Questions"
+                    empty="No additional questions."
+                    items={vacancy.questions.map((question) => `${question.label}${question.required ? ' *' : ''}`)}
+                  />
+                  <SetupList
+                    title="Documents"
+                    empty="No documents requested."
+                    items={vacancy.requiredDocuments.map(
+                      (document) => `${document.documentType.replaceAll('_', ' ')}${document.required ? ' *' : ''}`
+                    )}
+                  />
+                </div>
+              </section>
             </div>
-          )}
+
+            <aside className="space-y-5">
+              <section className="section-panel">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-base font-semibold text-navy-900">Vacancy status</h2>
+                  <span className={`status-chip ${getStatusBadgeClass(vacancy.status)}`}>
+                    {vacancy.status.replaceAll('_', ' ').toLowerCase()}
+                  </span>
+                </div>
+                <dl className="mt-5 space-y-3 text-sm">
+                  <Meta label="Opens" value={formatDate(vacancy.openingAt)} />
+                  <Meta label="Closes" value={formatDate(vacancy.closingAt)} />
+                  <Meta
+                    label="Approval"
+                    value={(approval?.decision || 'Not requested').replaceAll('_', ' ').toLowerCase()}
+                  />
+                  <Meta label="Project" value={vacancy.project?.name || 'None'} />
+                </dl>
+              </section>
+              <VacancyLifecycleActions vacancyId={vacancy.id} capabilities={capabilities} />
+            </aside>
+          </div>
         </div>
-
-        {loading ? (
-          <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
-            Loading vacancy specification…
-          </div>
-        ) : !vacancy ? (
-          <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
-            Vacancy record not found.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[
-                  [
-                    'Submitted',
-                    vacancy.applications?.filter((application: any) =>
-                      ['SUBMITTED', 'UNDER_REVIEW'].includes(application.internalStatus)
-                    ).length || 0,
-                  ],
-                  [
-                    'Shortlisted',
-                    vacancy.applications?.filter((application: any) =>
-                      ['SHORTLISTED', 'ASSESSMENT_INVITED', 'ASSESSMENT_COMPLETED'].includes(application.internalStatus)
-                    ).length || 0,
-                  ],
-                  [
-                    'Interview',
-                    vacancy.applications?.filter((application: any) =>
-                      ['INTERVIEW_INVITED', 'INTERVIEW_COMPLETED', 'REFERENCE_CHECK'].includes(
-                        application.internalStatus
-                      )
-                    ).length || 0,
-                  ],
-                  [
-                    'Offer / hire',
-                    vacancy.applications?.filter((application: any) =>
-                      [
-                        'OFFER_DRAFT',
-                        'OFFER_SENT',
-                        'OFFER_ACCEPTED',
-                        'PREBOARDING',
-                        'READY_TO_RESUME',
-                        'RESUMED',
-                        'TRANSFERRED_TO_ERP',
-                      ].includes(application.internalStatus)
-                    ).length || 0,
-                  ],
-                ].map(([label, value]) => (
-                  <Link
-                    key={String(label)}
-                    href={`/recruitment/vacancies/${params.id}/applications`}
-                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-                  >
-                    <p className="text-[10px] font-bold uppercase text-slate-500">{label}</p>
-                    <p className="mt-1 text-2xl font-extrabold text-slate-900">{value}</p>
-                  </Link>
-                ))}
-              </div>
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">
-                  {vacancy.referenceNumber}
-                </span>
-                <h2 className="text-2xl font-bold text-slate-900 mt-1">{vacancy.title}</h2>
-                <p className="text-slate-600 text-sm mt-1">
-                  {vacancy.department?.name} • {vacancy.dutyStation?.name}
-                </p>
-
-                <div className="mt-6 border-t border-slate-100 pt-4 space-y-4">
-                  <div>
-                    <h3 className="font-semibold text-slate-900 text-sm">Job Summary</h3>
-                    <p className="text-slate-600 text-sm mt-1">{vacancy.summary}</p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-slate-900 text-sm">Responsibilities</h3>
-                    <pre className="text-slate-600 text-sm mt-1 whitespace-pre-wrap font-sans">
-                      {vacancy.responsibilities}
-                    </pre>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-slate-900 text-sm">Essential Qualifications</h3>
-                    <p className="text-slate-600 text-sm mt-1">{vacancy.essentialQualifications}</p>
-                  </div>
-                </div>
-                {vacancy.questions?.length > 0 && (
-                  <div className="mt-6 border-t border-slate-100 pt-4">
-                    <h3 className="font-semibold text-slate-900 text-sm">Application questions</h3>
-                    <ul className="mt-2 list-disc pl-5 text-sm text-slate-600">
-                      {vacancy.questions.map((q: any) => (
-                        <li key={q.id}>
-                          {q.label}
-                          {q.required ? ' *' : ''}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {vacancy.requiredDocuments?.length > 0 && (
-                  <div className="mt-4">
-                    <h3 className="font-semibold text-slate-900 text-sm">Required documents</h3>
-                    <ul className="mt-2 list-disc pl-5 text-sm text-slate-600">
-                      {vacancy.requiredDocuments.map((d: any) => (
-                        <li key={d.id}>
-                          {d.documentType}
-                          {d.required ? ' *' : ''}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="font-bold text-slate-900 text-base mb-4">Vacancy Control Panel</h3>
-                {message && (
-                  <p role="status" className="mb-3 rounded-lg bg-slate-100 p-2 text-xs text-slate-700">
-                    {message}
-                  </p>
-                )}
-                <div className="space-y-3">
-                  <Link
-                    href={`/recruitment/work?scope=team`}
-                    className="block w-full rounded-lg border border-brand-200 bg-brand-50 py-2 text-center text-sm font-semibold text-brand-700"
-                  >
-                    View accountable work
-                  </Link>
-                  <div className="p-3 bg-slate-50 rounded-lg flex items-center justify-between text-sm">
-                    <span className="text-slate-600">Current Status</span>
-                    <span className="font-semibold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full text-xs">
-                      {vacancy.status}
-                    </span>
-                  </div>
-
-                  <Link
-                    href={`/recruitment/vacancies/${params.id}/edit`}
-                    className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 rounded-lg text-sm flex items-center justify-center gap-2"
-                  >
-                    <Edit className="w-4 h-4" /> Edit Vacancy
-                  </Link>
-
-                  <button
-                    onClick={() =>
-                      handleAction(
-                        vacancy.status === 'DRAFT'
-                          ? 'SUBMIT_APPROVAL'
-                          : ['APPROVED', 'APPROVED_WITH_CONDITIONS'].includes(vacancy.approvalStatus)
-                            ? 'PUBLISH'
-                            : 'APPROVE'
-                      )
-                    }
-                    className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium py-2 rounded-lg text-sm flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle className="w-4 h-4" />{' '}
-                    {vacancy.status === 'DRAFT'
-                      ? 'Submit for approval'
-                      : ['APPROVED', 'APPROVED_WITH_CONDITIONS'].includes(vacancy.approvalStatus)
-                        ? 'Publish approved vacancy'
-                        : 'Approve vacancy'}
-                  </button>
-
-                  <button
-                    onClick={() => handleAction(vacancy.status === 'PAUSED' ? 'RESUME' : 'PAUSE')}
-                    className="w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium py-2 rounded-lg text-sm flex items-center justify-center gap-2"
-                  >
-                    <PauseCircle className="w-4 h-4" />{' '}
-                    {vacancy.status === 'PAUSED' ? 'Resume applications' : 'Pause applications'}
-                  </button>
-
-                  <button
-                    onClick={() => handleAction('CLOSE')}
-                    className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium py-2 rounded-lg text-sm flex items-center justify-center gap-2"
-                  >
-                    <XCircle className="w-4 h-4" /> Close Vacancy
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
       <Footer />
+    </div>
+  )
+}
 
-      <ReasonDialog
-        open={pendingAction !== null}
-        onClose={() => setPendingAction(null)}
-        onConfirm={(reason) => {
-          if (pendingAction) return handleAction(pendingAction, reason || ' ')
-        }}
-        title={pendingAction === 'CANCEL' ? 'Cancel vacancy' : 'Approve vacancy'}
-        description={
-          pendingAction === 'CANCEL'
-            ? 'A reason is required to cancel; active applications are closed out.'
-            : 'Optionally record a decision note for the approval audit trail.'
-        }
-        confirmLabel={pendingAction === 'CANCEL' ? 'Cancel vacancy' : 'Approve'}
-        reasonRequired={pendingAction === 'CANCEL'}
-        tone={pendingAction === 'CANCEL' ? 'danger' : 'default'}
-      />
+function Specification({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="border-t border-stone-200 py-5 first:border-0 first:pt-0">
+      <h3 className="text-sm font-semibold text-navy-900">{title}</h3>
+      <p className="mt-2 whitespace-pre-line text-sm leading-7 text-stone-700">{children}</p>
+    </div>
+  )
+}
+
+function SetupList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-navy-900">{title}</h3>
+      {items.length ? (
+        <ul className="mt-3 space-y-2 text-sm text-stone-700">
+          {items.map((item) => (
+            <li key={item} className="border-l-2 border-stone-200 pl-3">
+              {item}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-stone-500">{empty}</p>
+      )}
+    </div>
+  )
+}
+
+function Meta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-t border-stone-100 pt-3 first:border-0 first:pt-0">
+      <dt className="text-stone-500">{label}</dt>
+      <dd className="text-right font-semibold capitalize text-stone-800">{value}</dd>
     </div>
   )
 }

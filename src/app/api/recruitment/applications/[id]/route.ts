@@ -3,6 +3,73 @@ import { prisma } from '@/lib/prisma'
 import { requireUser, authzResponse, AuthzError } from '@/lib/authz'
 import { hasPermission } from '@/lib/rbac'
 import { applicationAccess } from '@/lib/recruitment-access'
+import { allowedApplicationTransitions, isGenericApplicationStage } from '@/lib/state-machine'
+
+function submittedProfile(snapshotJson?: string | null) {
+  if (!snapshotJson) return null
+  try {
+    const profile = JSON.parse(snapshotJson) as Record<string, any>
+    return {
+      legalFirstName: profile.legalFirstName || null,
+      middleName: profile.middleName || null,
+      lastName: profile.lastName || null,
+      preferredName: profile.preferredName || null,
+      nationality: profile.nationality || null,
+      countryOfResidence: profile.countryOfResidence || null,
+      state: profile.state || null,
+      city: profile.city || null,
+      willingnessToRelocate: Boolean(profile.willingnessToRelocate),
+      earliestStartDate: profile.earliestStartDate || null,
+      education: Array.isArray(profile.education)
+        ? profile.education.map((item: Record<string, any>) => ({
+            institution: item.institution || null,
+            qualification: item.qualification || null,
+            fieldOfStudy: item.fieldOfStudy || null,
+            country: item.country || null,
+            startYear: item.startYear || null,
+            completionYear: item.completionYear || null,
+            isCurrent: Boolean(item.isCurrent),
+            grade: item.grade || null,
+          }))
+        : [],
+      employment: Array.isArray(profile.employment)
+        ? profile.employment.map((item: Record<string, any>) => ({
+            employer: item.employer || null,
+            jobTitle: item.jobTitle || null,
+            employmentType: item.employmentType || null,
+            country: item.country || null,
+            state: item.state || null,
+            location: item.location || null,
+            startDate: item.startDate || null,
+            endDate: item.endDate || null,
+            isCurrent: Boolean(item.isCurrent),
+            responsibilities: item.responsibilities || null,
+          }))
+        : [],
+      licences: Array.isArray(profile.licences)
+        ? profile.licences.map((item: Record<string, any>) => ({
+            professionalBody: item.professionalBody || null,
+            licenceType: item.licenceType || null,
+            issueDate: item.issueDate || null,
+            expiryDate: item.expiryDate || null,
+            verificationStatus: item.verificationStatus || null,
+          }))
+        : [],
+      assistedEntry:
+        profile._assistedEntry && typeof profile._assistedEntry === 'object'
+          ? {
+              reason: profile._assistedEntry.reason || null,
+              enteredAt: profile._assistedEntry.enteredAt || null,
+              missingRequiredDocumentEvidence: Array.isArray(profile._assistedEntry.missingRequiredDocumentEvidence)
+                ? profile._assistedEntry.missingRequiredDocumentEvidence.map(String)
+                : [],
+            }
+          : null,
+    }
+  } catch {
+    return null
+  }
+}
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
@@ -11,11 +78,26 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const access = await applicationAccess(user.userId, params.id)
     const readAll = access.readAll
     if (!readAll && !access.assigned) throw new AuthzError('Forbidden', 403)
-    const [canReadRestricted, canReadReferences, canManageOffers, canExportDocumentation] = await Promise.all([
+    const [
+      canReadRestricted,
+      canReadReferences,
+      canManageOffers,
+      canExportDocumentation,
+      canChangeStage,
+      canSubmitScorecard,
+      canReopenScorecard,
+      canAudit,
+      canTransferToErp,
+    ] = await Promise.all([
       hasPermission(user.userId, 'preboarding.restricted.read'),
       hasPermission(user.userId, 'reference.manage'),
       hasPermission(user.userId, 'offer.manage'),
       hasPermission(user.userId, 'report.export'),
+      hasPermission(user.userId, 'application.stage.change'),
+      hasPermission(user.userId, 'scorecard.submit'),
+      hasPermission(user.userId, 'scorecard.reopen'),
+      hasPermission(user.userId, 'audit.read'),
+      hasPermission(user.userId, 'erp.transfer'),
     ])
     const application = await prisma.application.findUnique({
       where: { id: params.id },
@@ -30,6 +112,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         },
         vacancy: { include: { department: true, dutyStation: true } },
         scorecards: { where: readAll ? {} : { reviewerUserId: user.userId }, include: { criterionScores: true } },
+        snapshots: { orderBy: { createdAt: 'desc' }, take: 1 },
         stageHistory: { orderBy: { createdAt: 'desc' } },
         notes: { orderBy: { createdAt: 'desc' } },
         answers: { include: { vacancyQuestion: true } },
@@ -87,6 +170,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (!application) {
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     }
+    if (application.internalStatus === 'DRAFT') {
+      return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    }
     if (!readAll)
       application.notes = application.notes.filter((note) => !note.restricted && note.authorUserId === user.userId)
     const relatedResourceIds = [
@@ -104,12 +190,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         orderBy: { createdAt: 'desc' },
         take: 100,
       }),
-      prisma.auditLog.findMany({
-        where: { resourceId: { in: relatedResourceIds } },
-        select: { id: true, action: true, resourceType: true, resourceId: true, reason: true, createdAt: true },
-        orderBy: { createdAt: 'desc' },
-        take: 200,
-      }),
+      canAudit
+        ? prisma.auditLog.findMany({
+            where: { resourceId: { in: relatedResourceIds } },
+            select: { id: true, action: true, resourceType: true, resourceId: true, reason: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+            take: 200,
+          })
+        : Promise.resolve([]),
       prisma.outboxMessage.findMany({
         where: { applicationId: application.id },
         select: {
@@ -151,6 +239,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const isAuditor = user.roles.includes('AUDITOR')
     const isPanelOnly = access.panelMember && !access.vacancyOwner && !access.assignedReviewer && !readAll
     const safeApplication: any = { ...application }
+    const profileAtSubmission = submittedProfile(application.snapshots[0]?.profileJson)
+    delete safeApplication.snapshots
     if (!canReadReferences) safeApplication.referees = []
     if (!canManageOffers) safeApplication.offers = []
     if (!canReadRestricted) {
@@ -174,10 +264,27 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         lastName: application.candidate.lastName,
         education: application.candidate.education,
         employment: application.candidate.employment.map((employment) => ({
-          ...employment,
-          supervisorPhone: undefined,
+          employer: employment.employer,
+          jobTitle: employment.jobTitle,
+          employmentType: employment.employmentType,
+          country: employment.country,
+          state: employment.state,
+          location: employment.location,
+          startDate: employment.startDate,
+          endDate: employment.endDate,
+          isCurrent: employment.isCurrent,
+          responsibilities: employment.responsibilities,
         })),
         licences: application.candidate.licences,
+      }
+    }
+    if (!readAll && !isAuditor && !isPanelOnly) {
+      safeApplication.candidate = {
+        ...safeApplication.candidate,
+        user: undefined,
+        primaryPhone: undefined,
+        alternatePhone: undefined,
+        address: undefined,
       }
     }
     if (isAuditor) {
@@ -198,11 +305,28 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({
       application: {
         ...safeApplication,
+        submittedProfile: isAuditor ? null : profileAtSubmission,
         approvals: isPanelOnly ? [] : approvals,
         auditHistory: isPanelOnly ? [] : auditHistory,
         deliveryHistory: readAll && !isAuditor ? deliveryHistory : [],
         possibleDuplicates: readAll && !isAuditor ? possibleDuplicates : [],
-        capabilities: { exportDocumentation: canExportDocumentation && !isPanelOnly },
+        capabilities: {
+          changeStage: canChangeStage && readAll && !isAuditor,
+          decideEligibility: canChangeStage && readAll && !isAuditor,
+          submitScorecard: canSubmitScorecard && !isAuditor && !isPanelOnly,
+          manageCase: canChangeStage && readAll && !isAuditor,
+          reopenScorecard: canReopenScorecard && readAll && !isAuditor,
+          messageCandidate: readAll && !isAuditor,
+          exportDocumentation: canExportDocumentation && !isPanelOnly,
+          viewAudit: canAudit && !isPanelOnly,
+          handover:
+            canTransferToErp &&
+            readAll &&
+            ['READY_TO_RESUME', 'RESUMED', 'TRANSFERRED_TO_ERP'].includes(application.internalStatus),
+        },
+        allowedStageTransitions: allowedApplicationTransitions(application.internalStatus).filter(
+          isGenericApplicationStage
+        ),
       },
     })
   } catch (err) {

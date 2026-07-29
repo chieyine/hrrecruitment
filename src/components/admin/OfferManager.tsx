@@ -8,9 +8,11 @@ import { ReasonDialog } from '@/components/ui/Dialog'
 export default function OfferManager({
   candidates,
   templates,
+  embedded = false,
 }: {
   candidates: Array<{ id: string; name: string; position: string; dutyStation: string; contractType: string }>
   templates: Array<{ id: string; name: string }>
+  embedded?: boolean
 }) {
   const router = useRouter()
   const [applicationId, setApplicationId] = useState('')
@@ -35,9 +37,6 @@ export default function OfferManager({
       body: JSON.stringify({
         applicationId,
         offerTemplateId: offerTemplateId || undefined,
-        position: selected.position,
-        dutyStation: selected.dutyStation,
-        contractType: selected.contractType,
         contractDuration: contractDuration || undefined,
         salary,
         startDate,
@@ -65,11 +64,10 @@ export default function OfferManager({
     }
   }
   return (
-    <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+    <form onSubmit={submit} className={embedded ? 'space-y-5 px-5 py-5 sm:px-6' : 'section-panel space-y-5'}>
       <div>
-        <h2 className="font-bold text-slate-900">Prepare an offer</h2>
-        <p className="mt-1 text-xs text-slate-600">
-          Record the complete approved terms before sending the offer for independent approval.
+        <p className="mt-1 text-sm text-stone-600">
+          Choose the approved candidate and enter the terms that will appear in the PDF preview.
         </p>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -78,7 +76,7 @@ export default function OfferManager({
           aria-label="Candidate"
           value={applicationId}
           onChange={(e) => setApplicationId(e.target.value)}
-          className="rounded-lg border border-slate-300 p-2 text-sm"
+          className="field-control"
         >
           <option value="">Select recommended candidate</option>
           {candidates.map((item) => (
@@ -91,7 +89,7 @@ export default function OfferManager({
           aria-label="Offer template"
           value={offerTemplateId}
           onChange={(event) => setOfferTemplateId(event.target.value)}
-          className="rounded-lg border border-slate-300 p-2 text-sm"
+          className="field-control"
         >
           <option value="">Standard offer wording</option>
           {templates.map((template) => (
@@ -106,14 +104,14 @@ export default function OfferManager({
           value={salary}
           onChange={(e) => setSalary(e.target.value)}
           placeholder="Approved compensation and period"
-          className="rounded-lg border border-slate-300 p-2 text-sm"
+          className="field-control"
         />
         <input
           aria-label="Contract duration"
           value={contractDuration}
           onChange={(e) => setContractDuration(e.target.value)}
           placeholder="Contract duration"
-          className="rounded-lg border border-slate-300 p-2 text-sm"
+          className="field-control"
         />
         <label className="text-xs text-slate-600">
           Start date
@@ -122,7 +120,7 @@ export default function OfferManager({
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm"
+            className="field-control mt-1"
           />
         </label>
         <label className="text-xs text-slate-600">
@@ -131,7 +129,7 @@ export default function OfferManager({
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm"
+            className="field-control mt-1"
           />
         </label>
         <label className="text-xs text-slate-600">
@@ -141,7 +139,7 @@ export default function OfferManager({
             type="date"
             value={acceptanceDeadline}
             onChange={(e) => setAcceptanceDeadline(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm"
+            className="field-control mt-1"
           />
         </label>
         <input
@@ -149,14 +147,14 @@ export default function OfferManager({
           value={probationPeriod}
           onChange={(e) => setProbationPeriod(e.target.value)}
           placeholder="Probation period"
-          className="rounded-lg border border-slate-300 p-2 text-sm"
+          className="field-control"
         />
         <input
           aria-label="Reporting line"
           value={reportingLine}
           onChange={(e) => setReportingLine(e.target.value)}
           placeholder="Reports to"
-          className="rounded-lg border border-slate-300 p-2 text-sm"
+          className="field-control"
         />
         <textarea
           aria-label="Offer conditions"
@@ -164,10 +162,10 @@ export default function OfferManager({
           onChange={(e) => setConditions(e.target.value)}
           placeholder="Conditions, if any"
           rows={2}
-          className="rounded-lg border border-slate-300 p-2 text-sm md:col-span-2 xl:col-span-3"
+          className="field-control md:col-span-2 xl:col-span-3"
         />
       </div>
-      <button className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-bold text-white">Submit for approval</button>
+      <button className="btn-primary">Submit for approval</button>
       {message && (
         <p role="status" className="text-xs text-slate-600">
           {message}
@@ -177,14 +175,14 @@ export default function OfferManager({
   )
 }
 
-export function OfferActions({ id, status }: { id: string; status: string }) {
+export function OfferActions({ id, status, canWithdraw }: { id: string; status: string; canWithdraw: boolean }) {
   const router = useRouter()
   const { toast } = useToast()
   const [withdrawing, setWithdrawing] = useState(false)
   const act = async (action: string, comment = '') => {
     const response = await fetch(`/api/recruitment/offers/${id}/actions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
       body: JSON.stringify({ action, comment }),
     })
     const data = await response.json()
@@ -196,26 +194,15 @@ export function OfferActions({ id, status }: { id: string; status: string }) {
   }
   return (
     <div className="flex flex-wrap gap-1">
-      {status === 'PENDING_APPROVAL' && (
-        <button
-          onClick={() => act('APPROVE')}
-          className="rounded bg-emerald-600 px-2 py-1 text-xs font-bold text-white hover:bg-emerald-700"
-        >
-          Approve
-        </button>
-      )}
       {status === 'APPROVED' && (
-        <button
-          onClick={() => act('SEND')}
-          className="rounded bg-brand-600 px-2 py-1 text-xs font-bold text-white hover:bg-brand-700"
-        >
+        <button onClick={() => act('SEND')} className="btn-primary min-h-0 px-3 py-1.5 text-xs">
           Send
         </button>
       )}
-      {!['ACCEPTED', 'DECLINED', 'EXPIRED', 'WITHDRAWN'].includes(status) && (
+      {canWithdraw && !['ACCEPTED', 'DECLINED', 'EXPIRED', 'WITHDRAWN'].includes(status) && (
         <button
           onClick={() => setWithdrawing(true)}
-          className="rounded bg-rose-600 px-2 py-1 text-xs font-bold text-white hover:bg-rose-700"
+          className="btn-secondary min-h-0 border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50"
         >
           Withdraw
         </button>

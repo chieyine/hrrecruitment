@@ -128,13 +128,52 @@ describe('offer relation', () => {
 })
 
 describe('reliability and governance controls', () => {
-  it('does not let the system-admin wildcard disclose explicit-only confidential content', async () => {
+  it('limits a system-admin account to technical control-plane permissions', async () => {
     const user = await prisma.user.create({ data: { email: `system-admin-${uniq()}@t.com`, passwordHash: 'x' } })
-    const role = await prisma.role.create({ data: { name: `SYSTEM_ADMIN_TEST_${uniq()}` } })
+    const role = await prisma.role.upsert({
+      where: { name: 'SYSTEM_ADMIN' },
+      update: {},
+      create: { name: 'SYSTEM_ADMIN', description: 'System administrator' },
+    })
     const wildcard = await prisma.permission.upsert({ where: { code: '*' }, update: {}, create: { code: '*' } })
-    await prisma.rolePermission.create({ data: { roleId: role.id, permissionId: wildcard.id } })
+    const technicalPermissions = await Promise.all(
+      ['admin.manage', 'audit.read', 'governance.manage'].map((code) =>
+        prisma.permission.upsert({ where: { code }, update: {}, create: { code } })
+      )
+    )
+    await prisma.rolePermission.createMany({
+      data: [wildcard, ...technicalPermissions].map((permission) => ({
+        roleId: role.id,
+        permissionId: permission.id,
+      })),
+      skipDuplicates: true,
+    })
     await prisma.userRole.create({ data: { userId: user.id, roleId: role.id, scopeType: 'GLOBAL', scopeId: 'GLOBAL' } })
-    expect(await hasPermission(user.id, 'vacancy.read.all')).toBe(true)
+    const hrRole = await prisma.role.upsert({
+      where: { name: 'HR_MANAGER' },
+      update: {},
+      create: { name: 'HR_MANAGER', description: 'HR manager' },
+    })
+    const vacancyUpdate = await prisma.permission.upsert({
+      where: { code: 'vacancy.update.all' },
+      update: {},
+      create: { code: 'vacancy.update.all' },
+    })
+    await prisma.rolePermission.createMany({
+      data: [{ roleId: hrRole.id, permissionId: vacancyUpdate.id }],
+      skipDuplicates: true,
+    })
+    await prisma.userRole.create({
+      data: { userId: user.id, roleId: hrRole.id, scopeType: 'GLOBAL', scopeId: 'GLOBAL' },
+    })
+    expect(await hasPermission(user.id, 'admin.manage')).toBe(true)
+    expect(await hasPermission(user.id, 'audit.read')).toBe(true)
+    expect(await hasPermission(user.id, 'governance.manage')).toBe(true)
+    expect(await hasPermission(user.id, 'vacancy.create.all')).toBe(false)
+    expect(await hasPermission(user.id, 'vacancy.read.all')).toBe(false)
+    // Even an accidental second HR role must not turn the technical account
+    // into a recruitment decision-maker.
+    expect(await hasPermission(user.id, 'vacancy.update.all')).toBe(false)
     expect(await hasPermission(user.id, 'preboarding.restricted.read')).toBe(false)
     expect(await hasPermission(user.id, 'application.read.all')).toBe(false)
     expect(await hasPermission(user.id, 'application.stage.change')).toBe(false)

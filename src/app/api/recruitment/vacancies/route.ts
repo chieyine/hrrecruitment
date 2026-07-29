@@ -5,10 +5,11 @@ import { hasPermission } from '@/lib/rbac'
 import { logAudit } from '@/lib/audit'
 import { z } from 'zod'
 import { parseBody, vacancySchema } from '@/lib/validation'
+import { randomBytes } from 'crypto'
 
 const createSchema = vacancySchema.and(
   z.object({
-    referenceNumber: z.string().trim().min(1).max(80),
+    referenceNumber: z.string().trim().min(1).max(80).optional(),
     projectId: z.string().optional().nullable(),
     screeningScorecardTemplateId: z.string().optional().nullable(),
     interviewScorecardTemplateId: z.string().optional().nullable(),
@@ -54,7 +55,7 @@ const createSchema = vacancySchema.and(
   })
 )
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await requireUser()
     const readAll = await hasPermission(user.userId, 'vacancy.read.all')
@@ -72,12 +73,19 @@ export async function GET() {
       contractTypes,
       documentTypes,
     ] = await Promise.all([
-      prisma.vacancy.findMany({
-        where: vacancyWhere,
-        include: { department: true, dutyStation: true, category: true, _count: { select: { applications: true } } },
-        orderBy: { createdAt: 'desc' },
-        take: 500,
-      }),
+      new URL(request.url).searchParams.get('reference') === '1'
+        ? Promise.resolve([])
+        : prisma.vacancy.findMany({
+            where: vacancyWhere,
+            include: {
+              department: true,
+              dutyStation: true,
+              category: true,
+              _count: { select: { applications: { where: { internalStatus: { not: 'DRAFT' } } } } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 500,
+          }),
       prisma.department.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
       prisma.dutyStation.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
       prisma.project.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
@@ -149,13 +157,29 @@ export async function POST(request: Request) {
       preboardingPackageId,
     } = body
 
-    const existing = await prisma.vacancy.findUnique({
-      where: { referenceNumber: referenceNumber.trim() },
-    })
-
-    if (existing) {
-      return NextResponse.json({ error: 'A vacancy with this reference number already exists' }, { status: 409 })
+    let assignedReference = referenceNumber?.trim()
+    if (assignedReference) {
+      const existing = await prisma.vacancy.findUnique({ where: { referenceNumber: assignedReference } })
+      if (existing)
+        return NextResponse.json({ error: 'A vacancy with this reference number already exists' }, { status: 409 })
+    } else {
+      for (let attempt = 0; attempt < 5 && !assignedReference; attempt += 1) {
+        const candidate = `FRAD-VAC-${new Date().getUTCFullYear()}-${randomBytes(3).toString('hex').toUpperCase()}`
+        if (!(await prisma.vacancy.findUnique({ where: { referenceNumber: candidate }, select: { id: true } }))) {
+          assignedReference = candidate
+        }
+      }
+      if (!assignedReference) throw new AuthzError('Unable to assign a vacancy reference; try again', 503)
     }
+
+    const [department, dutyStation, category, configuredContract] = await Promise.all([
+      prisma.department.findFirst({ where: { id: departmentId, active: true }, select: { id: true } }),
+      prisma.dutyStation.findFirst({ where: { id: dutyStationId, active: true }, select: { id: true } }),
+      prisma.vacancyCategory.findFirst({ where: { id: categoryId, active: true }, select: { id: true } }),
+      prisma.contractType.findFirst({ where: { code: contractType, active: true }, select: { id: true } }),
+    ])
+    if (!department || !dutyStation || !category || !configuredContract)
+      throw new AuthzError('Choose active department, location, category and contract options', 400)
 
     // Default Scorecard Template
     const defaultScorecard = await prisma.scorecardTemplate.findFirst({
@@ -167,7 +191,7 @@ export async function POST(request: Request) {
 
     const vacancy = await prisma.vacancy.create({
       data: {
-        referenceNumber: referenceNumber.trim(),
+        referenceNumber: assignedReference,
         title: title.trim(),
         departmentId,
         categoryId,

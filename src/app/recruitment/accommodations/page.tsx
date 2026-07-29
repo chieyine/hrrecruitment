@@ -7,11 +7,13 @@ import { PageIntro } from '@/components/ui/PageElements'
 import { getVerifiedUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { formatDate } from '@/lib/utils'
+import { canMakeHrManagerDecision, canRunRecruitmentOperations } from '@/lib/recruitment-role-policy'
 
 export default async function AccommodationsPage() {
   const user = await getVerifiedUser()
   if (!user) redirect('/auth/login')
-  if (!user.roles.some((role) => ['HR_MANAGER', 'SYSTEM_ADMIN'].includes(role))) redirect('/recruitment/dashboard')
+  if (user.roles.includes('SYSTEM_ADMIN')) redirect('/admin/system-settings')
+  if (!canRunRecruitmentOperations(user.roles)) redirect('/recruitment/dashboard')
   const records = await prisma.accommodationRequest.findMany({
     where: { status: { in: ['REQUESTED', 'UNDER_REVIEW', 'APPROVED', 'PARTIALLY_APPROVED'] } },
     orderBy: { requestedAt: 'asc' },
@@ -30,6 +32,7 @@ export default async function AccommodationsPage() {
     const application = byId.get(record.applicationId)
     return {
       id: record.id,
+      applicationId: record.applicationId,
       requestType: record.requestType,
       details: record.details,
       status: record.status,
@@ -53,7 +56,7 @@ export default async function AccommodationsPage() {
             actions={
               <div className="flex items-center gap-3 border-l-2 border-[#bc6747] pl-4 text-sm text-stone-600">
                 <LockKeyhole aria-hidden className="h-4 w-4 shrink-0 text-brand-700" />
-                <span className="max-w-56">Visible only to HR managers and system administrators.</span>
+                <span className="max-w-64">Visible to the recruitment HR team, never to selectors or panels.</span>
               </div>
             }
           />
@@ -70,7 +73,7 @@ export default async function AccommodationsPage() {
             </p>
           </div>
 
-          <AccommodationManager requests={requests} />
+          <AccommodationManager requests={requests} canDecide={canMakeHrManagerDecision(user.roles)} />
         </div>
       </main>
       <Footer />

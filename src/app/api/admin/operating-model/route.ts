@@ -4,29 +4,12 @@ import { requireRole, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 
-const requestSchema = z.discriminatedUnion('changeType', [
-  z.object({
-    changeType: z.literal('SLA_POLICY_UPDATE'),
-    resourceId: z.string().min(1),
-    targetMinutes: z.number().int().min(15).max(525_600),
-    warningMinutes: z.number().int().min(0).max(525_600),
-    escalationAfterMinutes: z.number().int().min(15).max(525_600).nullable(),
-    escalationRole: z.string().trim().max(100).nullable(),
-    reason: z.string().trim().min(10).max(2000),
-  }),
-  z.object({
-    changeType: z.literal('WORKFLOW_PUBLISH'),
-    resourceId: z.string().min(1),
-    reason: z.string().trim().min(10).max(2000),
-  }),
-  z.object({
-    changeType: z.literal('INTEGRATION_UPDATE'),
-    resourceId: z.string().min(1),
-    status: z.enum(['DISCONNECTED', 'CONFIGURED', 'ACTIVE', 'DEGRADED']),
-    secretReference: z.string().trim().max(500).nullable(),
-    reason: z.string().trim().min(10).max(2000),
-  }),
-])
+const requestSchema = z.object({
+  changeType: z.literal('SLA_POLICY_UPDATE'),
+  resourceId: z.string().min(1),
+  targetMinutes: z.number().int().min(15).max(525_600),
+  reason: z.string().trim().min(10).max(2000),
+})
 
 const decisionSchema = z.object({
   id: z.string().min(1),
@@ -37,19 +20,16 @@ const decisionSchema = z.object({
 
 export async function GET() {
   try {
-    await requireRole('SYSTEM_ADMIN')
-    const [slaPolicies, workflows, integrations, requests] = await Promise.all([
+    await requireRole('HR_MANAGER')
+    const [slaPolicies, requests] = await Promise.all([
       prisma.slaPolicy.findMany({ orderBy: { name: 'asc' } }),
-      prisma.workflowDefinition.findMany({
-        include: {
-          versions: { include: { transitions: { orderBy: { displayOrder: 'asc' } } }, orderBy: { version: 'desc' } },
-        },
-        orderBy: { name: 'asc' },
+      prisma.configurationChangeRequest.findMany({
+        where: { changeType: 'SLA_POLICY_UPDATE' },
+        orderBy: { requestedAt: 'desc' },
+        take: 200,
       }),
-      prisma.integrationConnection.findMany({ orderBy: [{ connectionType: 'asc' }, { provider: 'asc' }] }),
-      prisma.configurationChangeRequest.findMany({ orderBy: { requestedAt: 'desc' }, take: 200 }),
     ])
-    return Response.json({ slaPolicies, workflows, integrations, requests })
+    return Response.json({ slaPolicies, requests })
   } catch (error) {
     return authzResponse(error)
   }
@@ -57,18 +37,25 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireRole('SYSTEM_ADMIN')
+    const user = await requireRole('HR_MANAGER')
     const input = await parseBody(request, requestSchema)
-    if (input.changeType === 'SLA_POLICY_UPDATE' && input.warningMinutes > input.targetMinutes) {
-      throw new AuthzError('Warning time cannot exceed the target time', 422)
-    }
     const { changeType, resourceId, reason, ...proposed } = input
+    const policy = await prisma.slaPolicy.findUnique({ where: { id: resourceId } })
+    if (!policy || !policy.active) throw new AuthzError('Active work target not found', 404)
+    if (policy.targetMinutes === input.targetMinutes) throw new AuthzError('The work target has not changed', 422)
     const existing = await prisma.configurationChangeRequest.findFirst({
       where: { changeType, resourceId, status: 'PENDING' },
     })
     if (existing) throw new AuthzError('A change for this resource is already awaiting review', 409)
     const created = await prisma.configurationChangeRequest.create({
-      data: { changeType, resourceId, reason, proposedJson: JSON.stringify(proposed), requestedBy: user.userId },
+      data: {
+        changeType,
+        resourceId,
+        reason,
+        proposedJson: JSON.stringify(proposed),
+        previousJson: JSON.stringify({ targetMinutes: policy.targetMinutes }),
+        requestedBy: user.userId,
+      },
     })
     await logAudit({
       actorUserId: user.userId,
@@ -86,10 +73,11 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const user = await requireRole('SYSTEM_ADMIN')
+    const user = await requireRole('HR_MANAGER')
     const input = await parseBody(request, decisionSchema)
     const change = await prisma.configurationChangeRequest.findUnique({ where: { id: input.id } })
     if (!change) throw new AuthzError('Configuration change not found', 404)
+    if (change.changeType !== 'SLA_POLICY_UPDATE') throw new AuthzError('This change belongs to another review queue', 409)
     if (change.status !== 'PENDING') throw new AuthzError('This change has already been decided', 409)
     if (change.requestedBy === user.userId)
       throw new AuthzError('The requester cannot approve their own configuration change', 409)
@@ -107,40 +95,10 @@ export async function PATCH(request: Request) {
       })
       if (claimed.count !== 1) throw new AuthzError('This change was decided by another administrator', 409)
       if (input.decision === 'REJECT') return
-      if (change.changeType === 'SLA_POLICY_UPDATE') {
-        await tx.slaPolicy.update({
-          where: { id: change.resourceId },
-          data: {
-            targetMinutes: Number(proposed.targetMinutes),
-            warningMinutes: Number(proposed.warningMinutes),
-            escalationAfterMinutes:
-              proposed.escalationAfterMinutes === null ? null : Number(proposed.escalationAfterMinutes),
-            escalationRole: proposed.escalationRole ? String(proposed.escalationRole) : null,
-          },
-        })
-      } else if (change.changeType === 'WORKFLOW_PUBLISH') {
-        const version = await tx.workflowVersion.findUnique({ where: { id: change.resourceId } })
-        if (!version || version.status !== 'DRAFT')
-          throw new AuthzError('Only a draft workflow version can be published', 409)
-        if ((await tx.workflowTransitionRule.count({ where: { workflowVersionId: version.id } })) === 0)
-          throw new AuthzError('A workflow must contain transition rules before publication', 422)
-        await tx.workflowVersion.updateMany({
-          where: { workflowDefinitionId: version.workflowDefinitionId, status: 'ACTIVE' },
-          data: { status: 'RETIRED' },
-        })
-        await tx.workflowVersion.update({
-          where: { id: version.id },
-          data: { status: 'ACTIVE', publishedBy: user.userId, publishedAt: new Date() },
-        })
-      } else {
-        await tx.integrationConnection.update({
-          where: { id: change.resourceId },
-          data: {
-            status: String(proposed.status),
-            secretReference: proposed.secretReference ? String(proposed.secretReference) : null,
-          },
-        })
-      }
+      await tx.slaPolicy.update({
+        where: { id: change.resourceId },
+        data: { targetMinutes: Number(proposed.targetMinutes) },
+      })
       await tx.configurationChangeRequest.update({
         where: { id: change.id },
         data: { status: 'APPLIED', appliedAt: new Date() },

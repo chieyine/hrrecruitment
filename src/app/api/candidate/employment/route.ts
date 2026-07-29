@@ -19,8 +19,8 @@ export async function POST(request: Request) {
         .object({
           employer: z.string().trim().min(1).max(200),
           jobTitle: z.string().trim().min(1).max(200),
-          employmentType: z.string().max(80).optional(),
-          country: z.string().max(100).optional(),
+          employmentType: z.string().trim().min(1).max(80),
+          country: z.string().trim().min(1).max(100),
           state: z.string().max(100).optional(),
           location: z.string().max(200).optional(),
           startDate: z.coerce.date(),
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
           supervisorName: z.string().max(200).optional(),
           supervisorEmail: z.string().email().optional().or(z.literal('')),
           supervisorPhone: z.string().max(30).optional(),
-          permissionToContact: z.boolean().default(true),
+          permissionToContact: z.boolean().default(false),
         })
         .superRefine((v, ctx) => {
           const now = new Date()
@@ -50,8 +50,8 @@ export async function POST(request: Request) {
         candidateId: profile.id,
         employer: body.employer,
         jobTitle: body.jobTitle,
-        employmentType: body.employmentType || 'FULL_TIME',
-        country: body.country || 'Nigeria',
+        employmentType: body.employmentType,
+        country: body.country,
         state: body.state,
         location: body.location,
         startDate: body.startDate,

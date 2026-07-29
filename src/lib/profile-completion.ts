@@ -22,25 +22,11 @@ type ProfileForCompletion = {
 export function profileCompletion(profile: ProfileForCompletion | null | undefined) {
   if (!profile) return { percentage: 0, missing: ['Create your candidate profile'] }
   const checks = [
-    ['First name', Boolean(profile.legalFirstName?.trim())],
-    ['Last name', Boolean(profile.lastName?.trim())],
+    ['Legal name', Boolean(profile.legalFirstName?.trim() && profile.lastName?.trim())],
     ['Phone number', Boolean(profile.primaryPhone?.trim())],
-    ['Nationality', Boolean(profile.nationality?.trim())],
-    ['Country of residence', Boolean(profile.countryOfResidence?.trim())],
-    ['State', Boolean(profile.state?.trim())],
-    ['City or town', Boolean(profile.city?.trim())],
-    ['Address', Boolean(profile.address?.trim())],
-    ['Preferred contact method', Boolean(profile.preferredContactMethod?.trim())],
-    ['Earliest start date', Boolean(profile.earliestStartDate)],
-    ['Education record', Boolean(profile.education?.length)],
-    ['Employment record', Boolean(profile.employment?.length)],
+    ['Current location', Boolean(profile.countryOfResidence?.trim() && profile.city?.trim())],
+    ['Education or employment history', Boolean(profile.education?.length || profile.employment?.length)],
     ['Reusable document', Boolean(profile.documents?.length)],
-    ['Skills', Boolean(profile.skills?.length)],
-    ['Languages', Boolean(profile.languages?.length)],
-    [
-      'Preferred duty locations',
-      Boolean(profile.preferredDutyLocationsJson && profile.preferredDutyLocationsJson !== '[]'),
-    ],
   ] as const
   const complete = checks.filter(([, done]) => done).length
   return {

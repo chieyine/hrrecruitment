@@ -10,20 +10,31 @@ import { formatDate } from '@/lib/utils'
 
 export async function generateMetadata(props: { params: Promise<{ reference: string }> }): Promise<Metadata> {
   const params = await props.params
-  const vacancy = await prisma.vacancy.findUnique({
-    where: { referenceNumber: decodeURIComponent(params.reference) },
+  const vacancy = await prisma.vacancy.findFirst({
+    where: {
+      referenceNumber: decodeURIComponent(params.reference),
+      status: 'OPEN',
+      openingAt: { lte: new Date() },
+      closingAt: { gt: new Date() },
+    },
     select: { title: true, summary: true },
   })
-  return vacancy ? { title: vacancy.title, description: vacancy.summary } : { title: 'Vacancy' }
+  return vacancy ? { title: vacancy.title, description: vacancy.summary } : { title: 'Role not available' }
 }
 
 export default async function VacancyDetailPage(props: { params: Promise<{ reference: string }> }) {
   const params = await props.params
   const user = await getVerifiedUser()
-  const vacancy = await prisma.vacancy.findUnique({
-    where: { referenceNumber: decodeURIComponent(params.reference) },
+  const vacancy = await prisma.vacancy.findFirst({
+    where: {
+      referenceNumber: decodeURIComponent(params.reference),
+      status: 'OPEN',
+      openingAt: { lte: new Date() },
+      closingAt: { gt: new Date() },
+    },
     include: {
       department: true,
+      category: true,
       dutyStation: true,
       project: true,
       requiredDocuments: true,
@@ -31,7 +42,7 @@ export default async function VacancyDetailPage(props: { params: Promise<{ refer
     },
   })
 
-  if (!vacancy || vacancy.status !== 'OPEN') notFound()
+  if (!vacancy) notFound()
 
   const isCandidate = Boolean(user?.roles.includes('CANDIDATE'))
   const existingApplication = isCandidate
@@ -41,7 +52,7 @@ export default async function VacancyDetailPage(props: { params: Promise<{ refer
       })
     : null
   const applyHref = !user
-    ? '/auth/login'
+    ? `/auth/login?next=${encodeURIComponent(`/candidate/applications/apply?vacancyId=${vacancy.id}`)}`
     : existingApplication?.internalStatus === 'DRAFT'
       ? `/candidate/applications/apply?vacancyId=${vacancy.id}`
       : existingApplication
@@ -70,6 +81,7 @@ export default async function VacancyDetailPage(props: { params: Promise<{ refer
                 <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#627067]">
                   <span>{vacancy.referenceNumber}</span>
                   <span>{vacancy.contractType.replaceAll('_', ' ')}</span>
+                  {vacancy.category && <span>{vacancy.category.name}</span>}
                   {vacancy.contractDuration && <span>{vacancy.contractDuration}</span>}
                 </div>
                 <h1 className="editorial-title mt-4 max-w-4xl text-4xl text-[#17211c] sm:text-5xl lg:text-6xl">
@@ -85,7 +97,7 @@ export default async function VacancyDetailPage(props: { params: Promise<{ refer
 
         <div className="mx-auto grid max-w-7xl gap-12 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_300px] lg:px-8 lg:py-16">
           <article className="min-w-0">
-            <dl className="grid gap-px border border-[#d9d4ca] bg-[#d9d4ca] sm:grid-cols-3">
+            <dl className="grid gap-px border border-[#d9d4ca] bg-[#d9d4ca] sm:grid-cols-2 lg:grid-cols-4">
               <div className="bg-[#fbfaf7] p-5">
                 <dt className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.13em] text-[#6b776f]">
                   <Building2 className="h-3.5 w-3.5" /> Team
@@ -106,12 +118,61 @@ export default async function VacancyDetailPage(props: { params: Promise<{ refer
                 </dt>
                 <dd className="mt-2 text-sm font-bold text-[#26352d]">{formatDate(vacancy.openingAt)}</dd>
               </div>
+              <div className="bg-[#fbfaf7] p-5">
+                <dt className="text-[10px] font-bold uppercase tracking-[0.13em] text-[#6b776f]">Reports to</dt>
+                <dd className="mt-2 text-sm font-bold text-[#26352d]">{vacancy.reportingLine || 'Not specified'}</dd>
+              </div>
             </dl>
 
             <section className="border-b border-[#d9d4ca] py-9">
               <h2 className="font-display text-3xl text-[#17211c]">About the role</h2>
               <p className="mt-5 whitespace-pre-line text-[15px] leading-7 text-[#46544c]">{vacancy.summary}</p>
             </section>
+
+            {(vacancy.languageRequirements ||
+              vacancy.behaviouralCompetencies ||
+              vacancy.safeguardingResponsibilities ||
+              vacancy.travelRequirement) && (
+              <section className="border-b border-[#d9d4ca] py-9">
+                <h2 className="font-display text-3xl text-[#17211c]">Other requirements</h2>
+                <dl className="mt-6 grid gap-x-10 gap-y-6 md:grid-cols-2">
+                  {vacancy.languageRequirements && (
+                    <div>
+                      <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#68756d]">Languages</dt>
+                      <dd className="mt-2 whitespace-pre-line text-sm leading-6 text-[#46544c]">
+                        {vacancy.languageRequirements}
+                      </dd>
+                    </div>
+                  )}
+                  {vacancy.behaviouralCompetencies && (
+                    <div>
+                      <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#68756d]">
+                        Ways of working
+                      </dt>
+                      <dd className="mt-2 whitespace-pre-line text-sm leading-6 text-[#46544c]">
+                        {vacancy.behaviouralCompetencies}
+                      </dd>
+                    </div>
+                  )}
+                  {vacancy.safeguardingResponsibilities && (
+                    <div>
+                      <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#68756d]">Safeguarding</dt>
+                      <dd className="mt-2 whitespace-pre-line text-sm leading-6 text-[#46544c]">
+                        {vacancy.safeguardingResponsibilities}
+                      </dd>
+                    </div>
+                  )}
+                  {vacancy.travelRequirement && (
+                    <div>
+                      <dt className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#68756d]">Travel</dt>
+                      <dd className="mt-2 whitespace-pre-line text-sm leading-6 text-[#46544c]">
+                        {vacancy.travelRequirement}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </section>
+            )}
 
             <section className="border-b border-[#d9d4ca] py-9">
               <h2 className="font-display text-3xl text-[#17211c]">Responsibilities</h2>

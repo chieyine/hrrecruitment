@@ -6,6 +6,8 @@ import { getVerifiedUser } from '@/lib/auth'
 import { getMyPreboarding } from '@/lib/candidate-preboarding'
 import { ArrowLeft, MapPin } from 'lucide-react'
 import { SimpleAction } from '@/components/shared/PreboardingActions'
+import { EmptyState, PageIntro } from '@/components/ui/PageElements'
+import { formatDate } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,39 +18,46 @@ export default async function CandidateReportingInfoPage() {
   const items = pb?.infoItems ?? []
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-surface-50">
       <Header currentUser={user} />
-      <main id="main-content" className="flex-1 py-10">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 space-y-8">
+      <main id="main-content" className="flex-1 py-7 sm:py-9">
+        <div className="page-shell max-w-5xl space-y-6">
           <Link
             href="/candidate/preboarding"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-600 hover:text-brand-800"
           >
-            <ArrowLeft className="h-4 w-4" /> Back to Preboarding
+            <ArrowLeft className="h-4 w-4" /> Before you start
           </Link>
-          <div className="rounded-2xl bg-white p-8 border border-slate-200 shadow-sm space-y-6">
-            <div className="border-b border-slate-100 pb-4 flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-brand-600" />
-              <h1 className="text-2xl font-extrabold text-slate-900">Things to Know Before Resumption</h1>
-            </div>
-            {items.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                Reporting information will appear here once HR publishes it for you.
-              </p>
-            ) : (
-              items.map((it) => (
-                <div key={it.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600">{it.category}</span>
-                  <h3 className="font-bold text-slate-900 text-sm mt-0.5">{it.title}</h3>
-                  <p className="text-xs text-slate-600 mt-1 whitespace-pre-line">{it.content}</p>
+          <PageIntro
+            eyebrow="Before you start"
+            title="First-day information"
+            description="Practical details about where to go, who to meet and what to bring."
+          />
+          {items.length === 0 ? (
+            <EmptyState
+              icon={MapPin}
+              title="No first-day information yet"
+              description="The recruitment team will add the details when they are confirmed."
+            />
+          ) : (
+            <section className="section-panel divide-y divide-stone-200">
+              {items.map((it) => (
+                <article id={`information-${it.id}`} key={it.id} className="scroll-mt-24 px-5 py-5 sm:px-6">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-brand-700">
+                    {it.category.replaceAll('_', ' ').toLowerCase()}
+                  </span>
+                  <h2 className="mt-1 text-lg font-semibold text-navy-900">{it.title}</h2>
+                  <p className="mt-3 whitespace-pre-line text-sm leading-7 text-stone-700">{it.content}</p>
                   {it.acknowledgementRequired && !it.acknowledgedAt && (
-                    <SimpleAction resourceId={it.id} action="INFO_ACKNOWLEDGE" label="Acknowledge" />
+                    <SimpleAction resourceId={it.id} action="INFO_ACKNOWLEDGE" label="Confirm I have read this" />
                   )}
-                  {it.acknowledgedAt && <p className="mt-2 text-xs font-bold text-emerald-700">Acknowledged</p>}
-                </div>
-              ))
-            )}
-          </div>
+                  {it.acknowledgedAt && (
+                    <p className="mt-4 text-xs font-semibold text-emerald-700">Read {formatDate(it.acknowledgedAt)}</p>
+                  )}
+                </article>
+              ))}
+            </section>
+          )}
         </div>
       </main>
       <Footer />

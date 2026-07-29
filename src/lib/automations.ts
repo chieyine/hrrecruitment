@@ -48,7 +48,7 @@ export const AUTOMATIONS = [
   },
   {
     code: 'WORK_ESCALATION',
-    name: 'SLA escalation',
+    name: 'Overdue work escalation',
     description: 'Escalate overdue work according to the active service targets.',
   },
   {

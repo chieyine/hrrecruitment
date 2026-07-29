@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { requireUser, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
+import { canTransitionApplication } from '@/lib/state-machine'
 
 export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
@@ -34,6 +35,50 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
             answerJson: true,
             vacancyQuestion: { select: { label: true, fieldType: true } },
           },
+          orderBy: { vacancyQuestion: { displayOrder: 'asc' } },
+        },
+        files: {
+          select: { id: true, fileAsset: { select: { originalName: true } } },
+          orderBy: { id: 'asc' },
+        },
+        candidateAssessments: {
+          select: {
+            id: true,
+            status: true,
+            assessment: { select: { title: true, closesAt: true } },
+          },
+          orderBy: { invitedAt: 'desc' },
+        },
+        interviews: {
+          select: {
+            id: true,
+            status: true,
+            title: true,
+            format: true,
+            scheduledStart: true,
+            candidateResponse: true,
+          },
+          orderBy: { scheduledStart: 'desc' },
+        },
+        offers: {
+          where: { status: { in: ['SENT', 'VIEWED', 'ACCEPTED', 'DECLINED', 'EXPIRED', 'WITHDRAWN'] } },
+          select: {
+            id: true,
+            status: true,
+            position: true,
+            acceptanceDeadline: true,
+            startDate: true,
+          },
+          orderBy: { sentAt: 'desc' },
+        },
+        preboardings: {
+          select: {
+            id: true,
+            overallCompletionPercentage: true,
+            readinessStatus: true,
+            confirmedStartDate: true,
+          },
+          orderBy: { startedAt: 'desc' },
         },
         internalStatus: true,
       },
@@ -41,19 +86,16 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     if (application.candidate.userId !== user.userId) throw new AuthzError('Forbidden', 403)
     const isDraft = application.internalStatus === 'DRAFT'
-    const terminal = [
-      'WITHDRAWN',
-      'CANCELLED',
-      'OFFER_ACCEPTED',
-      'PREBOARDING',
-      'READY_TO_RESUME',
-      'RESUMED',
-      'TRANSFERRED_TO_ERP',
-    ].includes(application.internalStatus)
     // internalStatus is deliberately stripped: candidates only ever see the
     // derived candidate-facing status, never the internal pipeline stage.
     const { internalStatus: _internalStatus, ...candidateApplication } = application
-    return NextResponse.json({ application: { ...candidateApplication, isDraft, canWithdraw: !isDraft && !terminal } })
+    return NextResponse.json({
+      application: {
+        ...candidateApplication,
+        isDraft,
+        canWithdraw: !isDraft && canTransitionApplication(application.internalStatus, 'WITHDRAWN'),
+      },
+    })
   } catch (error) {
     return authzResponse(error)
   }
@@ -70,21 +112,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const application = await prisma.application.findUnique({ where: { id: params.id }, include: { candidate: true } })
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     if (application.candidate.userId !== user.userId) throw new AuthzError('Forbidden', 403)
-    if (
-      [
-        'OFFER_ACCEPTED',
-        'PREBOARDING',
-        'READY_TO_RESUME',
-        'RESUMED',
-        'TRANSFERRED_TO_ERP',
-        'WITHDRAWN',
-        'CANCELLED',
-      ].includes(application.internalStatus)
-    )
-      return NextResponse.json(
-        { error: `Application cannot be withdrawn from ${application.internalStatus}` },
-        { status: 409 }
-      )
+    if (!canTransitionApplication(application.internalStatus, 'WITHDRAWN'))
+      return NextResponse.json({ error: 'This application can no longer be withdrawn.' }, { status: 409 })
     await prisma.$transaction(async (tx) => {
       const changed = await tx.application.updateMany({
         where: { id: application.id, internalStatus: application.internalStatus, lockVersion: application.lockVersion },

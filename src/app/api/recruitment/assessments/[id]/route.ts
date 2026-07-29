@@ -19,29 +19,52 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
   }
 }
 
-const updateSchema = z.object({
-  title: z.string().trim().min(1).max(200).optional(),
-  description: z.string().max(2000).nullable().optional(),
-  durationMinutes: z.coerce.number().int().min(1).max(480).optional(),
-  opensAt: z.coerce.date().nullable().optional(),
-  closesAt: z.coerce.date().nullable().optional(),
-  passMark: z.coerce.number().min(0).max(100).optional(),
-  maximumAttempts: z.coerce.number().int().min(1).max(10).optional(),
-  randomizeQuestions: z.boolean().optional(),
-  autoSubmit: z.boolean().optional(),
-  configuration: z.record(z.unknown()).nullable().optional(),
-  questions: z
-    .array(
-      z.object({
-        questionType: z.enum(['MCQ', 'MULTISELECT', 'TRUEFALSE', 'SHORTTEXT', 'LONGTEXT', 'NUMBER', 'FILE']),
-        prompt: z.string().trim().min(1),
-        options: z.array(z.string()).optional(),
-        correctAnswer: z.unknown().optional(),
-        maximumScore: z.coerce.number().positive(),
-      })
-    )
-    .optional(),
-})
+const updateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional(),
+    description: z.string().max(2000).nullable().optional(),
+    durationMinutes: z.coerce.number().int().min(1).max(480).optional(),
+    opensAt: z.coerce.date().nullable().optional(),
+    closesAt: z.coerce.date().nullable().optional(),
+    passMark: z.coerce.number().min(0).max(100).optional(),
+    maximumAttempts: z.coerce.number().int().min(1).max(10).optional(),
+    randomizeQuestions: z.boolean().optional(),
+    autoSubmit: z.boolean().optional(),
+    configuration: z.record(z.unknown()).nullable().optional(),
+    questions: z
+      .array(
+        z.object({
+          questionType: z.enum(['MCQ', 'MULTISELECT', 'TRUEFALSE', 'SHORTTEXT', 'LONGTEXT', 'NUMBER', 'FILE']),
+          prompt: z.string().trim().min(1),
+          options: z.array(z.string()).optional(),
+          correctAnswer: z.unknown().optional(),
+          maximumScore: z.coerce.number().positive(),
+        })
+      )
+      .min(1)
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    value.questions?.forEach((question, index) => {
+      if (['MCQ', 'MULTISELECT'].includes(question.questionType) && (question.options?.length || 0) < 2) {
+        context.addIssue({
+          code: 'custom',
+          path: ['questions', index, 'options'],
+          message: 'Add at least two answer options',
+        })
+      }
+      if (
+        ['MCQ', 'MULTISELECT', 'TRUEFALSE', 'NUMBER'].includes(question.questionType) &&
+        (question.correctAnswer === undefined || question.correctAnswer === '')
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['questions', index, 'correctAnswer'],
+          message: 'Add the correct answer for automatic marking',
+        })
+      }
+    })
+  })
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params

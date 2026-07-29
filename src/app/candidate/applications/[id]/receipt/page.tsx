@@ -6,7 +6,7 @@ import Footer from '@/components/shared/Footer'
 import PrintButton from '@/components/shared/PrintButton'
 import { getVerifiedUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { formatDate } from '@/lib/utils'
+import { formatDateTime } from '@/lib/utils'
 
 export default async function ApplicationReceiptPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params
@@ -14,7 +14,20 @@ export default async function ApplicationReceiptPage(props: { params: Promise<{ 
   if (!user) redirect('/auth/login')
   const application = await prisma.application.findFirst({
     where: { id: params.id, candidate: { userId: user.userId }, submittedAt: { not: null } },
-    include: { vacancy: { include: { department: true, dutyStation: true } }, files: true, answers: true },
+    select: {
+      id: true,
+      referenceNumber: true,
+      submittedAt: true,
+      vacancy: {
+        select: {
+          title: true,
+          referenceNumber: true,
+          department: { select: { name: true } },
+          dutyStation: { select: { name: true } },
+        },
+      },
+      _count: { select: { files: true, answers: true } },
+    },
   })
   if (!application) notFound()
 
@@ -30,7 +43,7 @@ export default async function ApplicationReceiptPage(props: { params: Promise<{ 
               <CheckCircle2 className="mt-1 h-8 w-8 shrink-0 text-emerald-700" />
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Application received</p>
-                <h1 className="mt-2 text-3xl font-bold tracking-tight text-stone-950">Thank you for applying.</h1>
+                <h1 className="mt-2 text-3xl font-bold tracking-tight text-stone-950">Application submitted</h1>
                 <p className="mt-2 text-sm leading-6 text-stone-600">
                   Keep this receipt for your records. We will contact you through your account and registered email
                   address.
@@ -48,11 +61,11 @@ export default async function ApplicationReceiptPage(props: { params: Promise<{ 
               </div>
               <div>
                 <dt className="text-xs font-semibold text-stone-500">Application reference</dt>
-                <dd className="mt-1 font-mono text-stone-900">{application.id}</dd>
+                <dd className="mt-1 font-mono text-stone-900">{application.referenceNumber || application.id}</dd>
               </div>
               <div>
                 <dt className="text-xs font-semibold text-stone-500">Submitted</dt>
-                <dd className="mt-1 text-stone-900">{formatDate(application.submittedAt!)}</dd>
+                <dd className="mt-1 text-stone-900">{formatDateTime(application.submittedAt!)}</dd>
               </div>
               <div>
                 <dt className="text-xs font-semibold text-stone-500">Team</dt>
@@ -64,11 +77,11 @@ export default async function ApplicationReceiptPage(props: { params: Promise<{ 
               </div>
               <div>
                 <dt className="text-xs font-semibold text-stone-500">Answers recorded</dt>
-                <dd className="mt-1 text-stone-900">{application.answers.length}</dd>
+                <dd className="mt-1 text-stone-900">{application._count.answers}</dd>
               </div>
               <div>
                 <dt className="text-xs font-semibold text-stone-500">Files attached</dt>
-                <dd className="mt-1 text-stone-900">{application.files.length}</dd>
+                <dd className="mt-1 text-stone-900">{application._count.files}</dd>
               </div>
             </dl>
             <div className="border-t border-stone-200 pt-5">

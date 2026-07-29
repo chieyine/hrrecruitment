@@ -63,12 +63,32 @@ export async function POST(request: Request) {
       .filter(Boolean)
     if (!configuredDomains.includes(recipientDomain))
       throw new AuthzError('Scheduled reports may only be sent to an approved organisation email domain', 400)
-    if (input.reportType === 'complaints' && !(await hasPermission(user.userId, 'complaint.manage')))
-      throw new AuthzError('Complaint export permission is required', 403)
-    if (input.reportType === 'audit' && !(await hasPermission(user.userId, 'audit.read')))
-      throw new AuthzError('Audit export permission is required', 403)
-    if (input.reportType === 'configuration-changes' && !(await hasPermission(user.userId, 'governance.manage')))
-      throw new AuthzError('Governance export permission is required', 403)
+    const [complaints, audit, governance, references, offers, preboarding] = await Promise.all([
+      hasPermission(user.userId, 'complaint.manage'),
+      hasPermission(user.userId, 'audit.read'),
+      hasPermission(user.userId, 'governance.manage'),
+      hasPermission(user.userId, 'reference.manage'),
+      hasPermission(user.userId, 'offer.manage'),
+      hasPermission(user.userId, 'preboarding.manage'),
+    ])
+    const auditor = user.roles.includes('AUDITOR')
+    const allowed = (() => {
+      if (auditor && !['complaints', 'configuration-changes'].includes(input.reportType)) return true
+      if (input.reportType === 'complaints') return complaints
+      if (input.reportType === 'audit') return audit
+      if (['configuration-changes', 'privacy-deletions', 'delivery', 'data-quality'].includes(input.reportType))
+        return governance
+      if (input.reportType === 'references') return references
+      if (input.reportType === 'offers') return offers
+      if (
+        ['preboarding', 'outstanding', 'courses', 'readiness', 'resumption', 'erp', 'waivers'].includes(
+          input.reportType
+        )
+      )
+        return preboarding
+      return true
+    })()
+    if (!allowed) throw new AuthzError('You do not have permission to schedule this restricted report', 403)
     if (input.nextRunAt <= new Date()) throw new AuthzError('First delivery must be in the future', 400)
     const schedule = await prisma.scheduledReport.create({ data: { ...input, userId: user.userId } })
     await logAudit({

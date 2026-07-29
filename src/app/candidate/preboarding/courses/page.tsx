@@ -1,89 +1,86 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { ArrowLeft, BookOpen } from 'lucide-react'
 import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
+import CourseLearningExperience from '@/components/candidate/CourseLearningExperience'
+import { EmptyState, PageIntro } from '@/components/ui/PageElements'
 import { getVerifiedUser } from '@/lib/auth'
 import { getMyPreboarding } from '@/lib/candidate-preboarding'
-import { getStatusBadgeClass } from '@/lib/utils'
-import { ArrowLeft, BookOpen } from 'lucide-react'
-import { CourseAction } from '@/components/shared/PreboardingActions'
 
 export const dynamic = 'force-dynamic'
 
-function assignedCourse(course: any) {
+function assignedCourse(assignment: any) {
+  let source = assignment.course
   try {
-    return course.courseSnapshotJson ? JSON.parse(course.courseSnapshotJson) : course.course
-  } catch {
-    return course.course
+    source = assignment.courseSnapshotJson ? JSON.parse(assignment.courseSnapshotJson) : assignment.course
+  } catch {}
+  // Never serialize scoring weights or correct answers into the candidate's
+  // React payload. Grading uses the server-side assignment snapshot.
+  return {
+    title: source?.title,
+    description: source?.description,
+    learningObjectives: source?.learningObjectives,
+    estimatedDurationMinutes: source?.estimatedDurationMinutes,
+    passMark: source?.passMark,
+    allowedAttempts: source?.allowedAttempts,
+    certificateEnabled: source?.certificateEnabled,
+    contents: Array.isArray(source?.contents)
+      ? source.contents.map((content: any) => ({
+          id: content.id,
+          contentType: content.contentType,
+          title: content.title,
+          content: content.content,
+          fileAssetId: content.fileAssetId,
+        }))
+      : [],
+    quizQuestions: Array.isArray(source?.quizQuestions)
+      ? source.quizQuestions.map((question: any) => ({
+          id: question.id,
+          question: question.question,
+          questionType: question.questionType,
+          optionsJson: question.optionsJson,
+        }))
+      : [],
   }
 }
 
 export default async function CandidatePreboardingCoursesPage() {
   const user = await getVerifiedUser()
   if (!user) redirect('/auth/login')
-  const pb = await getMyPreboarding(user.userId)
-  const courses = pb?.courses ?? []
+  const preboarding = await getMyPreboarding(user.userId)
+  const courses = preboarding?.courses ?? []
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-surface-50">
       <Header currentUser={user} />
-      <main id="main-content" className="flex-1 py-10">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 space-y-8">
+      <main id="main-content" className="flex-1 py-7 sm:py-9">
+        <div className="page-shell max-w-5xl space-y-6">
           <Link
             href="/candidate/preboarding"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-stone-600 hover:text-brand-800"
           >
-            <ArrowLeft className="h-4 w-4" /> Back to Preboarding
+            <ArrowLeft className="h-4 w-4" /> Before you start
           </Link>
-          <div className="rounded-2xl bg-white p-8 border border-slate-200 shadow-sm space-y-6">
-            <div className="border-b border-slate-100 pb-4 flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-emerald-600" />
-              <h1 className="text-2xl font-extrabold text-slate-900">Compulsory Courses</h1>
+          <PageIntro
+            eyebrow="Before you start"
+            title="Learning"
+            description="Complete each module and pass the final assessment. Your progress and attempts are recorded."
+          />
+
+          {courses.length === 0 ? (
+            <EmptyState
+              icon={BookOpen}
+              title="No learning assigned"
+              description="Any course you need before your first day will appear here."
+            />
+          ) : (
+            <div className="space-y-6">
+              {courses.map((course) => (
+                <CourseLearningExperience key={course.id} assignment={course} course={assignedCourse(course)} />
+              ))}
             </div>
-            {courses.length === 0 ? (
-              <p className="text-sm text-slate-500">No courses have been assigned yet.</p>
-            ) : (
-              courses.map((c) => (
-                <div key={c.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
-                  {(() => {
-                    const configured = assignedCourse(c)
-                    return (
-                      <>
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <span className="font-bold text-slate-900 block">{configured?.title || 'Course'}</span>
-                            {c.score != null && <span className="text-slate-500">Score: {c.score}%</span>}
-                            {c.status === 'COMPLETED' && configured?.certificateEnabled && (
-                              <a
-                                href={`/api/candidate/preboarding/courses/${c.id}/certificate`}
-                                className="ml-3 font-bold text-brand-700 hover:underline"
-                              >
-                                Download certificate
-                              </a>
-                            )}
-                          </div>
-                          <span className={`px-3 py-1 rounded-full font-bold border ${getStatusBadgeClass(c.status)}`}>
-                            {c.status}
-                          </span>
-                        </div>
-                        {configured?.contents?.map((content: any) => (
-                          <div key={content.id} className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
-                            <strong>{content.title}</strong>
-                            {content.content && (
-                              <p className="mt-1 whitespace-pre-line text-slate-600">{content.content}</p>
-                            )}
-                          </div>
-                        ))}
-                        {!['COMPLETED', 'WAIVED'].includes(c.status) && (
-                          <CourseAction resourceId={c.id} questions={configured?.quizQuestions || []} />
-                        )}
-                      </>
-                    )
-                  })()}
-                </div>
-              ))
-            )}
-          </div>
+          )}
         </div>
       </main>
       <Footer />

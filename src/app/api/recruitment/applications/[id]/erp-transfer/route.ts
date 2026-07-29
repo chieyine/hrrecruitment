@@ -58,7 +58,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         },
       })
       if (transitioned.count !== 1) throw new Error('APPLICATION_CHANGED')
-      return tx.eRPTransferRecord.create({
+      const record = await tx.eRPTransferRecord.create({
         data: {
           applicationId: params.id,
           erpPersonnelNumber: erpPersonnelNumber.trim(),
@@ -68,6 +68,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           status: 'CREATED_IN_ERP',
         },
       })
+      await tx.applicationStageHistory.create({
+        data: {
+          applicationId: params.id,
+          fromStatus: 'RESUMED',
+          toStatus: 'TRANSFERRED_TO_ERP',
+          changedBy: user.userId,
+          reason: comment || `ERP personnel number recorded: ${erpPersonnelNumber.trim()}`,
+        },
+      })
+      return record
     })
 
     await logAudit({

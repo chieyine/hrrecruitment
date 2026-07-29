@@ -5,15 +5,16 @@ export default function AdminProjectsPage() {
     <AdminCrud
       entity="projects"
       title="Projects"
-      subtitle="Funded projects that vacancies can be attributed to."
+      subtitle="Funded programmes or grants used to attribute vacancies and report recruitment activity."
       columns={[
         { name: 'name', label: 'Name' },
         { name: 'code', label: 'Code' },
+        { name: '_count.vacancies', label: 'Vacancies' },
         { name: 'active', label: 'Active' },
       ]}
       fields={[
-        { name: 'name', label: 'Name', required: true },
-        { name: 'code', label: 'Code', required: true },
+        { name: 'name', label: 'Project name', required: true },
+        { name: 'code', label: 'Reporting code', required: true, placeholder: 'For example, BHA_NE_2026' },
         { name: 'active', label: 'Active', type: 'checkbox' },
       ]}
     />
