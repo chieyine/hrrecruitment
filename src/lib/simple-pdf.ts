@@ -60,6 +60,48 @@ type BrandedPdfLine = {
   style: 'title' | 'heading' | 'body' | 'label' | 'space'
 }
 
+export type BrandedPdfSection = {
+  heading: string
+  rows: Array<[label: string, value: string]>
+}
+
+/**
+ * A generic branded, sectioned A4 document.
+ *
+ * Used for the §19.3 ERP handover pack, where the whole point is that a person
+ * reads the values off the page and keys them into the ERP: the layout is
+ * label/value rows rather than prose, and long values wrap rather than truncate.
+ */
+export function brandedPdf(input: {
+  title: string
+  subtitle?: string
+  reference: string
+  sections: BrandedPdfSection[]
+  footerNote?: string
+}) {
+  const content: BrandedPdfLine[] = [
+    { text: input.title, style: 'title' },
+    { text: `Reference ${input.reference}  |  Generated ${new Date().toLocaleDateString('en-GB')}`, style: 'label' },
+  ]
+  if (input.subtitle) content.push({ text: input.subtitle, style: 'heading' })
+  content.push({ text: '', style: 'space' })
+
+  for (const section of input.sections) {
+    content.push({ text: section.heading, style: 'heading' })
+    for (const [label, value] of section.rows) {
+      // Values are wrapped independently of the label so a long address does not
+      // push the label off the line.
+      const wrapped = wrapPdfText(String(value ?? ''), 68)
+      content.push({ text: `${label}:  ${wrapped[0] ?? ''}`, style: 'body' })
+      for (const continuation of wrapped.slice(1))
+        content.push({ text: `        ${continuation}`, style: 'body' })
+    }
+    content.push({ text: '', style: 'space' })
+  }
+
+  return renderBrandedPdf(content, input.footerNote ?? 'FRAD Foundation  |  Confidential')
+}
+
 function wrapPdfText(value: string, width: number) {
   const words = value.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean)
   const lines: string[] = []
@@ -143,6 +185,17 @@ export function offerPdf(input: {
     { text: 'People and Operations', style: 'label' }
   )
 
+  return renderBrandedPdf(content, 'FRAD Foundation  |  Confidential candidate document')
+}
+
+/**
+ * Shared page layout and PDF serialisation for every branded document.
+ *
+ * Extracted so the offer letter and the ERP handover pack cannot drift apart in
+ * pagination or styling — there is one implementation of "what a FRAD document
+ * looks like", not two.
+ */
+function renderBrandedPdf(content: BrandedPdfLine[], footerNote: string) {
   const safe = (value: string) =>
     value
       .replace(/\\/g, '\\\\')
@@ -206,7 +259,7 @@ export function offerPdf(input: {
 
     operations.push(
       '0.82 0.84 0.86 RG 0.5 w 54 52 m 541 52 l S',
-      `BT /FR 7.5 Tf 0.4 0.43 0.46 rg 1 0 0 1 54 36 Tm (FRAD Foundation  |  Confidential candidate document) Tj ET`,
+      `BT /FR 7.5 Tf 0.4 0.43 0.46 rg 1 0 0 1 54 36 Tm (${safe(footerNote)}) Tj ET`,
       `BT /FR 7.5 Tf 0.4 0.43 0.46 rg 1 0 0 1 484 36 Tm (Page ${index + 1} of ${pages.length}) Tj ET`
     )
     const stream = operations.join('\n')

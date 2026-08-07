@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { requireUser, authzResponse, AuthzError } from '@/lib/authz'
 import { logAudit } from '@/lib/audit'
+import { candidateVisibleStatusForInternal } from '@/lib/state-machine'
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
@@ -14,14 +15,40 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       throw new AuthzError('The safe undo window has closed', 409)
     if (run.reversedAt) throw new AuthzError('This action has already been undone', 409)
     const result = JSON.parse(run.resultJson) as { undoRecords?: Array<any> }
-    if (!['ASSIGN_REVIEWER', 'TALENT_POOL'].includes(run.actionType))
+    if (!['ASSIGN_REVIEWER', 'TALENT_POOL', 'STAGE_CHANGE'].includes(run.actionType))
       throw new AuthzError('This bulk action is not safely reversible', 409)
     await prisma.$transaction(async (tx) => {
       for (const record of result.undoRecords || []) {
         if (run.actionType === 'ASSIGN_REVIEWER') {
-          await tx.application.update({
-            where: { id: record.applicationId },
+          const restored = await tx.application.updateMany({
+            where: { id: record.applicationId, internalStatus: { notIn: ['TRANSFERRED_TO_ERP', 'ARCHIVED'] } },
             data: { assignedReviewerId: record.previousReviewerId || null, lockVersion: { increment: 1 } },
+          })
+          if (restored.count !== 1)
+            throw new AuthzError('The recruitment file is closed; reviewer assignment can no longer be undone', 409)
+        } else if (run.actionType === 'STAGE_CHANGE') {
+          const restored = await tx.application.updateMany({
+            where: {
+              id: record.applicationId,
+              internalStatus: record.changedStatus,
+              lockVersion: record.changedLockVersion,
+            },
+            data: {
+              internalStatus: record.previousStatus,
+              candidateVisibleStatus: candidateVisibleStatusForInternal(record.previousStatus),
+              lockVersion: { increment: 1 },
+            },
+          })
+          if (restored.count !== 1)
+            throw new AuthzError('An application changed after the bulk action; undo is no longer safe', 409)
+          await tx.applicationStageHistory.create({
+            data: {
+              applicationId: record.applicationId,
+              fromStatus: record.changedStatus,
+              toStatus: record.previousStatus,
+              changedBy: user.userId,
+              reason: 'Safe undo of bulk stage change',
+            },
           })
         } else if (record.existingMember) {
           await tx.talentPoolMember.update({

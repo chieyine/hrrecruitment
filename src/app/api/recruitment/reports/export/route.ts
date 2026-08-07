@@ -188,6 +188,20 @@ const REPORT_TYPES = new Set([
   'configuration-changes',
   'delivery',
   'data-quality',
+  // End_to_End.md §23 additions
+  'staffing-requests',
+  'funding',
+  'longlisting',
+  'longlisting-exceptions',
+  'shortlisting',
+  'candidate-ranking',
+  'selection',
+  'background-checks',
+  'time-to-fill',
+  'source-of-application',
+  'recruitment-closure',
+  'compliance',
+  'signatures',
 ])
 
 function csv(rows: Record<string, unknown>[]) {
@@ -198,10 +212,419 @@ function csv(rows: Record<string, unknown>[]) {
   ].join('\r\n')
 }
 
+/**
+ * End_to_End.md §23 report builders.
+ *
+ * Kept in one function so every report shares the same permission gate and
+ * export path. Each returns flat rows; the caller renders CSV, PDF or a ZIP pack.
+ */
+async function endToEndReportRows(
+  type: string,
+  options: { includeContact?: boolean } = {}
+): Promise<Record<string, unknown>[] | null> {
+  if (type === 'staffing-requests') {
+    const records = await prisma.staffingRequest.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        department: true,
+        project: true,
+        dutyStation: true,
+        fundingConfirmations: { where: { supersededAt: null }, take: 1, orderBy: { decidedAt: 'desc' } },
+        vacancies: { select: { referenceNumber: true } },
+      },
+    })
+    return records.map((record) => ({
+      Reference: record.referenceNumber,
+      Position: record.positionTitle,
+      Positions: record.numberOfPositions,
+      Department: record.department.name,
+      Project: record.project?.code || '',
+      'Duty Station': record.dutyStation.name,
+      Grade: record.jobGrade,
+      Urgency: record.urgency,
+      Status: record.status,
+      'Budget Line': record.budgetLine,
+      'Funding Source': record.fundingSource,
+      'Funding Decision': record.fundingConfirmations[0]?.decision || 'Not decided',
+      'Confirmed Ceiling': record.fundingConfirmations[0]?.salaryCeilingAmount?.toString() || '',
+      Replacement: record.isReplacement ? 'Yes' : 'No',
+      'Expected Start': record.expectedStartDate.toISOString().slice(0, 10),
+      Submitted: record.submittedAt?.toISOString().slice(0, 10) || '',
+      Decided: record.decidedAt?.toISOString().slice(0, 10) || '',
+      Vacancy: record.vacancies.map((vacancy) => vacancy.referenceNumber).join('; '),
+    }))
+  }
+
+  if (type === 'funding') {
+    const records = await prisma.fundingConfirmation.findMany({
+      orderBy: { decidedAt: 'desc' },
+      include: { staffingRequest: { select: { referenceNumber: true, positionTitle: true, status: true } } },
+    })
+    return records.map((record) => ({
+      'Request Reference': record.staffingRequest.referenceNumber,
+      Position: record.staffingRequest.positionTitle,
+      Decision: record.decision,
+      'Budget Line': record.budgetLine || '',
+      'Funding Source': record.fundingSource || '',
+      'Salary Ceiling': record.salaryCeilingAmount?.toString() || '',
+      Currency: record.salaryCeilingCurrency || '',
+      'Maximum Recruitment Cost': record.maximumRecruitmentCost?.toString() || '',
+      'Funding Ends': record.fundingEndDate?.toISOString().slice(0, 10) || '',
+      'Grant Funded': record.grantFunded ? 'Yes' : 'No',
+      'Donor Approval Required': record.donorApprovalRequired ? 'Yes' : 'No',
+      'Donor Reference': record.donorApprovalReference || '',
+      'Decided At': record.decidedAt.toISOString(),
+      Superseded: record.supersededAt ? 'Yes' : 'No',
+      Comment: record.comment || '',
+    }))
+  }
+
+  if (type === 'longlisting') {
+    const records = await prisma.longlistRun.findMany({
+      orderBy: { startedAt: 'desc' },
+      include: { vacancy: { select: { referenceNumber: true, title: true } } },
+    })
+    return records.map((record) => ({
+      Vacancy: record.vacancy.referenceNumber,
+      Title: record.vacancy.title,
+      Trigger: record.trigger,
+      Status: record.status,
+      'Total Applications': record.totalApplications,
+      Complete: record.completeApplications,
+      Incomplete: record.incompleteApplications,
+      'Automatically Eligible': record.automaticallyEligible,
+      'Automatically Ineligible': record.automaticallyIneligible,
+      'Requires Review': record.requiresReview,
+      Duplicates: record.duplicateApplications,
+      Started: record.startedAt.toISOString(),
+      Completed: record.completedAt?.toISOString() || '',
+      Confirmed: record.confirmedAt?.toISOString() || '',
+      'Confirmation Note': record.confirmationNote || '',
+    }))
+  }
+
+  if (type === 'longlisting-exceptions') {
+    const records = await prisma.eligibilityEvaluation.findMany({
+      where: { OR: [{ suggestedOutcome: 'REQUIRES_REVIEW' }, { humanDecision: { not: null } }] },
+      orderBy: { evaluatedAt: 'desc' },
+      take: 5000,
+    })
+    const applicationIds = [...new Set(records.map((record) => record.applicationId))]
+    const applications = await prisma.application.findMany({
+      where: { id: { in: applicationIds } },
+      select: {
+        id: true,
+        referenceNumber: true,
+        candidate: { select: { legalFirstName: true, lastName: true } },
+        vacancy: { select: { referenceNumber: true } },
+      },
+    })
+    const byId = new Map(applications.map((application) => [application.id, application]))
+    return records.map((record) => {
+      const application = byId.get(record.applicationId)
+      return {
+        'Application Reference': application?.referenceNumber || record.applicationId,
+        ...(options.includeContact && application
+          ? { Candidate: `${application.candidate.legalFirstName} ${application.candidate.lastName}` }
+          : {}),
+        Vacancy: application?.vacancy.referenceNumber || '',
+        'Automatic Outcome': record.originalOutcome,
+        'Current Outcome': record.suggestedOutcome,
+        'Human Decision': record.humanDecision || 'Not decided',
+        'Override Reason': record.overrideReasonCode || '',
+        Justification: record.decisionReason || '',
+        'Evidence Attached': record.overrideEvidenceFileId ? 'Yes' : 'No',
+        'Approval Required': record.overrideApprovalId ? 'Yes' : 'No',
+        Score: record.eligibilityScore?.toString() || '',
+        'Decided At': record.decidedAt?.toISOString() || '',
+      }
+    })
+  }
+
+  if (type === 'shortlisting') {
+    const records = await prisma.candidateScorecard.findMany({
+      orderBy: { id: 'desc' },
+      take: 5000,
+      include: {
+        application: {
+          select: {
+            referenceNumber: true,
+            candidate: { select: { legalFirstName: true, lastName: true } },
+            vacancy: { select: { referenceNumber: true, title: true } },
+          },
+        },
+        criterionScores: { select: { score: true } },
+      },
+    })
+    return records.map((record) => ({
+      'Application Reference': record.application.referenceNumber || '',
+      ...(options.includeContact
+        ? { Candidate: `${record.application.candidate.legalFirstName} ${record.application.candidate.lastName}` }
+        : {}),
+      Vacancy: record.application.vacancy.referenceNumber,
+      Reviewer: record.reviewerUserId,
+      Status: record.status,
+      'Total Score': record.totalScore ?? '',
+      'Criteria Scored': record.criterionScores.length,
+      Submitted: record.submittedAt?.toISOString() || '',
+    }))
+  }
+
+  if (type === 'candidate-ranking') {
+    const records = await prisma.application.findMany({
+      where: { finalScore: { not: null } },
+      orderBy: [{ vacancyId: 'asc' }, { finalScore: 'desc' }],
+      include: {
+        candidate: { select: { legalFirstName: true, lastName: true } },
+        vacancy: { select: { referenceNumber: true, title: true } },
+        selectionDecisions: { orderBy: { id: 'desc' }, take: 1 },
+      },
+    })
+    // Rank is per vacancy, so the position is only meaningful within a group.
+    const rankByVacancy = new Map<string, number>()
+    return records.map((record) => {
+      const rank = (rankByVacancy.get(record.vacancyId) ?? 0) + 1
+      rankByVacancy.set(record.vacancyId, rank)
+      return {
+        Vacancy: record.vacancy.referenceNumber,
+        Title: record.vacancy.title,
+        Rank: rank,
+        ...(options.includeContact
+          ? { Candidate: `${record.candidate.legalFirstName} ${record.candidate.lastName}` }
+          : { Candidate: record.referenceNumber || record.id.slice(0, 8) }),
+        'Screening Score': record.screeningScore ?? '',
+        'Assessment Score': record.assessmentScore ?? '',
+        'Interview Score': record.interviewScore ?? '',
+        'Weighted Total': record.finalScore ?? '',
+        Recommendation: record.recommendation || '',
+        Outcome: record.selectionDecisions[0]?.outcome || '',
+        Stage: record.internalStatus,
+      }
+    })
+  }
+
+  if (type === 'selection') {
+    const records = await prisma.selectionDecision.findMany({
+      orderBy: { id: 'desc' },
+      include: {
+        application: {
+          select: {
+            referenceNumber: true,
+            finalScore: true,
+            candidate: { select: { legalFirstName: true, lastName: true } },
+            vacancy: { select: { referenceNumber: true, title: true } },
+          },
+        },
+      },
+    })
+    return records.map((record) => ({
+      Vacancy: record.application.vacancy.referenceNumber,
+      Title: record.application.vacancy.title,
+      ...(options.includeContact
+        ? { Candidate: `${record.application.candidate.legalFirstName} ${record.application.candidate.lastName}` }
+        : { Candidate: record.application.referenceNumber || '' }),
+      Outcome: record.outcome,
+      Rank: record.rank ?? '',
+      'Final Score': record.application.finalScore ?? '',
+      // §15 requires justification whenever the top-ranked candidate is not chosen.
+      'Override Applied': record.overrideFlag ? 'Yes' : 'No',
+      Justification: record.justification || '',
+      'Created By': record.createdBy,
+      'Approved By': record.approvedBy || 'Not approved',
+      'Approved At': record.approvedAt?.toISOString() || '',
+    }))
+  }
+
+  if (type === 'background-checks') {
+    const records = await prisma.backgroundCheck.findMany({
+      orderBy: [{ status: 'asc' }, { requestedAt: 'desc' }],
+      include: {
+        application: {
+          select: {
+            referenceNumber: true,
+            candidate: { select: { legalFirstName: true, lastName: true } },
+            vacancy: { select: { referenceNumber: true } },
+          },
+        },
+      },
+    })
+    // §16 the register reports status, never the restricted finding text.
+    return records.map((record) => ({
+      'Application Reference': record.application.referenceNumber || '',
+      ...(options.includeContact
+        ? { Candidate: `${record.application.candidate.legalFirstName} ${record.application.candidate.lastName}` }
+        : {}),
+      Vacancy: record.application.vacancy.referenceNumber,
+      Check: record.checkType,
+      Status: record.status,
+      Outcome: record.outcome || '',
+      Provider: record.providerName || '',
+      'Lawful Basis Recorded': record.lawfulBasis ? 'Yes' : 'No',
+      Requested: record.requestedAt?.toISOString().slice(0, 10) || '',
+      Received: record.receivedAt?.toISOString().slice(0, 10) || '',
+      Waived: record.waivedBy ? 'Yes' : 'No',
+      Expires: record.expiresAt?.toISOString().slice(0, 10) || '',
+    }))
+  }
+
+  if (type === 'time-to-fill') {
+    const records = await prisma.vacancy.findMany({
+      include: {
+        department: true,
+        staffingRequest: { select: { createdAt: true, referenceNumber: true } },
+        applications: {
+          where: { internalStatus: { in: ['RESUMED', 'TRANSFERRED_TO_ERP', 'OFFER_ACCEPTED'] } },
+          select: { updatedAt: true, offers: { where: { status: 'ACCEPTED' }, select: { acceptedAt: true } } },
+          orderBy: { updatedAt: 'asc' },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    const days = (from: Date | null | undefined, to: Date | null | undefined) =>
+      from && to ? Math.round((to.getTime() - from.getTime()) / 86_400_000) : ''
+    return records.map((vacancy) => {
+      const filledAt = vacancy.applications[0]?.offers[0]?.acceptedAt ?? vacancy.applications[0]?.updatedAt ?? null
+      return {
+        Reference: vacancy.referenceNumber,
+        Vacancy: vacancy.title,
+        Department: vacancy.department.name,
+        Status: vacancy.status,
+        'Request Raised': vacancy.staffingRequest?.createdAt.toISOString().slice(0, 10) || '',
+        Opened: vacancy.openingAt.toISOString().slice(0, 10),
+        Closed: vacancy.closingAt.toISOString().slice(0, 10),
+        Filled: filledAt ? filledAt.toISOString().slice(0, 10) : '',
+        // Time to fill is measured from the request, not from advertising:
+        // that is the interval the department actually experiences.
+        'Days Request to Fill': days(vacancy.staffingRequest?.createdAt, filledAt),
+        'Days Advertised to Fill': days(vacancy.openingAt, filledAt),
+      }
+    })
+  }
+
+  if (type === 'source-of-application') {
+    const records = await prisma.application.findMany({
+      where: { internalStatus: { not: 'DRAFT' } },
+      select: {
+        internalStatus: true,
+        vacancy: { select: { referenceNumber: true, title: true, audience: true } },
+      },
+    })
+    const grouped = new Map<string, { total: number; hired: number; shortlisted: number; audience: string; title: string }>()
+    for (const record of records) {
+      const key = record.vacancy.referenceNumber
+      const entry =
+        grouped.get(key) ?? { total: 0, hired: 0, shortlisted: 0, audience: record.vacancy.audience, title: record.vacancy.title }
+      entry.total += 1
+      if (['SHORTLISTED', 'ASSESSMENT_INVITED', 'INTERVIEW_INVITED', 'RECOMMENDED'].includes(record.internalStatus))
+        entry.shortlisted += 1
+      if (['RESUMED', 'TRANSFERRED_TO_ERP', 'OFFER_ACCEPTED'].includes(record.internalStatus)) entry.hired += 1
+      grouped.set(key, entry)
+    }
+    return [...grouped.entries()].map(([reference, entry]) => ({
+      Vacancy: reference,
+      Title: entry.title,
+      Audience: entry.audience,
+      Applications: entry.total,
+      Shortlisted: entry.shortlisted,
+      Hired: entry.hired,
+      'Shortlist Rate %': entry.total ? Math.round((entry.shortlisted / entry.total) * 100) : 0,
+      'Hire Rate %': entry.total ? Math.round((entry.hired / entry.total) * 100) : 0,
+    }))
+  }
+
+  if (type === 'recruitment-closure') {
+    const records = await prisma.vacancy.findMany({
+      where: { status: { in: ['FILLED', 'COMPLETED', 'ARCHIVED', 'CANCELLED'] } },
+      include: {
+        department: true,
+        staffingRequest: { select: { referenceNumber: true } },
+        applications: { select: { internalStatus: true } },
+        longlistRuns: { where: { status: 'CONFIRMED' }, select: { confirmedAt: true }, take: 1 },
+      },
+      orderBy: { updatedAt: 'desc' },
+    })
+    return records.map((vacancy) => ({
+      Reference: vacancy.referenceNumber,
+      Vacancy: vacancy.title,
+      Department: vacancy.department.name,
+      'Staffing Request': vacancy.staffingRequest?.referenceNumber || 'Not linked',
+      'Final Status': vacancy.status,
+      Applications: vacancy.applications.length,
+      'Longlist Confirmed': vacancy.longlistRuns[0]?.confirmedAt?.toISOString().slice(0, 10) || 'Not confirmed',
+      Hired: vacancy.applications.filter((application) =>
+        ['RESUMED', 'TRANSFERRED_TO_ERP'].includes(application.internalStatus)
+      ).length,
+      Closed: vacancy.updatedAt.toISOString().slice(0, 10),
+    }))
+  }
+
+  if (type === 'compliance') {
+    // §24 A control-by-control view of where the audited gates were satisfied.
+    const vacancies = await prisma.vacancy.findMany({
+      where: { status: { notIn: ['DRAFT'] } },
+      include: {
+        staffingRequest: {
+          select: {
+            referenceNumber: true,
+            status: true,
+            fundingConfirmations: { where: { supersededAt: null }, take: 1, select: { decision: true } },
+          },
+        },
+        longlistRuns: { where: { status: 'CONFIRMED' }, select: { id: true }, take: 1 },
+        eligibilityRules: { where: { active: true }, select: { classification: true } },
+      },
+      orderBy: { referenceNumber: 'asc' },
+    })
+    const approvals = await prisma.approval.findMany({
+      where: { resourceType: 'VACANCY', decision: { in: ['APPROVED', 'APPROVED_WITH_CONDITIONS'] } },
+      select: { resourceId: true },
+    })
+    const approvedIds = new Set(approvals.map((approval) => approval.resourceId))
+    return vacancies.map((vacancy) => ({
+      Reference: vacancy.referenceNumber,
+      Vacancy: vacancy.title,
+      'Staffing Request Linked': vacancy.staffingRequest ? 'Yes' : 'No',
+      'Request Approved': vacancy.staffingRequest?.status === 'APPROVED_FOR_VACANCY' ? 'Yes' : 'No',
+      'Funding Confirmed': vacancy.staffingRequest?.fundingConfirmations[0]?.decision === 'CONFIRMED' ? 'Yes' : 'No',
+      'Vacancy Approved': approvedIds.has(vacancy.id) ? 'Yes' : 'No',
+      'Mandatory Rules Defined': vacancy.eligibilityRules.some((rule) => rule.classification === 'MANDATORY_KNOCKOUT')
+        ? 'Yes'
+        : 'No',
+      'Rules Locked': vacancy.longlistingRulesLockedAt ? 'Yes' : 'No',
+      'Longlist Confirmed': vacancy.longlistRuns.length ? 'Yes' : 'No',
+      'Shortlisting Criteria Set': vacancy.screeningScorecardTemplateId ? 'Yes' : 'No',
+      'Safeguarding Classified': vacancy.safeguardingClassification || 'Not set',
+      'Recruitment Contact': vacancy.recruitmentContactEmail ? 'Yes' : 'No',
+    }))
+  }
+
+  if (type === 'signatures') {
+    const records = await prisma.electronicSignature.findMany({ orderBy: { signedAt: 'desc' }, take: 5000 })
+    return records.map((record) => ({
+      'Resource Type': record.resourceType,
+      'Resource ID': record.resourceId,
+      Signatory: record.signatoryName,
+      Role: record.signatoryRole || '',
+      Method: record.signatureMethod,
+      Authentication: record.authenticationMethod,
+      'Document Version': record.documentVersion,
+      'Document Hash': record.documentHash,
+      Status: record.status,
+      'Signed At': record.signedAt.toISOString(),
+      'Amendment Reason': record.amendmentReason || '',
+    }))
+  }
+
+  return null
+}
+
 async function reportRows(
   type: string,
   options: { includeContact?: boolean } = {}
 ): Promise<Record<string, unknown>[]> {
+  const endToEnd = await endToEndReportRows(type, options)
+  if (endToEnd) return endToEnd
   if (type === 'pipeline') {
     const records = await prisma.vacancy.findMany({
       include: {
@@ -567,7 +990,7 @@ async function reportRows(
     Candidate: `${record.application.candidate.legalFirstName} ${record.application.candidate.lastName}`,
     Vacancy: record.application.vacancy.title,
     'ERP Personnel Number': record.erpPersonnelNumber,
-    'Created In ERP': record.createdInErpAt.toISOString(),
+    'Created In ERP': record.createdInErpAt?.toISOString() || '',
     Status: record.status,
   }))
 }

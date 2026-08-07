@@ -57,6 +57,24 @@ const storedJson = (value: string | null | undefined): unknown => {
     return undefined
   }
 }
+const csvCells = (line: string) => {
+  const cells: string[] = []
+  let value = ''
+  let quoted = false
+  for (let index = 0; index < line.length; index++) {
+    const character = line[index]
+    if (character === '"' && quoted && line[index + 1] === '"') {
+      value += '"'
+      index++
+    } else if (character === '"') quoted = !quoted
+    else if (character === ',' && !quoted) {
+      cells.push(value.trim())
+      value = ''
+    } else value += character
+  }
+  cells.push(value.trim())
+  return cells
+}
 
 export default function AssessmentManager({
   vacancies,
@@ -102,6 +120,9 @@ export default function AssessmentManager({
     scriptReference: '',
   })
   const [scoreSheet, setScoreSheet] = useState<File | null>(null)
+  const [batchAssessmentId, setBatchAssessmentId] = useState('')
+  const [batchRows, setBatchRows] = useState<Array<Record<string, unknown>>>([])
+  const [batchPreview, setBatchPreview] = useState<any>(null)
   const [resetId, setResetId] = useState('')
   const [resetReason, setResetReason] = useState('')
   const [editingId, setEditingId] = useState('')
@@ -244,6 +265,43 @@ export default function AssessmentManager({
       setResetReason('')
       router.refresh()
     }
+  }
+  const loadBatchFile = async (file: File | null) => {
+    setBatchRows([])
+    setBatchPreview(null)
+    if (!file) return
+    const lines = (await file.text()).split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+    const headers = csvCells(lines.shift() || '')
+    const required = ['candidateAssessmentId', 'score', 'attendance', 'comment', 'venue', 'assessedAt', 'invigilator']
+    if (required.some((header) => !headers.includes(header))) {
+      setMessage(`Import columns must include: ${required.join(', ')}`)
+      return
+    }
+    setBatchRows(
+      lines.map((line) =>
+        Object.fromEntries(headers.map((header, index) => [header, csvCells(line)[index] || undefined]))
+      )
+    )
+    setMessage(`${lines.length} result row${lines.length === 1 ? '' : 's'} loaded. Preview before applying.`)
+  }
+  const submitBatch = async (previewOnly: boolean) => {
+    if (!batchAssessmentId || !batchRows.length) return
+    const response = await fetch(`/api/recruitment/assessments/${batchAssessmentId}/offline-results`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ previewOnly, rows: batchRows }),
+    })
+    const data = await response.json()
+    if (!response.ok) return setMessage(data.error || 'Offline result import failed.')
+    if (previewOnly) {
+      setBatchPreview(data)
+      setMessage(data.canApply ? 'All rows passed validation.' : 'Some rows need correction; nothing was changed.')
+      return
+    }
+    setMessage(`${data.imported} offline assessment results imported.`)
+    setBatchPreview(null)
+    setBatchRows([])
+    router.refresh()
   }
   const updateQuestion = (index: number, changes: Partial<Question>) =>
     setQuestions((current) => current.map((question, i) => (i === index ? { ...question, ...changes } : question)))
@@ -869,6 +927,54 @@ export default function AssessmentManager({
           >
             Record outcome
           </button>
+        </div>
+      </div>
+      <div className="order-2 rounded-2xl border bg-white p-5 space-y-3">
+        <h2 className="font-bold">Offline assessment centre</h2>
+        <p className="text-xs text-slate-600">
+          Download the register and marking pack. After the session, upload the results and review them before saving.
+        </p>
+        <select
+          value={batchAssessmentId}
+          onChange={(event) => {
+            setBatchAssessmentId(event.target.value)
+            setBatchPreview(null)
+          }}
+          className="w-full rounded border p-2 text-sm"
+        >
+          <option value="">Offline assessment</option>
+          {assessments
+            .filter((item) => ['OFFLINE_WRITTEN', 'PRACTICAL', 'PRESENTATION', 'DRIVING_TEST', 'SIMULATION'].includes(item.type))
+            .map((item) => (
+              <option key={item.id} value={item.id}>{item.title}</option>
+            ))}
+        </select>
+        {batchAssessmentId && (
+          <a
+            href={`/api/recruitment/assessments/${batchAssessmentId}/offline-pack`}
+            className="inline-flex rounded border border-slate-300 px-3 py-2 text-xs font-bold"
+          >
+            Download offline pack and attendance list
+          </a>
+        )}
+        <label className="block text-xs font-bold">
+          Batch results CSV
+          <input type="file" accept=".csv,text/csv" onChange={(event) => void loadBatchFile(event.target.files?.[0] || null)} className="mt-1 block w-full" />
+          <span className="mt-1 block font-normal text-slate-500">
+            Columns: candidateAssessmentId, score, attendance, comment, venue, assessedAt, invigilator, scriptReference (optional).
+          </span>
+        </label>
+        {batchPreview && (
+          <div className={`rounded border p-3 text-xs ${batchPreview.canApply ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+            <p className="font-bold">{batchPreview.results.filter((row: any) => row.valid).length} valid · {batchPreview.results.filter((row: any) => !row.valid).length} invalid</p>
+            {batchPreview.results.filter((row: any) => !row.valid).map((row: any) => (
+              <p key={row.candidateAssessmentId} className="mt-1">{row.candidateAssessmentId}: {row.error}</p>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button type="button" disabled={!batchAssessmentId || !batchRows.length} onClick={() => void submitBatch(true)} className="rounded bg-slate-800 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">Preview import</button>
+          <button type="button" disabled={!batchPreview?.canApply} onClick={() => void submitBatch(false)} className="rounded bg-emerald-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">Apply validated results</button>
         </div>
       </div>
       <div className="order-2 rounded-2xl border bg-white p-5 space-y-3">

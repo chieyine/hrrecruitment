@@ -5,7 +5,7 @@ test.describe('Admin and Reports', () => {
   test('HR manager owns recruitment reference data', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once.')
 
-    await login(page, 'hrmanager@frad.org')
+    await login(page, 'hrmanager@fradfoundation.org')
 
     // Duty Stations
     await page.goto('/admin/duty-stations')
@@ -18,7 +18,7 @@ test.describe('Admin and Reports', () => {
 
     await logout(page)
 
-    await login(page, 'admin@frad.org')
+    await login(page, 'admin@fradfoundation.org')
     await page.goto('/admin/deletion-requests')
     await expect(page.getByRole('heading', { name: /deletion requests/i })).toBeVisible()
 
@@ -28,7 +28,7 @@ test.describe('Admin and Reports', () => {
   test('HR can export pipeline reports and manage My Work queue', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once.')
 
-    await login(page, 'hrmanager@frad.org')
+    await login(page, 'hrmanager@fradfoundation.org')
 
     // Reports
     await page.goto('/recruitment/reports')
@@ -49,7 +49,7 @@ test.describe('Admin and Reports', () => {
   test('administration workflows use structured, accessible forms', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'Desktop administration interaction is covered once.')
 
-    await login(page, 'admin@frad.org')
+    await login(page, 'admin@fradfoundation.org')
 
     await page.goto('/admin/governance')
     await page.getByRole('button', { name: /place hold/i }).click()
@@ -70,7 +70,7 @@ test.describe('Admin and Reports', () => {
     await targetDialog.getByRole('button', { name: /cancel/i }).click()
 
     await logout(page)
-    await login(page, 'course.admin@frad.org')
+    await login(page, 'course.admin@fradfoundation.org')
     await page.goto('/admin/courses')
     await page.getByRole('combobox', { name: /course/i }).selectOption({ index: 1 })
     await page.getByRole('button', { name: /add quiz question/i }).click()

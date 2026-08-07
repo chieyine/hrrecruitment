@@ -2,26 +2,35 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requirePermission, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
-import { canTransitionApplication, isGenericApplicationStage } from '@/lib/state-machine'
+import {
+  canTransitionApplication,
+  candidateVisibleStatusForInternal,
+  isGenericApplicationStage,
+} from '@/lib/state-machine'
 import { logAudit } from '@/lib/audit'
+import { hasPermission } from '@/lib/rbac'
+import { assignedApplicationWhere } from '@/lib/recruitment-access'
 
 export async function POST(request: Request) {
   try {
     const user = await requirePermission('application.stage.change')
-    const { applicationIds, toStatus, candidateVisibleStatus, reason, previewOnly } = await parseBody(
+    const { applicationIds, toStatus, reason, previewOnly } = await parseBody(
       request,
       z.object({
         applicationIds: z.array(z.string()).min(1).max(100),
         toStatus: z.string().min(1),
-        candidateVisibleStatus: z.string().min(1),
         reason: z.string().trim().min(3).max(1000),
         previewOnly: z.boolean().optional(),
       })
     )
     if (!isGenericApplicationStage(toStatus))
       throw new AuthzError('This outcome must be recorded through its dedicated workflow', 409)
+    const readAll = await hasPermission(user.userId, 'application.read.all')
     const applications = await prisma.application.findMany({
-      where: { id: { in: applicationIds } },
+      where: {
+        id: { in: applicationIds },
+        ...(readAll ? {} : assignedApplicationWhere(user.userId)),
+      },
       include: {
         candidate: { select: { legalFirstName: true, lastName: true } },
         vacancy: { select: { title: true, referenceNumber: true } },
@@ -65,7 +74,8 @@ export async function POST(request: Request) {
         'The selection contains applications that cannot make this stage change. Preview the action and remove invalid records.',
         422
       )
-    await prisma.$transaction(async (tx) => {
+    const run = await prisma.$transaction(async (tx) => {
+      const undoRecords: Array<Record<string, unknown>> = []
       for (const application of applications) {
         const changed = await tx.application.updateMany({
           where: {
@@ -73,10 +83,20 @@ export async function POST(request: Request) {
             internalStatus: application.internalStatus,
             lockVersion: application.lockVersion,
           },
-          data: { internalStatus: toStatus, candidateVisibleStatus, lockVersion: { increment: 1 } },
+          data: {
+            internalStatus: toStatus,
+            candidateVisibleStatus: candidateVisibleStatusForInternal(toStatus),
+            lockVersion: { increment: 1 },
+          },
         })
         if (changed.count !== 1)
           throw new AuthzError(`Application ${application.id} changed; refresh and try again`, 409)
+        undoRecords.push({
+          applicationId: application.id,
+          previousStatus: application.internalStatus,
+          changedStatus: toStatus,
+          changedLockVersion: application.lockVersion + 1,
+        })
         await tx.applicationStageHistory.create({
           data: {
             applicationId: application.id,
@@ -87,16 +107,29 @@ export async function POST(request: Request) {
           },
         })
       }
+      return tx.bulkActionRun.create({
+        data: {
+          actionType: 'STAGE_CHANGE',
+          requestedBy: user.userId,
+          requestedCount: applicationIds.length,
+          eligibleCount: applications.length,
+          failedCount: 0,
+          status: 'COMPLETED',
+          requestJson: JSON.stringify({ applicationIds, toStatus, reason }),
+          resultJson: JSON.stringify({ undoRecords }),
+          reversibleUntil: new Date(Date.now() + 15 * 60_000),
+        },
+      })
     })
     await logAudit({
       actorUserId: user.userId,
       action: 'APPLICATION_BULK_STAGE_CHANGED',
       resourceType: 'Application',
-      resourceId: applicationIds.join(','),
+      resourceId: run.id,
       reason,
       newValue: { toStatus, count: applications.length },
     })
-    return Response.json({ success: true, count: applications.length })
+    return Response.json({ success: true, count: applications.length, runId: run.id, reversibleUntil: run.reversibleUntil })
   } catch (error) {
     return authzResponse(error)
   }

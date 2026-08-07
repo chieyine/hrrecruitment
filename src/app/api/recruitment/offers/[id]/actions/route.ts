@@ -9,6 +9,7 @@ import { claimIdempotency, completeIdempotency, abandonIdempotency, type Idempot
 import { uploadFileAsset } from '@/lib/s3'
 import { buildOfferDocument } from '@/lib/offer-document'
 import { snapshottedOfferBody } from '@/lib/offer-template'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 const schema = z.object({ action: z.enum(['SEND', 'WITHDRAW']), comment: z.string().max(2000).optional() })
 
@@ -30,6 +31,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       include: { offerTemplate: true, application: { include: { candidate: true, vacancy: true } } },
     })
     if (!offer) return NextResponse.json({ error: 'Offer not found' }, { status: 404 })
+    requireOpenRecruitmentFile(offer.application.internalStatus)
     if (input.action === 'SEND') {
       if (offer.status !== 'APPROVED')
         return NextResponse.json({ error: 'Only an approved offer can be sent' }, { status: 409 })

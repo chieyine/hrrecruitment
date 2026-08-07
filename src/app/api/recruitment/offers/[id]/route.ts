@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 import { findIndependentApprover } from '@/lib/approvals'
 import { createNotification } from '@/lib/notifications'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 const schema = z
   .object({
@@ -24,8 +25,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const user = await requireRole('RECRUITMENT_OFFICER', 'HR_MANAGER')
     const changes = await parseBody(request, schema)
-    const old = await prisma.offer.findUnique({ where: { id: params.id } })
+    const old = await prisma.offer.findUnique({
+      where: { id: params.id },
+      include: { application: { select: { internalStatus: true } } },
+    })
     if (!old) throw new AuthzError('Offer not found', 404)
+    requireOpenRecruitmentFile(old.application.internalStatus)
     if (['ACCEPTED', 'DECLINED', 'EXPIRED', 'WITHDRAWN', 'SUPERSEDED'].includes(old.status))
       throw new AuthzError(`Offer cannot be corrected from ${old.status}`, 409)
     const startDate = changes.startDate ?? old.startDate

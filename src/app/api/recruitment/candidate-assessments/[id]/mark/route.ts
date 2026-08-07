@@ -5,6 +5,7 @@ import { requirePermission, authzResponse } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 import { refreshApplicationFinalScore } from '@/lib/recruitment-scoring.server'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
@@ -29,9 +30,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     )
     const record = await prisma.candidateAssessment.findUnique({
       where: { id: params.id },
-      include: { assessment: { include: { questions: true } }, answers: true },
+      include: { assessment: { include: { questions: true } }, answers: true, application: true },
     })
     if (!record) return NextResponse.json({ error: 'Candidate assessment not found' }, { status: 404 })
+    requireOpenRecruitmentFile(record.application.internalStatus)
     const offlineTypes = new Set(['OFFLINE_WRITTEN', 'PRACTICAL', 'PRESENTATION', 'DRIVING_TEST', 'SIMULATION'])
     const isOffline = offlineTypes.has(record.assessment.type)
     const canRecordOffline =

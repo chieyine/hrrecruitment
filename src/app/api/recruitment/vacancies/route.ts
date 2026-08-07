@@ -155,6 +155,21 @@ export async function POST(request: Request) {
       screeningScorecardTemplateId,
       interviewScorecardTemplateId,
       preboardingPackageId,
+      staffingRequestId,
+      grade,
+      timeZone,
+      salaryDisclosure,
+      salaryRangeMinimum,
+      salaryRangeMaximum,
+      salaryCurrency,
+      safeguardingClassification,
+      recruitmentContactName,
+      recruitmentContactEmail,
+      audience,
+      emergencyRecruitment,
+      emergencyJustification,
+      anonymisedReview,
+      anonymisedFields,
     } = body
 
     let assignedReference = referenceNumber?.trim()
@@ -180,6 +195,18 @@ export async function POST(request: Request) {
     ])
     if (!department || !dutyStation || !category || !configuredContract)
       throw new AuthzError('Choose active department, location, category and contract options', 400)
+
+    // §6 A vacancy is created from an approved staffing request. The link is
+    // optional at draft time so HR can start work, but publication enforces it.
+    if (staffingRequestId) {
+      const staffingRequest = await prisma.staffingRequest.findUnique({
+        where: { id: staffingRequestId },
+        select: { id: true, status: true },
+      })
+      if (!staffingRequest) throw new AuthzError('The linked staffing request does not exist', 400)
+      if (staffingRequest.status !== 'APPROVED_FOR_VACANCY')
+        throw new AuthzError('Only a staffing request approved for vacancy preparation may be used', 422)
+    }
 
     // Default Scorecard Template
     const defaultScorecard = await prisma.scorecardTemplate.findFirst({
@@ -216,6 +243,21 @@ export async function POST(request: Request) {
         status: 'DRAFT',
         ownerUserId: user.userId,
         projectId: projectId || null,
+        staffingRequestId: staffingRequestId || null,
+        grade: grade?.trim() || null,
+        timeZone: timeZone || 'Africa/Lagos',
+        salaryDisclosure: salaryDisclosure || 'HIDDEN',
+        salaryRangeMinimum: salaryRangeMinimum ?? null,
+        salaryRangeMaximum: salaryRangeMaximum ?? null,
+        salaryCurrency: salaryCurrency || 'NGN',
+        safeguardingClassification: safeguardingClassification || 'STANDARD',
+        recruitmentContactName: recruitmentContactName?.trim() || null,
+        recruitmentContactEmail: recruitmentContactEmail || null,
+        audience: audience || 'PUBLIC',
+        emergencyRecruitment: Boolean(emergencyRecruitment),
+        emergencyJustification: emergencyJustification?.trim() || null,
+        anonymisedReview: Boolean(anonymisedReview),
+        anonymisedFieldsJson: JSON.stringify(anonymisedFields || []),
         screeningScorecardTemplateId: screeningScorecardTemplateId || defaultScorecard?.id || null,
         interviewScorecardTemplateId: interviewScorecardTemplateId || null,
         preboardingPackageId: preboardingPackageId || null,

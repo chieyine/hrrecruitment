@@ -90,7 +90,7 @@ test('all candidate workspace pages render for the candidate role', async ({ pag
 })
 
 test('all recruitment workspace pages render for HR', async ({ page }) => {
-  await login(page, 'hrmanager@frad.org')
+  await login(page, 'hrmanager@fradfoundation.org')
   for (const path of recruitmentPages) await assertPageRenders(page, path)
 
   const vacancyResponse = await page.request.get('/api/recruitment/vacancies')
@@ -107,21 +107,21 @@ test('all recruitment workspace pages render for HR', async ({ page }) => {
 })
 
 test('all administration pages render for the system administrator', async ({ page }) => {
-  await login(page, 'admin@frad.org')
+  await login(page, 'admin@fradfoundation.org')
   for (const path of systemAdminPages) await assertPageRenders(page, path)
 })
 
 test('recruitment setup pages render for the HR manager', async ({ page }) => {
-  await login(page, 'hrmanager@frad.org')
+  await login(page, 'hrmanager@fradfoundation.org')
   for (const path of recruitmentSetupPages) await assertPageRenders(page, path)
 })
 
 test('learning setup pages render for the course administrator', async ({ page }) => {
-  await login(page, 'course.admin@frad.org')
+  await login(page, 'course.admin@fradfoundation.org')
   for (const path of courseAdminPages) await assertPageRenders(page, path)
 })
 
 test('recruitment operations pages render for the Recruitment / HR Officer', async ({ page }) => {
-  await login(page, 'recruitment.officer@frad.org')
+  await login(page, 'recruitment.officer@fradfoundation.org')
   for (const path of officerOperationsPages) await assertPageRenders(page, path)
 })

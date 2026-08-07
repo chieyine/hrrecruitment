@@ -8,6 +8,7 @@ import { logAudit } from '@/lib/audit'
 import { hasPermission } from '@/lib/rbac'
 import { expectedVersion, staleRecord } from '@/lib/concurrency'
 import { canMakeHrManagerDecision } from '@/lib/recruitment-role-policy'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 const schema = z.object({
   action: z.enum([
@@ -49,8 +50,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       throw new AuthzError('An HR manager must approve preboarding waivers', 403)
     }
     const data = input.data ?? {}
-    const preboarding = await prisma.candidatePreboarding.findUnique({ where: { id: params.id } })
+    const preboarding = await prisma.candidatePreboarding.findUnique({
+      where: { id: params.id },
+      include: { application: { select: { internalStatus: true } } },
+    })
     if (!preboarding) throw new AuthzError('Preboarding record not found', 404)
+    requireOpenRecruitmentFile(preboarding.application.internalStatus)
     if (['READY_TO_RESUME', 'COMPLETED'].includes(preboarding.status)) {
       throw new AuthzError('This preboarding record is closed', 409)
     }

@@ -29,6 +29,13 @@ export function authzResponse(err: unknown): NextResponse {
   if (err instanceof AuthzError) {
     return NextResponse.json({ error: err.message }, { status: err.status })
   }
+  // §28.10 A decision that could not be signed is reported as such rather than
+  // as a generic internal error, because the caller's next step differs: nothing
+  // was saved, and retrying is the correct response.
+  if (err instanceof Error && err.name === 'SignatureRequiredError') {
+    logger.error('Action aborted because its signature could not be captured', { error: err.message })
+    return NextResponse.json({ error: err.message, signatureFailed: true }, { status: 503 })
+  }
   const code = prismaCode(err)
   const known = code ? PRISMA_STATUS[code] : undefined
   if (known) {

@@ -55,11 +55,11 @@ test.describe('direct acceptance for specialist-role workflows', () => {
   test.beforeAll(async () => {
     const [hr, officer, hiringManager, panelMember, approver, candidateUser, department, dutyStation] =
       await Promise.all([
-        prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@frad.org' }, select: { id: true } }),
-        prisma.user.findUniqueOrThrow({ where: { email: 'recruitment.officer@frad.org' }, select: { id: true } }),
-        prisma.user.findUniqueOrThrow({ where: { email: 'hiring.manager@frad.org' }, select: { id: true } }),
-        prisma.user.findUniqueOrThrow({ where: { email: 'panel.member@frad.org' }, select: { id: true } }),
-        prisma.user.findUniqueOrThrow({ where: { email: 'approver@frad.org' }, select: { id: true } }),
+        prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@fradfoundation.org' }, select: { id: true } }),
+        prisma.user.findUniqueOrThrow({ where: { email: 'recruitment.officer@fradfoundation.org' }, select: { id: true } }),
+        prisma.user.findUniqueOrThrow({ where: { email: 'hiring.manager@fradfoundation.org' }, select: { id: true } }),
+        prisma.user.findUniqueOrThrow({ where: { email: 'panel.member@fradfoundation.org' }, select: { id: true } }),
+        prisma.user.findUniqueOrThrow({ where: { email: 'approver@fradfoundation.org' }, select: { id: true } }),
         prisma.user.findUniqueOrThrow({
           where: { email: 'candidate@example.com' },
           include: { candidateProfile: { select: { id: true } } },
@@ -115,7 +115,7 @@ test.describe('direct acceptance for specialist-role workflows', () => {
       records.push({ ...item, vacancy, approval })
     }
 
-    await login(page, 'hrmanager@frad.org')
+    await login(page, 'hrmanager@fradfoundation.org')
     for (const record of records) {
       const response = await page.request.post('/api/recruitment/approvals', {
         data: {
@@ -147,7 +147,7 @@ test.describe('direct acceptance for specialist-role workflows', () => {
     })
     const unrelatedApplication = await createApplication(unrelatedVacancy.id)
 
-    await login(page, 'hiring.manager@frad.org')
+    await login(page, 'hiring.manager@fradfoundation.org')
     const vacancyResponse = await page.request.get('/api/recruitment/vacancies')
     expect(vacancyResponse.status()).toBe(200)
     const vacancyIds = (await vacancyResponse.json()).vacancies.map((vacancy: { id: string }) => vacancy.id)
@@ -192,7 +192,7 @@ test.describe('direct acceptance for specialist-role workflows', () => {
       }),
     ])
 
-    await login(page, 'panel.member@frad.org')
+    await login(page, 'panel.member@fradfoundation.org')
     const response = await page.request.post(`/api/recruitment/interviews/${interview.id}/scores`, {
       data: {
         panelMemberId: member.id,
@@ -220,7 +220,7 @@ test.describe('direct acceptance for specialist-role workflows', () => {
     expect(pendingApplication.internalStatus).toBe('INTERVIEW_INVITED')
     await logout(page)
 
-    await login(page, 'hrmanager@frad.org')
+    await login(page, 'hrmanager@fradfoundation.org')
     const confirmation = await page.request.post(`/api/recruitment/interviews/${interview.id}/confirm-panel`, {
       data: {},
     })
@@ -249,7 +249,7 @@ test.describe('direct acceptance for specialist-role workflows', () => {
       manualOutcome: 'SATISFACTORY_WITH_CONCERNS',
     }
 
-    await login(page, 'hrmanager@frad.org')
+    await login(page, 'hrmanager@fradfoundation.org')
     const missingEvidence = await page.request.post(`/api/recruitment/applications/${application.id}/referees`, {
       data: basePayload,
     })

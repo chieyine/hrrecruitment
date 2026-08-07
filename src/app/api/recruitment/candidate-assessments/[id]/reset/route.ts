@@ -4,6 +4,7 @@ import { requirePermission, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 import { applicationAccess } from '@/lib/recruitment-access'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
@@ -12,9 +13,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { reason } = await parseBody(request, z.object({ reason: z.string().trim().min(10).max(1000) }))
     const record = await prisma.candidateAssessment.findUnique({
       where: { id: params.id },
-      include: { assessment: true },
+      include: { assessment: true, application: { select: { internalStatus: true } } },
     })
     if (!record) throw new AuthzError('Assessment assignment not found', 404)
+    requireOpenRecruitmentFile(record.application.internalStatus)
     const access = await applicationAccess(user.userId, record.applicationId)
     if (!access.readAll && !access.vacancyOwner && !access.assignedReviewer)
       throw new AuthzError('Assessment assignment not found or outside your assigned scope', 404)

@@ -4,6 +4,7 @@ import { requireRole, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { createNotification } from '@/lib/notifications'
 import { logAudit } from '@/lib/audit'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
@@ -15,6 +16,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       include: { application: { include: { candidate: true } } },
     })
     if (!interview) throw new AuthzError('Interview not found', 404)
+    requireOpenRecruitmentFile(interview.application.internalStatus)
     if (interview.status === 'CANCELLED') throw new AuthzError('A cancelled interview cannot be invited', 409)
     if (!['SHORTLISTED', 'ASSESSMENT_COMPLETED', 'INTERVIEW_INVITED'].includes(interview.application.internalStatus)) {
       throw new AuthzError(`Cannot invite from ${interview.application.internalStatus}`, 409)

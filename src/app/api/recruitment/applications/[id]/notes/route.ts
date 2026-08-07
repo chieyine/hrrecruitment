@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 const schema = z.object({
   content: z.string().trim().min(1).max(10_000),
@@ -20,6 +21,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const application = await prisma.application.findUnique({ where: { id: params.id } })
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    requireOpenRecruitmentFile(application.internalStatus)
 
     const note = await prisma.applicationNote.create({
       data: {

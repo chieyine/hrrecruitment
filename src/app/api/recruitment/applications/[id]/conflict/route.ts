@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermission, authzResponse } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 const schema = z
   .object({
@@ -20,8 +21,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const user = await requirePermission('scorecard.submit')
     const data = await parseBody(request, schema)
-    const application = await prisma.application.findUnique({ where: { id: params.id }, select: { id: true } })
+    const application = await prisma.application.findUnique({
+      where: { id: params.id },
+      select: { id: true, internalStatus: true },
+    })
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    requireOpenRecruitmentFile(application.internalStatus)
     const declaration = await prisma.conflictDeclaration.create({
       data: {
         userId: user.userId,

@@ -4,6 +4,7 @@ import { hasPermission } from '@/lib/rbac'
 import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit'
 import { expectedVersion, staleRecord } from '@/lib/concurrency'
+import { ANONYMISABLE_FIELDS } from '@/lib/anonymisation'
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
@@ -74,10 +75,28 @@ const EDITABLE_VACANCY_FIELDS = [
   'screeningScorecardTemplateId',
   'interviewScorecardTemplateId',
   'preboardingPackageId',
+  // End_to_End.md §6 record fields
+  'staffingRequestId',
+  'grade',
+  'timeZone',
+  'salaryDisclosure',
+  'salaryRangeMinimum',
+  'salaryRangeMaximum',
+  'salaryCurrency',
+  'safeguardingClassification',
+  'recruitmentContactName',
+  'recruitmentContactEmail',
+  // §28.8 audience, §28.7 emergency route, §28.3 anonymised review
+  'audience',
+  'emergencyRecruitment',
+  'emergencyJustification',
+  'anonymisedReview',
 ] as const
 
 const INT_FIELDS = new Set(['numberOfPositions', 'minimumExperienceYears'])
 const DATE_FIELDS = new Set(['openingAt', 'closingAt'])
+const DECIMAL_FIELDS = new Set(['salaryRangeMinimum', 'salaryRangeMaximum'])
+const BOOLEAN_FIELDS = new Set(['emergencyRecruitment', 'anonymisedReview'])
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
@@ -98,8 +117,27 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       if (!(key in body)) continue
       if (INT_FIELDS.has(key)) data[key] = parseInt(body[key], 10)
       else if (DATE_FIELDS.has(key)) data[key] = body[key] ? new Date(body[key]) : null
+      else if (DECIMAL_FIELDS.has(key))
+        data[key] = body[key] === null || body[key] === '' ? null : Number(body[key])
+      else if (BOOLEAN_FIELDS.has(key)) data[key] = Boolean(body[key])
       else data[key] = body[key]
     }
+    // §28.3 The hidden-field list is stored as JSON, so it is validated against
+    // the known field names rather than accepted as free text.
+    if (Array.isArray(body.anonymisedFields)) {
+      const allowed = new Set<string>(ANONYMISABLE_FIELDS)
+      const chosen = body.anonymisedFields.map(String).filter((field: string) => allowed.has(field))
+      data.anonymisedFieldsJson = JSON.stringify(chosen)
+    }
+    // §28.7 an accelerated route must always carry its justification.
+    const nextEmergency = data.emergencyRecruitment ?? previous.emergencyRecruitment
+    const nextJustification =
+      'emergencyJustification' in data ? data.emergencyJustification : previous.emergencyJustification
+    if (nextEmergency && !String(nextJustification || '').trim())
+      return NextResponse.json(
+        { error: 'Emergency recruitment requires a written justification' },
+        { status: 400 }
+      )
     if ('numberOfPositions' in data && (!Number.isInteger(data.numberOfPositions) || data.numberOfPositions < 1))
       return NextResponse.json({ error: 'Number of positions must be at least one' }, { status: 400 })
     if (

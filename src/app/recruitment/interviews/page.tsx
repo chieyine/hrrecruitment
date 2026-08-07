@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/rbac'
 import { canMakeHrManagerDecision, canRunRecruitmentOperations } from '@/lib/recruitment-role-policy'
 import { formatDateTime, getStatusBadgeClass } from '@/lib/utils'
+import InterviewAvailability from '@/components/recruitment/InterviewAvailability'
 
 export const dynamic = 'force-dynamic'
 
@@ -198,6 +199,8 @@ export default async function RecruitmentInterviewsPage({
                 : 'Review the application, declare any conflict and submit your scorecard.'
             }
           />
+
+          <InterviewAvailability />
 
           <InterviewManager
             applications={eligible.map((application) => ({

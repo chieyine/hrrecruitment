@@ -7,8 +7,10 @@ import { logAudit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
 import { claimIdempotency, completeIdempotency, abandonIdempotency, type IdempotencyClaim } from '@/lib/idempotency'
 import { evaluateApplicationEligibility } from '@/lib/eligibility'
+import { internalApplicationBlockReason } from '@/lib/internal-identity'
 import { logger } from '@/lib/logger'
 import { createApplicationReference } from '@/lib/application-reference'
+import { candidateFacingStatus } from '@/lib/candidate-status'
 
 const schema = z
   .object({
@@ -84,6 +86,7 @@ export async function GET(request: Request) {
         where: { candidate: { userId: user.userId } },
         select: {
           id: true,
+          internalStatus: true,
           candidateVisibleStatus: true,
           submittedAt: true,
           createdAt: true,
@@ -100,7 +103,12 @@ export async function GET(request: Request) {
         },
         orderBy: { createdAt: 'desc' },
       })
-      return NextResponse.json({ applications })
+      return NextResponse.json({
+        applications: applications.map(({ internalStatus, ...application }) => ({
+          ...application,
+          candidateVisibleStatus: candidateFacingStatus(internalStatus, application.candidateVisibleStatus),
+        })),
+      })
     }
     const application = await prisma.application.findFirst({
       where: { vacancyId, candidate: { userId: user.userId } },
@@ -139,7 +147,7 @@ export async function POST(request: Request) {
     let safeAnswers = answers ?? []
     const safeDocuments = documents ?? []
     const [account, profile, vacancy] = await Promise.all([
-      prisma.user.findUnique({ where: { id: user.userId }, select: { emailVerifiedAt: true } }),
+      prisma.user.findUnique({ where: { id: user.userId }, select: { email: true, emailVerifiedAt: true } }),
       prisma.candidateProfile.findUnique({
         where: { userId: user.userId },
         include: { education: true, employment: true, licences: true, documents: true },
@@ -153,6 +161,11 @@ export async function POST(request: Request) {
     if (!vacancy || vacancy.status !== 'OPEN' || vacancy.openingAt > new Date() || vacancy.closingAt <= new Date()) {
       throw new AuthzError('Vacancy is closed or not available', 400)
     }
+    // §28.8 An internal vacancy is restricted to current staff. This is checked
+    // on save as well as submit, so a draft cannot be started against a role the
+    // candidate is not eligible for and then submitted later.
+    const internalBlock = internalApplicationBlockReason(vacancy.audience, account)
+    if (internalBlock) throw new AuthzError(internalBlock, 403)
     if (mode === 'SUBMIT' && !account?.emailVerifiedAt)
       throw new AuthzError('Verify your email before submitting an application', 403)
     if (mode === 'SUBMIT' && !declarationsAccepted) throw new AuthzError('Candidate declarations must be accepted', 400)

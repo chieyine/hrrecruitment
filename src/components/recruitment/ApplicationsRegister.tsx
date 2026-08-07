@@ -85,7 +85,9 @@ export default function ApplicationsRegister({
     .filter((application) => selectedIds.includes(application.id))
     .map((application) => ({
       id: application.id,
-      candidate: `${application.candidate?.legalFirstName || ''} ${application.candidate?.lastName || ''}`.trim(),
+      candidate:
+        application.candidate?.alias ||
+        `${application.candidate?.legalFirstName || ''} ${application.candidate?.lastName || ''}`.trim(),
       vacancy: application.vacancy?.referenceNumber || '',
       status: application.internalStatus,
     }))
@@ -224,7 +226,10 @@ export default function ApplicationsRegister({
                           <td>
                             <input
                               type="checkbox"
-                              aria-label={`Select ${application.candidate?.legalFirstName} ${application.candidate?.lastName}`}
+                              aria-label={`Select ${
+                                application.candidate?.alias ||
+                                `${application.candidate?.legalFirstName ?? ''} ${application.candidate?.lastName ?? ''}`.trim()
+                              }`}
                               checked={selectedIds.includes(application.id)}
                               onChange={(event) =>
                                 setSelectedIds(
@@ -237,13 +242,23 @@ export default function ApplicationsRegister({
                           </td>
                         )}
                         <td>
+                          {/* §28.3 An anonymised vacancy sends an alias instead
+                              of a name; the identifying fields arrive empty. */}
                           <span className="font-bold text-stone-900">
-                            {application.candidate?.legalFirstName} {application.candidate?.lastName}
+                            {application.candidate?.anonymised
+                              ? application.candidate.alias
+                              : `${application.candidate?.legalFirstName ?? ''} ${application.candidate?.lastName ?? ''}`.trim()}
                           </span>
-                          {application.candidate?.user?.email && (
-                            <span className="mt-1 block text-xs text-stone-500">
-                              {application.candidate.user.email}
+                          {application.candidate?.anonymised ? (
+                            <span className="mt-1 block text-xs font-medium text-sky-800">
+                              Anonymised for this stage
                             </span>
+                          ) : (
+                            application.candidate?.user?.email && (
+                              <span className="mt-1 block text-xs text-stone-500">
+                                {application.candidate.user.email}
+                              </span>
+                            )
                           )}
                         </td>
                         <td>

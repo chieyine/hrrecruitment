@@ -103,6 +103,8 @@ export function ReasonDialog({
   confirmLabel = 'Confirm',
   reasonLabel = 'Reason',
   reasonRequired = false,
+  minLength = 0,
+  placeholder,
   tone = 'default',
   busy = false,
 }: {
@@ -114,14 +116,25 @@ export function ReasonDialog({
   confirmLabel?: string
   reasonLabel?: string
   reasonRequired?: boolean
+  /** Server-side minimums are mirrored here so the rejection happens before the round trip. */
+  minLength?: number
+  placeholder?: string
   tone?: 'default' | 'danger'
   busy?: boolean
 }) {
   const [reason, setReason] = useState('')
+  const [touched, setTouched] = useState(false)
   useEffect(() => {
-    if (open) setReason('')
+    if (open) {
+      setReason('')
+      setTouched(false)
+    }
   }, [open])
 
+  const trimmed = reason.trim()
+  const tooShort = minLength > 0 && trimmed.length > 0 && trimmed.length < minLength
+  const missing = reasonRequired && trimmed.length === 0
+  const invalid = tooShort || missing
   const confirmClasses = tone === 'danger' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-brand-700 hover:bg-brand-800'
 
   return (
@@ -129,9 +142,12 @@ export function ReasonDialog({
       <form
         onSubmit={async (e) => {
           e.preventDefault()
-          await onConfirm(reason.trim())
+          setTouched(true)
+          if (invalid) return
+          await onConfirm(trimmed)
         }}
         className="space-y-4"
+        noValidate
       >
         {description && <p className="text-sm leading-6 text-stone-600">{description}</p>}
         <div>
@@ -141,12 +157,26 @@ export function ReasonDialog({
           </label>
           <textarea
             id="dialog-reason"
-            required={reasonRequired}
             rows={3}
             value={reason}
+            placeholder={placeholder}
             onChange={(e) => setReason(e.target.value)}
+            onBlur={() => setTouched(true)}
+            aria-invalid={touched && invalid}
+            aria-describedby="dialog-reason-help"
             className="field-control min-h-24 resize-y"
           />
+          <p
+            id="dialog-reason-help"
+            className={`mt-1 text-xs ${touched && invalid ? 'font-medium text-rose-700' : 'text-stone-500'}`}
+            role={touched && invalid ? 'alert' : undefined}
+          >
+            {missing && touched
+              ? 'A reason is required.'
+              : minLength > 0
+                ? `${trimmed.length} of ${minLength} characters minimum.`
+                : ''}
+          </p>
         </div>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="btn-secondary min-h-10 px-4 py-2">
@@ -154,7 +184,7 @@ export function ReasonDialog({
           </button>
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || invalid}
             className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60 ${confirmClasses}`}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}

@@ -5,6 +5,7 @@ import { requireUser, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 import { canTransitionApplication } from '@/lib/state-machine'
+import { candidateFacingStatus } from '@/lib/candidate-status'
 
 export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
@@ -92,6 +93,10 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     return NextResponse.json({
       application: {
         ...candidateApplication,
+        candidateVisibleStatus: candidateFacingStatus(
+          application.internalStatus,
+          application.candidateVisibleStatus
+        ),
         isDraft,
         canWithdraw: !isDraft && canTransitionApplication(application.internalStatus, 'WITHDRAWN'),
       },

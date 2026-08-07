@@ -3,6 +3,11 @@ import { requireUser, authzResponse, AuthzError } from '@/lib/authz'
 import { hasPermission } from '@/lib/rbac'
 import { pageRequest, paginatedAs } from '@/lib/pagination'
 import { assignedApplicationWhere } from '@/lib/recruitment-access'
+import {
+  parseAnonymisationPolicy,
+  applyAnonymisation,
+  stageAllowsAnonymisation,
+} from '@/lib/anonymisation'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,7 +66,15 @@ export async function GET(request: Request) {
         where,
         include: {
           candidate: { select: { id: true, legalFirstName: true, lastName: true, user: { select: { email: true } } } },
-          vacancy: { select: { id: true, title: true, referenceNumber: true } },
+          vacancy: {
+            select: {
+              id: true,
+              title: true,
+              referenceNumber: true,
+              anonymisedReview: true,
+              anonymisedFieldsJson: true,
+            },
+          },
         },
         orderBy: SORTABLE[sortKey],
         skip: page.skip,
@@ -70,7 +83,26 @@ export async function GET(request: Request) {
       prisma.application.count({ where }),
     ])
 
-    return Response.json(paginatedAs('applications', applications, total, page))
+    /**
+     * §28.3 Redaction happens here, before serialisation. A reviewer working an
+     * anonymised vacancy at an early stage receives a stable alias instead of a
+     * name — the browser never holds the value, so it cannot be revealed by
+     * inspecting the response.
+     */
+    const redacted = applications.map((application) => {
+      const policy = parseAnonymisationPolicy(application.vacancy)
+      if (!policy.enabled || !stageAllowsAnonymisation(application.internalStatus))
+        return { ...application, candidate: { ...application.candidate, alias: null, anonymised: false } }
+      return {
+        ...application,
+        candidate: applyAnonymisation(application.candidate, policy, {
+          applicationId: application.id,
+          applicationReference: application.referenceNumber,
+        }),
+      }
+    })
+
+    return Response.json(paginatedAs('applications', redacted, total, page))
   } catch (error) {
     return authzResponse(error)
   }

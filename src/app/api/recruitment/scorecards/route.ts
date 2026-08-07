@@ -5,6 +5,7 @@ import { parseBody, scorecardSubmitSchema } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 import { hasPermission } from '@/lib/rbac'
 import { refreshApplicationFinalScore } from '@/lib/recruitment-scoring.server'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 /**
  * Resolve the screening scorecard template (+criteria) for an application:
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
 
     const { application, template } = await resolveTemplate(applicationId)
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    requireOpenRecruitmentFile(application.internalStatus)
     if (!template) {
       return NextResponse.json({ error: 'No screening scorecard template configured' }, { status: 404 })
     }

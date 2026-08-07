@@ -6,7 +6,7 @@ test.describe('Selection, Offers, and Preboarding', () => {
     test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once.')
 
     // We assume a selection has been proposed by one HR member
-    await login(page, 'hrmanager@frad.org')
+    await login(page, 'hrmanager@fradfoundation.org')
     await page.goto('/recruitment/selections')
 
     await expect(page.getByRole('heading', { name: /selection/i }).first()).toBeVisible()
@@ -34,7 +34,7 @@ test.describe('Selection, Offers, and Preboarding', () => {
     await logout(page)
 
     // HR waivers
-    await login(page, 'hrmanager@frad.org')
+    await login(page, 'hrmanager@fradfoundation.org')
     await page.goto('/recruitment/preboarding')
 
     await expect(page.getByRole('heading', { name: /new starter readiness/i })).toBeVisible()

@@ -13,5 +13,10 @@ export function homeRouteForRoles(roles: readonly string[]): string {
   if (roles.length === 1 && roles[0] === 'APPROVER') return '/recruitment/approvals'
   if (roles.length === 1 && roles[0] === 'COURSE_ADMIN') return '/admin/courses'
   if (roles.length === 1 && roles[0] === 'AUDITOR') return '/recruitment/audit'
+  // §22.3 A Budget Holder only ever confirms money, so the funding queue is the
+  // whole of their workspace.
+  if (roles.length === 1 && roles[0] === 'BUDGET_HOLDER') return '/recruitment/funding'
+  // §22.4 A hiring department representative starts on their own requests.
+  if (roles.length === 1 && roles[0] === 'HIRING_MANAGER') return '/recruitment/staffing-requests'
   return '/recruitment/dashboard'
 }

@@ -11,11 +11,19 @@ import { hasPermission } from '@/lib/rbac'
 import { hasStaffRole } from '@/lib/roles'
 
 const REPORTS = [
+  ['staffing-requests', 'Staffing requests', 'Plan and fund'],
+  ['funding', 'Funding confirmations', 'Plan and fund'],
   ['pipeline', 'Vacancy pipeline', 'Recruitment'],
   ['candidate-stages', 'Candidate stage history', 'Recruitment'],
+  ['longlisting', 'Longlisting summary', 'Recruitment'],
+  ['longlisting-exceptions', 'Longlisting exceptions and overrides', 'Recruitment'],
+  ['shortlisting', 'Shortlisting scores', 'Recruitment'],
   ['assessments', 'Assessment outcomes', 'Recruitment'],
   ['interviews', 'Interview activity', 'Recruitment'],
+  ['candidate-ranking', 'Candidate ranking', 'Recruitment'],
+  ['selection', 'Selection decisions', 'Recruitment'],
   ['references', 'Reference checks', 'Recruitment'],
+  ['background-checks', 'Background-check status', 'Recruitment'],
   ['offers', 'Offer outcomes', 'Offer and start'],
   ['preboarding', 'Pre-start completion', 'Offer and start'],
   ['outstanding', 'Outstanding pre-start items', 'Offer and start'],
@@ -23,19 +31,24 @@ const REPORTS = [
   ['readiness', 'Readiness checks', 'Offer and start'],
   ['resumption', 'Start outcomes', 'Offer and start'],
   ['erp', 'ERP handovers', 'Offer and start'],
+  ['recruitment-closure', 'Recruitment closure', 'Offer and start'],
   ['waivers', 'Waiver audit', 'Governance'],
   ['approvals', 'Approval decisions', 'Governance'],
+  ['compliance', 'Recruitment compliance', 'Governance'],
+  ['signatures', 'Electronic signature register', 'Governance'],
   ['audit', 'System audit trail', 'Governance'],
   ['complaints', 'Complaint and appeal register', 'Governance'],
   ['privacy-deletions', 'Privacy and deletion requests', 'Governance'],
   ['configuration-changes', 'Configuration change approvals', 'Governance'],
+  ['time-to-fill', 'Time to fill', 'Operations'],
+  ['source-of-application', 'Source of application and hire', 'Operations'],
   ['work-items', 'Work queue and service history', 'Operations'],
   ['communications', 'Communication register', 'Operations'],
   ['delivery', 'Message delivery and failures', 'Operations'],
   ['data-quality', 'Data-quality exceptions', 'Operations'],
 ] as const
 
-const REPORT_GROUPS = ['Recruitment', 'Offer and start', 'Governance', 'Operations'] as const
+const REPORT_GROUPS = ['Plan and fund', 'Recruitment', 'Offer and start', 'Governance', 'Operations'] as const
 const VIEWS = [
   ['overview', 'Overview'],
   ['downloads', 'Downloads'],
@@ -61,6 +74,8 @@ export default async function RecruitmentReportsPage({
     canExportReferences,
     canExportOffers,
     canExportPreboarding,
+    canReadFunding,
+    canReadRestrictedChecks,
   ] = await Promise.all([
     hasPermission(user.userId, 'complaint.manage'),
     hasPermission(user.userId, 'audit.read'),
@@ -68,6 +83,8 @@ export default async function RecruitmentReportsPage({
     hasPermission(user.userId, 'reference.manage'),
     hasPermission(user.userId, 'offer.manage'),
     hasPermission(user.userId, 'preboarding.manage'),
+    hasPermission(user.userId, 'funding.read'),
+    hasPermission(user.userId, 'backgroundcheck.manage'),
   ])
   const auditor = user.roles.includes('AUDITOR')
   const canAccessReport = (code: string) => {
@@ -80,6 +97,10 @@ export default async function RecruitmentReportsPage({
     if (code === 'offers') return canExportOffers
     if (['preboarding', 'outstanding', 'courses', 'readiness', 'resumption', 'erp', 'waivers'].includes(code))
       return canExportPreboarding
+    // §3.7 financial reporting follows funding authority, not general HR access.
+    if (['funding', 'staffing-requests'].includes(code)) return canReadFunding
+    // §16 the due-diligence register is limited to those who manage checks.
+    if (code === 'background-checks') return canReadRestrictedChecks
     return true
   }
   const visibleReports = REPORTS.filter(([code]) => canAccessReport(code))
@@ -98,7 +119,7 @@ export default async function RecruitmentReportsPage({
         <div className="page-shell space-y-6">
           <PageIntro
             title="Reports"
-            description="Review recruitment performance and produce controlled operational records."
+            description="Review recruitment performance and download the records needed for follow-up and audit."
             actions={
               view === 'downloads' ? (
                 <a href="/api/recruitment/reports/export?report=all&format=zip" className="btn-primary">

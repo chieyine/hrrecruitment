@@ -149,7 +149,7 @@ export async function POST(request: Request) {
       }),
     ])
     const parent = resourceParents.find(Boolean)
-    if (parent?.candidatePreboarding.application.internalStatus === 'TRANSFERRED_TO_ERP') {
+    if (['TRANSFERRED_TO_ERP', 'ARCHIVED'].includes(parent?.candidatePreboarding.application.internalStatus || '')) {
       throw new AuthzError('This recruitment file is closed after ERP transfer', 409)
     }
 

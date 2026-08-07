@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requirePermission, authzResponse } from '@/lib/authz'
 import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 import { z } from 'zod'
 import { parseBody } from '@/lib/validation'
 import { AuthzError } from '@/lib/authz'
@@ -23,6 +24,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }),
     ])
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    requireOpenRecruitmentFile(application.internalStatus)
     if (!reviewer) return NextResponse.json({ error: 'Reviewer not found' }, { status: 404 })
     if (reviewer.accountStatus !== 'ACTIVE') throw new AuthzError('Reviewer account is not active', 409)
     const isStaff = hasStaffRole(reviewer.userRoles.map((assignment) => assignment.role.name))

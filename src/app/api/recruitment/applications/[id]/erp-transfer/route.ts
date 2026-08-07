@@ -25,7 +25,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const application = await prisma.application.findUnique({
       where: { id: params.id },
-      include: { resumptionRecord: true },
+      include: { resumptionRecord: true, erpTransferRecord: true },
     })
 
     if (!application) {
@@ -47,9 +47,27 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Confirmed resumption must be recorded before ERP transfer' }, { status: 422 })
     }
 
+    // §19.1 the transfer must already carry HR Manager approval, which is granted
+    // through the approve endpoint after readiness and duplicate checks.
+    const approval = application.erpTransferRecord
+    if (!approval?.approvedAt) {
+      return NextResponse.json(
+        { error: 'HR Manager approval of the transfer is required before the personnel number can be recorded' },
+        { status: 409 }
+      )
+    }
+    if (approval.erpPersonnelNumber) {
+      return NextResponse.json({ error: 'An ERP personnel number is already recorded' }, { status: 409 })
+    }
+
+    const previousStatus = application.internalStatus
     const erpRecord = await prisma.$transaction(async (tx) => {
       const transitioned = await tx.application.updateMany({
-        where: { id: params.id, internalStatus: 'RESUMED', lockVersion: application.lockVersion },
+        where: {
+          id: params.id,
+          internalStatus: { in: ['RESUMED', 'READY_FOR_ERP_TRANSFER'] },
+          lockVersion: application.lockVersion,
+        },
         data: {
           internalStatus: 'TRANSFERRED_TO_ERP',
           candidateVisibleStatus: 'RECRUITMENT_COMPLETED',
@@ -58,20 +76,23 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         },
       })
       if (transitioned.count !== 1) throw new Error('APPLICATION_CHANGED')
-      const record = await tx.eRPTransferRecord.create({
+      // The approval row already exists; recording the transfer fills in the
+      // real personnel number rather than creating a second record.
+      const record = await tx.eRPTransferRecord.update({
+        where: { id: approval.id },
         data: {
-          applicationId: params.id,
           erpPersonnelNumber: erpPersonnelNumber.trim(),
+          transferStatus: 'RECORDED',
           createdInErpAt: createdInErpAt || new Date(),
           recordedBy: user.userId,
-          comment: comment || null,
+          comment: comment || approval.comment,
           status: 'CREATED_IN_ERP',
         },
       })
       await tx.applicationStageHistory.create({
         data: {
           applicationId: params.id,
-          fromStatus: 'RESUMED',
+          fromStatus: previousStatus,
           toStatus: 'TRANSFERRED_TO_ERP',
           changedBy: user.userId,
           reason: comment || `ERP personnel number recorded: ${erpPersonnelNumber.trim()}`,

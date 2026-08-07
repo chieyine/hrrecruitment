@@ -17,6 +17,10 @@ async function main() {
     { name: 'RECRUITMENT_OFFICER', description: 'HR recruitment officer managing vacancies & candidates' },
     { name: 'HR_MANAGER', description: 'HR Manager approving vacancies, offers & waivers' },
     { name: 'HIRING_MANAGER', description: 'Hiring manager reviewing assigned candidates & panels' },
+    {
+      name: 'BUDGET_HOLDER',
+      description: 'Budget Holder confirming funding, ceilings and budget lines for staffing requests',
+    },
     { name: 'PANEL_MEMBER', description: 'Interview panel scoring member' },
     { name: 'REFEREE', description: 'External referee completing reference check' },
     { name: 'APPROVER', description: 'Executive approver' },
@@ -42,10 +46,10 @@ async function main() {
   const passwordHash = await bcrypt.hash(seedPassword, 10)
 
   const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@frad.org' },
+    where: { email: 'admin@fradfoundation.org' },
     update: { passwordHash, sessionVersion: { increment: 1 } },
     create: {
-      email: 'admin@frad.org',
+      email: 'admin@fradfoundation.org',
       passwordHash,
       accountStatus: 'ACTIVE',
       emailVerifiedAt: new Date(),
@@ -74,10 +78,10 @@ async function main() {
   }
 
   const hrManagerUser = await prisma.user.upsert({
-    where: { email: 'hrmanager@frad.org' },
+    where: { email: 'hrmanager@fradfoundation.org' },
     update: { passwordHash, sessionVersion: { increment: 1 } },
     create: {
-      email: 'hrmanager@frad.org',
+      email: 'hrmanager@fradfoundation.org',
       passwordHash,
       accountStatus: 'ACTIVE',
       emailVerifiedAt: new Date(),
@@ -141,12 +145,13 @@ async function main() {
   // Dedicated demo identities make every documented persona testable without
   // sharing an account or combining incompatible duties.
   const personaUsers = [
-    ['recruitment.officer@frad.org', 'RECRUITMENT_OFFICER'],
-    ['hiring.manager@frad.org', 'HIRING_MANAGER'],
-    ['panel.member@frad.org', 'PANEL_MEMBER'],
-    ['approver@frad.org', 'APPROVER'],
-    ['course.admin@frad.org', 'COURSE_ADMIN'],
-    ['auditor@frad.org', 'AUDITOR'],
+    ['recruitment.officer@fradfoundation.org', 'RECRUITMENT_OFFICER'],
+    ['hiring.manager@fradfoundation.org', 'HIRING_MANAGER'],
+    ['budget.holder@fradfoundation.org', 'BUDGET_HOLDER'],
+    ['panel.member@fradfoundation.org', 'PANEL_MEMBER'],
+    ['approver@fradfoundation.org', 'APPROVER'],
+    ['course.admin@fradfoundation.org', 'COURSE_ADMIN'],
+    ['auditor@fradfoundation.org', 'AUDITOR'],
   ] as const
   for (const [email, roleName] of personaUsers) {
     const persona = await prisma.user.upsert({
@@ -521,31 +526,75 @@ async function main() {
   }
 
   // 9. Preboarding Form Templates
+  // `handoverPurpose` is what the §19.2 ERP pack reads. It is set explicitly so
+  // renaming a form can never silently drop payroll data out of the handover.
   const forms = [
     {
       title: 'Personal & Residential Details Form',
       description: 'Full legal names, nationality, residential address',
+      handoverPurpose: 'NONE',
       schemaJson: JSON.stringify({ fields: [{ name: 'legalName', type: 'text', required: true }] }),
     },
     {
-      title: 'Emergency Contact & Next-of-Kin Form',
-      description: 'Primary emergency contact and Next of Kin records',
+      title: 'Emergency Contact Form',
+      description: 'Primary emergency contact',
       sensitivityClass: 'RESTRICTED',
+      handoverPurpose: 'EMERGENCY_CONTACT',
       schemaJson: JSON.stringify({
         fields: [
-          { name: 'kinName', type: 'text', required: true },
-          { name: 'kinPhone', type: 'text', required: true },
+          { name: 'contactName', type: 'text', required: true },
+          { name: 'contactPhone', type: 'text', required: true },
+          { name: 'relationship', type: 'text', required: true },
         ],
       }),
     },
     {
-      title: 'Bank Account & Tax Information Form',
+      title: 'Next-of-Kin Form',
+      description: 'Next of kin record',
+      sensitivityClass: 'RESTRICTED',
+      handoverPurpose: 'NEXT_OF_KIN',
+      schemaJson: JSON.stringify({
+        fields: [
+          { name: 'kinName', type: 'text', required: true },
+          { name: 'kinPhone', type: 'text', required: true },
+          { name: 'relationship', type: 'text', required: true },
+        ],
+      }),
+    },
+    {
+      title: 'Bank Account Form',
       description: 'Payroll bank details (Restricted Access)',
       sensitivityClass: 'RESTRICTED',
+      handoverPurpose: 'BANK_DETAILS',
       schemaJson: JSON.stringify({
         fields: [
           { name: 'bankName', type: 'text', required: true },
           { name: 'accountNumber', type: 'text', required: true },
+          { name: 'accountName', type: 'text', required: true },
+        ],
+      }),
+    },
+    {
+      title: 'Tax Information Form',
+      description: 'Tax identification details (Restricted Access)',
+      sensitivityClass: 'RESTRICTED',
+      handoverPurpose: 'TAX_DETAILS',
+      schemaJson: JSON.stringify({
+        fields: [
+          { name: 'taxIdentificationNumber', type: 'text', required: true },
+          { name: 'taxState', type: 'text', required: true },
+        ],
+      }),
+    },
+    {
+      title: 'Pension Details Form',
+      description: 'Pension administrator and RSA number (Restricted Access)',
+      sensitivityClass: 'RESTRICTED',
+      handoverPurpose: 'PENSION_DETAILS',
+      schemaJson: JSON.stringify({
+        fields: [
+          { name: 'pensionAdministrator', type: 'text', required: true },
+          { name: 'rsaNumber', type: 'text', required: true },
         ],
       }),
     },
@@ -557,7 +606,7 @@ async function main() {
     else
       await prisma.preboardingFormTemplate.update({
         where: { id: existing.id },
-        data: { sensitivityClass: f.sensitivityClass || 'STANDARD' },
+        data: { sensitivityClass: f.sensitivityClass || 'STANDARD', handoverPurpose: f.handoverPurpose },
       })
   }
 
@@ -630,6 +679,33 @@ async function main() {
     { code: 'report.export', description: 'Export recruitment and preboarding reports' },
     { code: 'complaint.manage', description: 'Manage restricted complaints and case records' },
     { code: 'governance.manage', description: 'Manage legal holds, retention and access reviews' },
+
+    // §5 Staffing requests
+    { code: 'staffing.request.create', description: 'Raise and edit own staffing requests' },
+    { code: 'staffing.request.read.assigned', description: 'Read own or departmental staffing requests' },
+    { code: 'staffing.request.read.all', description: 'Read all staffing requests' },
+    { code: 'staffing.request.review', description: 'Review and return staffing requests as HR' },
+    { code: 'staffing.request.approve', description: 'Approve a staffing request for vacancy preparation' },
+
+    // §3.7, §17 Budget Holder funding authority
+    { code: 'funding.confirm', description: 'Confirm or reject funding, ceilings and budget lines' },
+    { code: 'funding.read', description: 'Read funding confirmations and financial envelopes' },
+    { code: 'offer.financial.confirm', description: 'Confirm offer terms above the approved ceiling' },
+
+    // §11 Longlisting
+    { code: 'longlist.rule.manage', description: 'Define and amend vacancy longlisting rules' },
+    { code: 'longlist.run', description: 'Run automatic longlisting over a vacancy' },
+    { code: 'longlist.review', description: 'Work the longlisting exception-review queue' },
+    { code: 'longlist.override', description: 'Override an automated longlisting outcome with a reason' },
+    { code: 'longlist.confirm', description: 'Confirm the final longlist for a vacancy' },
+
+    // §16, §28.11 Due diligence
+    { code: 'backgroundcheck.manage', description: 'Request and record background and due-diligence checks' },
+    { code: 'backgroundcheck.read.restricted', description: 'Read restricted background-check findings' },
+
+    // §28.10 Electronic signatures
+    { code: 'signature.sign', description: 'Apply an electronic signature or approval' },
+    { code: 'signature.read', description: 'Read the electronic signature register' },
   ]
   for (const p of permissions) {
     await prisma.permission.upsert({ where: { code: p.code }, update: { description: p.description }, create: p })
@@ -658,6 +734,20 @@ async function main() {
       'report.export',
       'complaint.manage',
       'governance.manage',
+      'staffing.request.create',
+      'staffing.request.read.all',
+      'staffing.request.review',
+      'staffing.request.approve',
+      'funding.read',
+      'longlist.rule.manage',
+      'longlist.run',
+      'longlist.review',
+      'longlist.override',
+      'longlist.confirm',
+      'backgroundcheck.manage',
+      'backgroundcheck.read.restricted',
+      'signature.sign',
+      'signature.read',
     ],
     RECRUITMENT_OFFICER: [
       'vacancy.create.all',
@@ -675,6 +765,20 @@ async function main() {
       'resumption.confirm',
       'erp.transfer',
       'complaint.manage',
+      // §11 The recruitment officer prepares rules and works the exception
+      // queue, but confirming the longlist and overriding an automated outcome
+      // stay with the HR Manager.
+      'staffing.request.create',
+      'staffing.request.read.all',
+      'staffing.request.review',
+      'funding.read',
+      'longlist.rule.manage',
+      'longlist.run',
+      'longlist.review',
+      'backgroundcheck.manage',
+      'backgroundcheck.read.restricted',
+      'signature.sign',
+      'signature.read',
     ],
     HIRING_MANAGER: [
       'vacancy.read.assigned',
@@ -682,11 +786,31 @@ async function main() {
       'scorecard.submit',
       'interview.manage',
       'interview.score.assigned',
+      // §3.6 raises staffing requests and sees its own, but approves nothing.
+      'staffing.request.create',
+      'staffing.request.read.assigned',
+      'signature.sign',
     ],
-    PANEL_MEMBER: ['application.read.assigned', 'interview.score.assigned'],
+    // §3.7 Money only. No candidate records, no scores, no offers.
+    BUDGET_HOLDER: [
+      'staffing.request.read.assigned',
+      'funding.confirm',
+      'funding.read',
+      'offer.financial.confirm',
+      'signature.sign',
+    ],
+    PANEL_MEMBER: ['application.read.assigned', 'interview.score.assigned', 'signature.sign'],
     COURSE_ADMIN: ['course.manage'],
-    APPROVER: [],
-    AUDITOR: ['vacancy.read.all', 'application.read.all', 'audit.read', 'report.export'],
+    APPROVER: ['staffing.request.read.all', 'signature.sign'],
+    AUDITOR: [
+      'vacancy.read.all',
+      'application.read.all',
+      'audit.read',
+      'report.export',
+      'staffing.request.read.all',
+      'funding.read',
+      'signature.read',
+    ],
   }
   for (const [roleName, codes] of Object.entries(grants)) {
     const role = await prisma.role.findUnique({ where: { name: roleName } })

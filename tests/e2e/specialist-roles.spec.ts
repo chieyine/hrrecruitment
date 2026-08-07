@@ -3,7 +3,7 @@ import { login, logout } from './helpers'
 
 test.describe('documented specialist personas', () => {
   test('recruitment officer can run recruitment but cannot administer the system', async ({ page }) => {
-    await login(page, 'recruitment.officer@frad.org')
+    await login(page, 'recruitment.officer@fradfoundation.org')
     await page.goto('/recruitment/applications')
     await expect(page.getByRole('heading', { name: 'Applications' })).toBeVisible()
     await page.goto('/recruitment/accommodations')
@@ -18,7 +18,7 @@ test.describe('documented specialist personas', () => {
   })
 
   test('hiring manager sees assigned scope and cannot export all reports', async ({ page }) => {
-    await login(page, 'hiring.manager@frad.org')
+    await login(page, 'hiring.manager@fradfoundation.org')
     await page.goto('/recruitment/vacancies')
     await expect(page.getByRole('heading', { name: /vacancy register/i })).toBeVisible()
     const response = await page.request.get('/api/recruitment/reports/export?report=pipeline&format=csv')
@@ -27,7 +27,7 @@ test.describe('documented specialist personas', () => {
   })
 
   test('panel member lands on assigned interviews and cannot manage vacancies', async ({ page }) => {
-    await login(page, 'panel.member@frad.org')
+    await login(page, 'panel.member@fradfoundation.org')
     await expect(page).toHaveURL(/\/recruitment\/interviews/)
     await page.goto('/recruitment/vacancies')
     await expect(page).toHaveURL(/\/recruitment\/interviews/)
@@ -35,14 +35,14 @@ test.describe('documented specialist personas', () => {
   })
 
   test('approver lands on independent approval queue', async ({ page }) => {
-    await login(page, 'approver@frad.org')
+    await login(page, 'approver@fradfoundation.org')
     await expect(page).toHaveURL(/\/recruitment\/approvals/)
     await expect(page.getByRole('heading', { name: /pending approvals/i })).toBeVisible()
     await logout(page)
   })
 
   test('system administrator stays in the technical control plane', async ({ page }) => {
-    await login(page, 'admin@frad.org')
+    await login(page, 'admin@fradfoundation.org')
     await expect(page).toHaveURL(/\/admin\/system-settings/)
     await page.goto('/recruitment/approvals')
     await expect(page).toHaveURL(/\/admin\/system-settings/)
@@ -58,7 +58,7 @@ test.describe('documented specialist personas', () => {
   })
 
   test('course administrator is limited to course administration', async ({ page }) => {
-    await login(page, 'course.admin@frad.org')
+    await login(page, 'course.admin@fradfoundation.org')
     await expect(page).toHaveURL(/\/admin\/courses/)
     await expect(page.getByRole('heading', { name: /compulsory courses/i })).toBeVisible()
     await page.goto('/admin/users')
@@ -67,7 +67,7 @@ test.describe('documented specialist personas', () => {
   })
 
   test('auditor can read audit and exports but cannot change administration', async ({ page }) => {
-    await login(page, 'auditor@frad.org')
+    await login(page, 'auditor@fradfoundation.org')
     await page.goto('/recruitment/audit')
     await expect(page.getByRole('heading', { name: /audit/i })).toBeVisible()
     const response = await page.request.get('/api/recruitment/reports/export?report=waivers&format=csv')

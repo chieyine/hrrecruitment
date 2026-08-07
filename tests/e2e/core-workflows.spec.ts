@@ -51,7 +51,7 @@ test('candidate submits an application and HR can open its Candidate 360 record'
   await expect(page.getByRole('link', { name: /start application/i })).toHaveCount(0)
 
   await logout(page)
-  await login(page, 'hrmanager@frad.org')
+  await login(page, 'hrmanager@fradfoundation.org')
   await page.goto('/recruitment/applications')
   await expect(page.getByText(/Aminu/).first()).toBeVisible()
   const preview = await page.request.post('/api/recruitment/applications/bulk-stage-change', {
@@ -100,7 +100,7 @@ test('candidate updates personal information and talent-pool preference', async 
 
 test('HR manager creates and removes a recruitment configuration record', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once.')
-  await login(page, 'hrmanager@frad.org')
+  await login(page, 'hrmanager@fradfoundation.org')
   await page.goto('/admin/departments')
 
   await page.getByRole('button', { name: /^add department$/i }).click()
@@ -131,7 +131,7 @@ test('critical API authorization and health boundaries hold', async ({ page }, t
   expect(candidateAdmin.status()).toBe(403)
 
   await logout(page)
-  await login(page, 'hrmanager@frad.org')
+  await login(page, 'hrmanager@fradfoundation.org')
   const staffApplications = await page.request.get('/api/recruitment/applications')
   expect(staffApplications.ok(), `${testInfo.project.name}: staff applications endpoint`).toBeTruthy()
 })

@@ -54,7 +54,7 @@ test.describe('Applications and Screening', () => {
   test('HR can open a candidate application record', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once.')
 
-    await login(page, 'hrmanager@frad.org')
+    await login(page, 'hrmanager@fradfoundation.org')
     await page.goto('/recruitment/applications')
 
     const candidateLink = page

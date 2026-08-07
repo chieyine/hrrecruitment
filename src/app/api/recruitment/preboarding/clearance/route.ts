@@ -5,6 +5,7 @@ import { requireRole, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 const schema = z.object({
   preboardingId: z.string().min(1),
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
       },
     })
     if (!preboarding) throw new AuthzError('Preboarding record not found', 404)
+    requireOpenRecruitmentFile(preboarding.application.internalStatus)
     if (['READY_TO_RESUME', 'COMPLETED'].includes(preboarding.status))
       throw new AuthzError('This preboarding record has already been cleared', 409)
 

@@ -47,6 +47,18 @@ export default function BulkApplicationActions({
     talentPoolId: '',
     subject: '',
     message: '',
+    personnelNumbersText: '',
+    interviewTitle: '',
+    interviewFirstStart: '',
+    interviewDurationMinutes: 45,
+    interviewGapMinutes: 15,
+    interviewTimezone: 'Africa/Lagos',
+    interviewFormat: 'VIRTUAL',
+    interviewVenue: '',
+    interviewMeetingLink: '',
+    interviewInstructions: '',
+    interviewQuestion: '',
+    interviewPanelUserIds: [] as string[],
     reason: '',
   })
   const [actionPreview, setActionPreview] = useState<any>(null)
@@ -102,10 +114,16 @@ export default function BulkApplicationActions({
     setBusy(false)
     if (!response.ok) return setError(body.error || 'Could not complete the stage change.')
     toast('success', `${body.count} application${body.count === 1 ? '' : 's'} updated.`)
+    setReceipt({
+      runId: body.runId,
+      action: 'STAGE_CHANGE',
+      completed: body.count,
+      failures: 0,
+      reversible: true,
+    })
     setOpen(false)
     setPreview(null)
     setReason('')
-    onClear()
     router.refresh()
   }
 
@@ -121,6 +139,34 @@ export default function BulkApplicationActions({
         applicationIds: applications.map((item) => item.id),
         previewOnly,
         ...actionData,
+        ...(bulkAction === 'ERP_TRANSFER'
+          ? {
+              personnelNumbers: Object.fromEntries(
+                actionData.personnelNumbersText
+                  .split('\n')
+                  .map((line) => line.split(',').map((value) => value.trim()))
+                  .filter(([applicationId, number]) => applicationId && number)
+                  .map(([applicationId, number]) => [applicationId, number])
+              ),
+            }
+          : {}),
+        ...(bulkAction === 'INTERVIEW_SCHEDULE'
+          ? {
+              interview: {
+                title: actionData.interviewTitle,
+                firstStart: actionData.interviewFirstStart,
+                durationMinutes: actionData.interviewDurationMinutes,
+                gapMinutes: actionData.interviewGapMinutes,
+                timezone: actionData.interviewTimezone,
+                format: actionData.interviewFormat,
+                venue: actionData.interviewVenue || undefined,
+                meetingLink: actionData.interviewMeetingLink || undefined,
+                instructions: actionData.interviewInstructions || undefined,
+                panelUserIds: actionData.interviewPanelUserIds,
+                question: actionData.interviewQuestion,
+              },
+            }
+          : {}),
       }),
     })
     const body = await response.json()
@@ -319,8 +365,8 @@ export default function BulkApplicationActions({
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600">
-            Every selected application is checked first. Valid records proceed; exceptions stay unchanged and are
-            explained individually.
+            Review the selected applications before continuing. Any application that cannot use this action will stay
+            unchanged, with the reason shown below.
           </p>
           <label className="block">
             <span className="field-label">Action</span>
@@ -335,8 +381,12 @@ export default function BulkApplicationActions({
               <option value="MESSAGE">Send rejection, hold or update message</option>
               <option value="ASSESSMENT_INVITE">Invite to assessment</option>
               <option value="INTERVIEW_INVITE">Send scheduled interview invitations</option>
+              <option value="INTERVIEW_SCHEDULE">Schedule sequential interviews</option>
               <option value="ASSIGN_REVIEWER">Assign reviewer</option>
               <option value="REFERENCE_REMINDER">Send reference reminder</option>
+              <option value="REFERENCE_REQUEST">Send pending reference requests</option>
+              <option value="DOCUMENT_REQUEST">Request documents</option>
+              <option value="ERP_TRANSFER">Record ERP personnel numbers</option>
               <option value="TALENT_POOL">Place in talent pool</option>
             </select>
           </label>
@@ -403,7 +453,7 @@ export default function BulkApplicationActions({
               </select>
             </label>
           )}
-          {bulkAction === 'MESSAGE' && (
+          {['MESSAGE', 'DOCUMENT_REQUEST'].includes(bulkAction) && (
             <>
               <label className="block">
                 <span className="field-label">Subject</span>
@@ -430,10 +480,27 @@ export default function BulkApplicationActions({
                   className="field-control"
                 />
                 <span className="field-help">
-                  This is exactly what each candidate will receive. Review names and vacancy wording before continuing.
+                  Candidates will receive this message as written. Check the wording before continuing.
                 </span>
               </label>
             </>
+          )}
+          {bulkAction === 'ERP_TRANSFER' && (
+            <label className="block">
+              <span className="field-label">Application ID and ERP personnel number</span>
+              <textarea
+                required
+                rows={Math.min(10, Math.max(4, applications.length))}
+                value={actionData.personnelNumbersText}
+                onChange={(event) => {
+                  setActionData({ ...actionData, personnelNumbersText: event.target.value })
+                  setActionPreview(null)
+                }}
+                className="field-control font-mono text-xs"
+                placeholder={applications.map((item) => `${item.id}, ERP-NUMBER`).join('\n')}
+              />
+              <span className="field-help">One selected application per line. Preview validates approval, resumption and duplicates before writing.</span>
+            </label>
           )}
           {bulkAction === 'INTERVIEW_INVITE' && (
             <label className="block">
@@ -448,6 +515,21 @@ export default function BulkApplicationActions({
                 className="field-control"
               />
             </label>
+          )}
+          {bulkAction === 'INTERVIEW_SCHEDULE' && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block sm:col-span-2"><span className="field-label">Interview title</span><input required value={actionData.interviewTitle} onChange={(event) => setActionData({ ...actionData, interviewTitle: event.target.value })} className="field-control" /></label>
+              <label className="block"><span className="field-label">First slot</span><input required type="datetime-local" value={actionData.interviewFirstStart} onChange={(event) => setActionData({ ...actionData, interviewFirstStart: event.target.value })} className="field-control" /></label>
+              <label className="block"><span className="field-label">Time zone</span><input required value={actionData.interviewTimezone} onChange={(event) => setActionData({ ...actionData, interviewTimezone: event.target.value })} className="field-control" /></label>
+              <label className="block"><span className="field-label">Minutes per candidate</span><input type="number" min={10} value={actionData.interviewDurationMinutes} onChange={(event) => setActionData({ ...actionData, interviewDurationMinutes: Number(event.target.value) })} className="field-control" /></label>
+              <label className="block"><span className="field-label">Gap minutes</span><input type="number" min={0} value={actionData.interviewGapMinutes} onChange={(event) => setActionData({ ...actionData, interviewGapMinutes: Number(event.target.value) })} className="field-control" /></label>
+              <label className="block"><span className="field-label">Format</span><select value={actionData.interviewFormat} onChange={(event) => setActionData({ ...actionData, interviewFormat: event.target.value })} className="field-control"><option>VIRTUAL</option><option>PHYSICAL</option><option>HYBRID</option></select></label>
+              <label className="block"><span className="field-label">Venue</span><input value={actionData.interviewVenue} onChange={(event) => setActionData({ ...actionData, interviewVenue: event.target.value })} className="field-control" /></label>
+              <label className="block sm:col-span-2"><span className="field-label">Meeting link</span><input type="url" value={actionData.interviewMeetingLink} onChange={(event) => setActionData({ ...actionData, interviewMeetingLink: event.target.value })} className="field-control" /></label>
+              <label className="block sm:col-span-2"><span className="field-label">Panel members</span><select multiple required value={actionData.interviewPanelUserIds} onChange={(event) => setActionData({ ...actionData, interviewPanelUserIds: Array.from(event.target.selectedOptions, (option) => option.value) })} className="field-control min-h-28">{options.reviewers.map((item) => <option key={item.id} value={item.id}>{item.email}</option>)}</select></label>
+              <label className="block sm:col-span-2"><span className="field-label">Scorecard question / criterion</span><textarea required value={actionData.interviewQuestion} onChange={(event) => setActionData({ ...actionData, interviewQuestion: event.target.value })} className="field-control" /></label>
+              <label className="block sm:col-span-2"><span className="field-label">Candidate instructions</span><textarea value={actionData.interviewInstructions} onChange={(event) => setActionData({ ...actionData, interviewInstructions: event.target.value })} className="field-control" /></label>
+            </div>
           )}
           <label className="block">
             <span className="field-label">Accountability reason</span>
@@ -479,6 +561,16 @@ export default function BulkApplicationActions({
                   <p className="mt-1 text-2xl font-bold">{actionPreview.invalid.length}</p>
                 </div>
               </div>
+              {actionPreview.eligible.length > 0 && (
+                <ul className="max-h-40 divide-y overflow-y-auto border border-emerald-200">
+                  {actionPreview.eligible.map((item: any) => (
+                    <li key={item.id} className="p-3 text-xs">
+                      <p className="font-semibold">{item.candidate} · {item.vacancy}</p>
+                      <p className="mt-1 text-emerald-800">{item.detail}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {actionPreview.invalid.length > 0 && (
                 <ul className="max-h-40 divide-y overflow-y-auto border border-slate-200">
                   {actionPreview.invalid.map((item: any) => (

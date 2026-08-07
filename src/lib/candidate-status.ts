@@ -1,3 +1,5 @@
+import { candidateVisibleStatusForInternal } from './state-machine'
+
 export const CANDIDATE_STATUS_GUIDANCE: Record<string, { meaning: string; action: string; next: string }> = {
   DRAFT: {
     meaning: 'Your application has not been submitted.',
@@ -49,6 +51,11 @@ export const CANDIDATE_STATUS_GUIDANCE: Record<string, { meaning: string; action
     action: 'No action is required unless HR requests clarification.',
     next: 'FRAD will review the result and determine the next stage.',
   },
+  ASSESSMENT_STAGE: {
+    meaning: 'Your application is at the assessment stage.',
+    action: 'Review any active assessment invitation; otherwise no action is required.',
+    next: 'FRAD will review the assessment outcome and advise you of the next step.',
+  },
   INTERVIEW_INVITED: {
     meaning: 'FRAD invited you to an interview.',
     action: 'Confirm attendance, request rescheduling, or request accommodation.',
@@ -58,6 +65,11 @@ export const CANDIDATE_STATUS_GUIDANCE: Record<string, { meaning: string; action
     meaning: 'Your interview stage is complete.',
     action: 'No action is required unless contacted.',
     next: 'FRAD will complete panel and selection review.',
+  },
+  INTERVIEW_STAGE: {
+    meaning: 'Your application is at the interview stage.',
+    action: 'Review and respond to any interview invitation in your dashboard.',
+    next: 'FRAD will complete the panel review after the interview.',
   },
   REFERENCE_CHECK: {
     meaning: 'FRAD is completing reference checks.',
@@ -129,6 +141,16 @@ export const CANDIDATE_STATUS_GUIDANCE: Record<string, { meaning: string; action
     action: 'Keep your contact details current and monitor messages.',
     next: 'FRAD may contact you if a suitable position becomes available.',
   },
+  INCOMPLETE: {
+    meaning: 'Your application is missing something it needs.',
+    action: 'Open the application and supply the outstanding answers or documents before the vacancy closes.',
+    next: 'FRAD can only assess a complete application.',
+  },
+  CONDITIONAL_OFFER: {
+    meaning: 'FRAD has made you a conditional offer.',
+    action: 'Review the conditions and complete anything they ask for.',
+    next: 'A formal offer follows once the conditions are met.',
+  },
   OFFER_DECLINED: {
     meaning: 'Your offer was recorded as declined.',
     action: 'No further action is required unless this is incorrect.',
@@ -154,15 +176,19 @@ export const CANDIDATE_STATUS_GUIDANCE: Record<string, { meaning: string; action
 const CANDIDATE_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
   APPLICATION_DRAFT: 'Draft',
+  INCOMPLETE: 'Incomplete',
   SUBMITTED: 'Received',
   APPLICATION_RECEIVED: 'Received',
   UNDER_REVIEW: 'Under review',
+  CONDITIONAL_OFFER: 'Conditional offer',
   LONGLISTED: 'Longlisted',
   SHORTLISTED: 'Shortlisted',
   ASSESSMENT_INVITED: 'Assessment invited',
   ASSESSMENT_COMPLETED: 'Assessment completed',
+  ASSESSMENT_STAGE: 'Assessment stage',
   INTERVIEW_INVITED: 'Interview invited',
   INTERVIEW_COMPLETED: 'Interview completed',
+  INTERVIEW_STAGE: 'Interview stage',
   REFERENCE_CHECK: 'Reference checks',
   RECOMMENDED: 'Recommended',
   OFFER_DRAFT: 'Offer in preparation',
@@ -188,7 +214,11 @@ export function candidateFacingStatus(
   candidateVisibleStatus: string | null | undefined
 ) {
   if (internalStatus === 'DRAFT') return 'APPLICATION_DRAFT'
-  return candidateVisibleStatus || internalStatus || 'APPLICATION_DRAFT'
+  // Re-derive the disclosure-safe vocabulary on every read. Legacy records
+  // may persist internal stages such as REFERENCE_CHECK or RECOMMENDED in the
+  // display column, and candidate-facing code must never trust those values.
+  if (internalStatus) return candidateVisibleStatusForInternal(internalStatus)
+  return candidateVisibleStatus || 'APPLICATION_DRAFT'
 }
 
 export function candidateStatusLabel(status: string | null | undefined) {

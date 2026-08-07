@@ -20,11 +20,26 @@ const PUBLIC_LINKS: NavLink[] = [
 
 const STAFF_MORE_GROUPS: NavGroup[] = [
   {
+    label: 'Plan and fund',
+    links: [
+      { href: '/recruitment/staffing-requests', label: 'Staffing requests' },
+      { href: '/recruitment/funding', label: 'Funding confirmations' },
+    ],
+  },
+  {
+    label: 'Screen and shortlist',
+    links: [
+      { href: '/recruitment/longlisting', label: 'Longlisting' },
+      { href: '/recruitment/longlisting/exceptions', label: 'Exception review' },
+    ],
+  },
+  {
     label: 'Assess and decide',
     links: [
       { href: '/recruitment/assessments', label: 'Assessments' },
       { href: '/recruitment/interviews', label: 'Interviews' },
       { href: '/recruitment/references', label: 'References' },
+      { href: '/recruitment/background-checks', label: 'Background checks' },
       { href: '/recruitment/selections', label: 'Selection decisions' },
     ],
   },
@@ -33,6 +48,7 @@ const STAFF_MORE_GROUPS: NavGroup[] = [
     links: [
       { href: '/recruitment/offers', label: 'Offers' },
       { href: '/recruitment/preboarding', label: 'Starting steps' },
+      { href: '/recruitment/erp-transfers', label: 'ERP handovers' },
       { href: '/recruitment/talent-pools', label: 'Talent pools' },
     ],
   },
@@ -119,6 +135,12 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
   const isApprover = Boolean(resolvedUser?.roles?.includes('APPROVER') && !resolvedUser.roles.includes('HR_MANAGER'))
   const isPanelOnly = Boolean(resolvedUser?.roles?.length === 1 && resolvedUser.roles.includes('PANEL_MEMBER'))
   const isAuditorOnly = Boolean(resolvedUser?.roles?.length === 1 && resolvedUser.roles.includes('AUDITOR'))
+  const isBudgetHolderOnly = Boolean(
+    resolvedUser?.roles?.length === 1 && resolvedUser.roles.includes('BUDGET_HOLDER')
+  )
+  const isHiringManagerOnly = Boolean(
+    resolvedUser?.roles?.length === 1 && resolvedUser.roles.includes('HIRING_MANAGER')
+  )
   const home = resolvedUser ? homeRouteForRoles(resolvedUser.roles) : '/careers'
 
   let primaryLinks: NavLink[] = PUBLIC_LINKS
@@ -162,6 +184,19 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
       { href: '/recruitment/audit', label: 'Audit trail' },
       { href: '/recruitment/reports', label: 'Reports' },
     ]
+  } else if (isBudgetHolderOnly) {
+    // §3.7 The Budget Holder confirms money and nothing else.
+    primaryLinks = [
+      { href: '/recruitment/funding', label: 'Funding decisions' },
+      { href: '/recruitment/staffing-requests', label: 'Staffing requests' },
+    ]
+  } else if (isHiringManagerOnly) {
+    // §22.4 Hiring department view: own requests, assigned candidates, panels.
+    primaryLinks = [
+      { href: '/recruitment/staffing-requests', label: 'My requests' },
+      { href: '/recruitment/applications', label: 'Assigned candidates' },
+      { href: '/recruitment/interviews', label: 'Interviews' },
+    ]
   } else if (isStaff) {
     primaryLinks = [
       { href: '/recruitment/dashboard', label: 'Home' },
@@ -189,7 +224,11 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
                 ? 'Panel member'
                 : isAuditorOnly
                   ? 'Auditor'
-                  : 'Recruitment staff'
+                  : isBudgetHolderOnly
+                    ? 'Budget holder'
+                    : isHiringManagerOnly
+                      ? 'Hiring manager'
+                      : 'Recruitment staff'
 
   const signOut = async () => {
     setSigningOut(true)

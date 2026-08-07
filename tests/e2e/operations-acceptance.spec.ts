@@ -41,8 +41,8 @@ async function createVacancy(
 test.describe('operational completeness acceptance', () => {
   test.beforeAll(async () => {
     const [hr, hiringManager, candidateUser, department, dutyStation] = await Promise.all([
-      prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@frad.org' }, select: { id: true } }),
-      prisma.user.findUniqueOrThrow({ where: { email: 'hiring.manager@frad.org' }, select: { id: true } }),
+      prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@fradfoundation.org' }, select: { id: true } }),
+      prisma.user.findUniqueOrThrow({ where: { email: 'hiring.manager@fradfoundation.org' }, select: { id: true } }),
       prisma.user.findUniqueOrThrow({
         where: { email: 'candidate@example.com' },
         include: { candidateProfile: { select: { id: true } } },
@@ -117,7 +117,7 @@ test.describe('operational completeness acceptance', () => {
     expect(await missingVisibleAnswer.text()).toContain('Provide work-permit details')
     await logout(page)
 
-    await login(page, 'hrmanager@frad.org')
+    await login(page, 'hrmanager@fradfoundation.org')
     const assisted = await page.request.post('/api/recruitment/applications/assisted', {
       data: {
         candidateId: fixture.candidateId,
@@ -200,7 +200,7 @@ test.describe('operational completeness acceptance', () => {
       },
     })
 
-    await login(page, 'hiring.manager@frad.org')
+    await login(page, 'hiring.manager@fradfoundation.org')
     const phoneSearch = await page.request.get(
       `/api/recruitment/search?q=${encodeURIComponent(searchableUser.candidateProfile!.primaryPhone!)}`
     )
@@ -231,7 +231,7 @@ test.describe('operational completeness acceptance', () => {
       },
     })
 
-    await login(page, 'hrmanager@frad.org')
+    await login(page, 'hrmanager@fradfoundation.org')
     const create = await page.request.post('/api/recruitment/assessments', {
       data: {
         vacancyId: vacancy.id,
@@ -322,7 +322,7 @@ test.describe('operational completeness acceptance', () => {
       'delivery',
       'data-quality',
     ]
-    await login(page, 'auditor@frad.org')
+    await login(page, 'auditor@fradfoundation.org')
     for (const report of reportTypes) {
       const response = await page.request.get(`/api/recruitment/reports/export?report=${report}&format=csv`)
       expect(response.status(), `${report}: ${await response.text()}`).toBe(200)
@@ -361,7 +361,7 @@ test.describe('operational completeness acceptance', () => {
         reportType: 'preboarding',
         format: 'xlsx',
         frequency: 'DAILY',
-        recipientEmail: 'auditor@frad.org',
+        recipientEmail: 'auditor@fradfoundation.org',
         nextRunAt: new Date(Date.now() + 86_400_000).toISOString(),
       },
     })
@@ -404,7 +404,7 @@ test.describe('operational completeness acceptance', () => {
     expect(queuedDelivery?.status).toBe('FAILED')
     expect(queuedDelivery?.lastError).toContain('SMTP transport is not configured')
 
-    await login(page, 'auditor@frad.org')
+    await login(page, 'auditor@fradfoundation.org')
     const disable = await page.request.delete('/api/recruitment/reports/schedules', { data: { id: scheduleId } })
     expect(disable.status(), await disable.text()).toBe(200)
     expect((await prisma.scheduledReport.findUniqueOrThrow({ where: { id: scheduleId } })).active).toBe(false)

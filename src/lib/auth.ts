@@ -21,6 +21,12 @@ export interface UserSession {
   email: string
   roles: string[]
   sessionVersion: number
+  /**
+   * Read from the database on every verified load, never from the token, so a
+   * revoked or newly completed verification takes effect immediately. §28.8
+   * internal-vacancy access depends on this being current.
+   */
+  emailVerifiedAt: Date | null
   /** Per-device session id. Present on tokens issued after per-device sessions landed. */
   tokenId?: string
 }
@@ -48,7 +54,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 
 export const SESSION_TTL_SECONDS = 86_400
 
-export async function createSessionToken(payload: UserSession): Promise<string> {
+export async function createSessionToken(payload: Omit<UserSession, 'emailVerifiedAt'>): Promise<string> {
   return new SignJWT({ ...payload, purpose: 'session' })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -93,7 +99,11 @@ export async function verifySessionToken(token: string): Promise<UserSession | n
       !Number.isInteger(payload.sessionVersion)
     )
       return null
-    return payload
+    // Verification status is deliberately not carried in the token: it would go
+    // stale the moment a user verified or an administrator revoked it. A
+    // token-only read therefore reports "not verified" and fails closed, and
+    // anything that depends on it must use getVerifiedUser().
+    return { ...payload, emailVerifiedAt: null }
   } catch {
     return null
   }
@@ -191,7 +201,13 @@ export async function getVerifiedUser(): Promise<UserSession | null> {
   const { prisma } = await import('./prisma')
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { email: true, accountStatus: true, sessionVersion: true, userRoles: { include: { role: true } } },
+    select: {
+      email: true,
+      emailVerifiedAt: true,
+      accountStatus: true,
+      sessionVersion: true,
+      userRoles: { include: { role: true } },
+    },
   })
   if (!user || user.accountStatus !== 'ACTIVE' || user.sessionVersion !== session.sessionVersion) return null
 
@@ -208,6 +224,7 @@ export async function getVerifiedUser(): Promise<UserSession | null> {
   return {
     userId: session.userId,
     email: user.email,
+    emailVerifiedAt: user.emailVerifiedAt,
     // Role names in the session are used only for coarse area routing. Scoped
     // assignments must never become global privileges merely by appearing in
     // this flattened list; resource-level checks use hasPermission().

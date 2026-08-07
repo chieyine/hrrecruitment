@@ -26,7 +26,10 @@ describe('application state machine', () => {
 
   it('exposes the allowed set', () => {
     expect(allowedApplicationTransitions('SUBMITTED')).toContain('UNDER_REVIEW')
-    expect(allowedApplicationTransitions('TRANSFERRED_TO_ERP')).toEqual([])
+    // End_to_End.md §21.2 adds Archived, so a transferred record can still be
+    // archived for retention — but nothing else.
+    expect(allowedApplicationTransitions('TRANSFERRED_TO_ERP')).toEqual(['ARCHIVED'])
+    expect(allowedApplicationTransitions('ARCHIVED')).toEqual([])
   })
 
   it('derives candidate-visible status on the server', () => {

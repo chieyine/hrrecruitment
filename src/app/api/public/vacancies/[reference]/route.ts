@@ -1,17 +1,23 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getVerifiedUser } from '@/lib/auth'
+import { visibleAudiencesFor } from '@/lib/internal-identity'
 import { logger } from '@/lib/logger'
 
 export async function GET(_request: Request, context: { params: Promise<{ reference: string }> }) {
   const params = await context.params
   try {
     const now = new Date()
+    const viewer = await getVerifiedUser()
     const vacancy = await prisma.vacancy.findFirst({
       where: {
         referenceNumber: params.reference,
         status: 'OPEN',
         openingAt: { lte: now },
         closingAt: { gt: now },
+        // §28.8 an internal vacancy is not reachable by guessing its reference
+        // number: only a verified member of staff resolves one here.
+        audience: { in: visibleAudiencesFor(viewer) },
       },
       include: {
         department: true,

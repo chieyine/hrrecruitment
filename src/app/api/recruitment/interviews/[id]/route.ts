@@ -7,6 +7,7 @@ import { expectedVersion, staleRecord } from '@/lib/concurrency'
 import { hasPermission } from '@/lib/rbac'
 import { applicationAccess } from '@/lib/recruitment-access'
 import { canRunRecruitmentOperations } from '@/lib/recruitment-role-policy'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 const updateSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
@@ -95,9 +96,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const input = await parseBody(request, updateSchema)
     const existing = await prisma.interview.findUnique({
       where: { id: params.id },
-      include: { panelSubmissions: { select: { id: true } } },
+      include: {
+        panelSubmissions: { select: { id: true } },
+        application: { select: { internalStatus: true } },
+      },
     })
     if (!existing) throw new AuthzError('Interview not found', 404)
+    requireOpenRecruitmentFile(existing.application.internalStatus)
     const access = await applicationAccess(user.userId, existing.applicationId)
     if (!access.readAll && !access.vacancyOwner && !access.assignedReviewer)
       throw new AuthzError('Interview not found or outside your assigned scope', 404)

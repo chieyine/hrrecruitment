@@ -6,6 +6,7 @@ import { logAudit } from '@/lib/audit'
 import { applicationAccess } from '@/lib/recruitment-access'
 import { refreshApplicationFinalScore } from '@/lib/recruitment-scoring.server'
 import { hasPermission } from '@/lib/rbac'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 const schema = z
   .object({
@@ -31,6 +32,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       include: { panelMembers: true, panelSubmissions: true, application: { select: { internalStatus: true } } },
     })
     if (!interview) throw new AuthzError('Interview not found', 404)
+    requireOpenRecruitmentFile(interview.application.internalStatus)
     const canManage = await hasPermission(user.userId, 'interview.manage')
     const access = canManage
       ? await applicationAccess(user.userId, interview.applicationId)

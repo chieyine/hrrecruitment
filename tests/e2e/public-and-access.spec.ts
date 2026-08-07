@@ -79,7 +79,7 @@ test('candidate can authenticate, sign out, and cannot enter staff or admin work
 })
 
 test('staff can authenticate and is kept out of the candidate workspace', async ({ page }) => {
-  await login(page, 'hrmanager@frad.org')
+  await login(page, 'hrmanager@fradfoundation.org')
   await page.goto('/recruitment/dashboard')
   await expect(page.getByRole('heading').first()).toBeVisible()
   await page.goto('/candidate/dashboard')

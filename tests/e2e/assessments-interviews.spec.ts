@@ -20,7 +20,7 @@ test.describe('Assessments and Interviews', () => {
       }),
       prisma.department.findFirstOrThrow({ where: { active: true }, select: { id: true } }),
       prisma.dutyStation.findFirstOrThrow({ where: { active: true }, select: { id: true } }),
-      prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@frad.org' }, select: { id: true } }),
+      prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@fradfoundation.org' }, select: { id: true } }),
     ])
     const vacancy = await prisma.vacancy.create({
       data: {
@@ -96,7 +96,7 @@ test.describe('Assessments and Interviews', () => {
   test('HR interview workspace exposes scheduling and panel records', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'State-changing lifecycle is run once.')
 
-    await login(page, 'hrmanager@frad.org')
+    await login(page, 'hrmanager@fradfoundation.org')
     await page.goto('/recruitment/interviews')
 
     await expect(page.getByRole('heading', { name: /^interviews$/i })).toBeVisible()

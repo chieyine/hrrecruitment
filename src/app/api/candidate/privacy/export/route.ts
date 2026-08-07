@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { requireUser, authzResponse, AuthzError } from '@/lib/authz'
 import { logAudit } from '@/lib/audit'
+import { candidateFacingStatus } from '@/lib/candidate-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,6 +61,7 @@ export async function GET() {
         applications: {
           select: {
             id: true,
+            internalStatus: true,
             candidateVisibleStatus: true,
             submittedAt: true,
             createdAt: true,
@@ -241,13 +243,20 @@ export async function GET() {
     })
     if (!profile) throw new AuthzError('Candidate profile not found', 404)
 
+    const { applications, ...safeProfile } = profile
     const payload = {
       exportedAt: new Date().toISOString(),
       account: {
         id: user.userId,
         email: user.email,
       },
-      profile,
+      profile: {
+        ...safeProfile,
+        applications: applications.map(({ internalStatus, ...application }) => ({
+          ...application,
+          candidateVisibleStatus: candidateFacingStatus(internalStatus, application.candidateVisibleStatus),
+        })),
+      },
     }
     await logAudit({
       actorUserId: user.userId,

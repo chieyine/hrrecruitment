@@ -72,7 +72,7 @@ test.describe('accessibility and interrupted-connectivity acceptance', () => {
   test('application draft survives an API outage after local autosave', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium', 'State-changing interrupted-connectivity scenario runs once')
     const [hr, department, dutyStation] = await Promise.all([
-      prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@frad.org' }, select: { id: true } }),
+      prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@fradfoundation.org' }, select: { id: true } }),
       prisma.department.findFirstOrThrow({ where: { active: true }, select: { id: true } }),
       prisma.dutyStation.findFirstOrThrow({ where: { active: true }, select: { id: true } }),
     ])

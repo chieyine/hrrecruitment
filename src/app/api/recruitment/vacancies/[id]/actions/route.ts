@@ -7,9 +7,22 @@ import { canTransitionVacancy } from '@/lib/state-machine'
 import { logAudit } from '@/lib/audit'
 import { findIndependentApprover } from '@/lib/approvals'
 import { canMakeHrManagerDecision } from '@/lib/recruitment-role-policy'
+import { validateEmergencyAdvertPeriod } from '@/lib/emergency-recruitment'
 
 const schema = z.object({
-  action: z.enum(['SUBMIT_APPROVAL', 'PUBLISH', 'PAUSE', 'RESUME', 'EXTEND', 'CLOSE', 'CANCEL', 'DUPLICATE']),
+  action: z.enum([
+    'SUBMIT_APPROVAL',
+    'PUBLISH',
+    'PAUSE',
+    'RESUME',
+    'EXTEND',
+    'CLOSE',
+    'CANCEL',
+    'DUPLICATE',
+    // §28.7 approving the accelerated route is its own decision, separate from
+    // approving the vacancy content.
+    'APPROVE_EMERGENCY',
+  ]),
   reason: z.string().max(2000).optional(),
   closingAt: z.coerce.date().optional(),
   referenceNumber: z.string().trim().max(80).optional(),
@@ -77,6 +90,59 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           { error: 'Complete all mandatory vacancy details before publication' },
           { status: 422 }
         )
+
+      // §7.1 Pre-publication checks. Each of these is a condition the spec
+      // states must be confirmed before a vacancy may go live.
+      const blockers: string[] = []
+
+      if (!vacancy.staffingRequestId) {
+        blockers.push('Link the approved staffing request this vacancy comes from')
+      } else {
+        const staffingRequest = await prisma.staffingRequest.findUnique({
+          where: { id: vacancy.staffingRequestId },
+          select: {
+            status: true,
+            fundingConfirmations: {
+              where: { supersededAt: null },
+              orderBy: { decidedAt: 'desc' },
+              take: 1,
+              select: { decision: true },
+            },
+          },
+        })
+        if (staffingRequest?.status !== 'APPROVED_FOR_VACANCY')
+          blockers.push('The staffing request must be approved for vacancy preparation')
+        if (staffingRequest?.fundingConfirmations[0]?.decision !== 'CONFIRMED')
+          blockers.push('The Budget Holder must have confirmed funding')
+      }
+
+      // §7.1 longlisting rules and the shortlisting matrix must both exist.
+      const mandatoryRules = await prisma.eligibilityRule.count({
+        where: { vacancyId: vacancy.id, active: true, classification: 'MANDATORY_KNOCKOUT' },
+      })
+      if (!mandatoryRules) blockers.push('Define at least one mandatory longlisting rule')
+      if (!vacancy.screeningScorecardTemplateId) blockers.push('Choose the shortlisting criteria (screening scorecard)')
+      if (!vacancy.interviewScorecardTemplateId) blockers.push('Choose the interview scoring structure')
+      if (!vacancy.questions.length) blockers.push('Add at least one application question')
+      if (!vacancy.safeguardingClassification) blockers.push('Set the safeguarding classification')
+      if (!vacancy.recruitmentContactEmail?.trim()) blockers.push('Provide a recruitment contact email')
+
+      // §28.7 An emergency route is faster, not unapproved. It needs a written
+      // justification, an authorised approver, and a real advertising window.
+      if (vacancy.emergencyRecruitment) {
+        if (!vacancy.emergencyJustification?.trim())
+          blockers.push('Record the justification for emergency recruitment')
+        if (!vacancy.emergencyApprovedBy)
+          blockers.push('Emergency classification must be approved before publication')
+        const advertProblem = validateEmergencyAdvertPeriod(vacancy.openingAt, vacancy.closingAt)
+        if (advertProblem) blockers.push(advertProblem)
+      }
+
+      if (blockers.length)
+        return NextResponse.json(
+          { error: `Cannot publish yet: ${blockers.join('; ')}`, blockers },
+          { status: 422 }
+        )
       if (vacancy.screeningScorecardTemplateId) {
         const scorecard = await prisma.scorecardTemplate.findUnique({
           where: { id: vacancy.screeningScorecardTemplateId },
@@ -92,7 +158,34 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const status = vacancy.openingAt > new Date() ? 'SCHEDULED' : 'OPEN'
       if (!canTransitionVacancy(vacancy.status, status))
         return NextResponse.json({ error: `Cannot publish from ${vacancy.status}` }, { status: 422 })
-      result = await prisma.vacancy.update({ where: { id: vacancy.id }, data: { status } })
+      // §11.7 publication locks the longlisting rules. From here a change is a
+      // proposal requiring HR Manager approval and, once applications arrive, a
+      // fairness review.
+      result = await prisma.vacancy.update({
+        where: { id: vacancy.id },
+        data: { status, longlistingRulesLockedAt: vacancy.longlistingRulesLockedAt ?? new Date() },
+      })
+    } else if (input.action === 'APPROVE_EMERGENCY') {
+      // §28.7 / §3.9 The accelerated route is an exception, so it is approved by
+      // an HR manager and never by the person who requested it.
+      if (!canMakeHrManagerDecision(user.roles))
+        return NextResponse.json(
+          { error: 'Only an HR manager may approve emergency recruitment' },
+          { status: 403 }
+        )
+      if (!vacancy.emergencyRecruitment)
+        return NextResponse.json({ error: 'This vacancy is not marked as emergency recruitment' }, { status: 422 })
+      if (!vacancy.emergencyJustification?.trim())
+        return NextResponse.json({ error: 'Record the emergency justification first' }, { status: 422 })
+      if (vacancy.ownerUserId === user.userId)
+        return NextResponse.json(
+          { error: 'You cannot approve the emergency route for a vacancy you own' },
+          { status: 403 }
+        )
+      result = await prisma.vacancy.update({
+        where: { id: vacancy.id },
+        data: { emergencyApprovedBy: user.userId, emergencyApprovedAt: new Date() },
+      })
     } else if (input.action === 'EXTEND') {
       if (!input.closingAt || input.closingAt <= vacancy.closingAt)
         return NextResponse.json({ error: 'A later closing date is required' }, { status: 400 })

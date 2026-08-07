@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermission, authzResponse } from '@/lib/authz'
 import { enqueueEmail } from '@/lib/outbox'
 import { logAudit } from '@/lib/audit'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
@@ -10,10 +11,14 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     const user = await requirePermission('reference.manage')
     const referee = await prisma.referee.findUnique({
       where: { id: params.id },
-      include: { requests: { where: { status: { in: ['PENDING', 'SENT'] } }, orderBy: { sentAt: 'desc' }, take: 1 } },
+      include: {
+        requests: { where: { status: { in: ['PENDING', 'SENT'] } }, orderBy: { sentAt: 'desc' }, take: 1 },
+        application: { select: { internalStatus: true } },
+      },
     })
     if (!referee || !referee.requests[0])
       return NextResponse.json({ error: 'No active reference request exists' }, { status: 404 })
+    requireOpenRecruitmentFile(referee.application.internalStatus)
     await enqueueEmail({
       recipient: referee.email,
       subject: 'Reminder: FRAD reference request',

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { rateLimitDistributed, clientIp } from '@/lib/rate-limit'
+import { getVerifiedUser } from '@/lib/auth'
+import { visibleAudiencesFor } from '@/lib/internal-identity'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -34,10 +36,16 @@ export async function GET(request: Request) {
     const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
 
     const now = new Date()
+    // §28.8 The apply flow reads this endpoint, so it has to serve internal
+    // vacancies to verified staff — otherwise an internal candidate could see a
+    // role on the careers page and then fail to open it. Everyone else, signed
+    // in or not, sees public roles only.
+    const viewer = await getVerifiedUser()
     const where: Record<string, unknown> = {
       status: 'OPEN',
       openingAt: { lte: now },
       closingAt: { gte: now },
+      audience: { in: visibleAudiencesFor(viewer) },
     }
 
     // A direct id lookup keeps the apply page from paging the whole list.

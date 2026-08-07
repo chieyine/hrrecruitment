@@ -10,6 +10,7 @@ import { hasPermission } from '@/lib/rbac'
 import { prisma } from '@/lib/prisma'
 import { formatDate, getStatusBadgeClass } from '@/lib/utils'
 import { canMakeHrManagerDecision } from '@/lib/recruitment-role-policy'
+import EmergencyComplianceReview from '@/components/recruitment/EmergencyComplianceReview'
 
 const TERMINAL_APPLICATIONS = ['DRAFT']
 
@@ -189,6 +190,7 @@ export default async function VacancyDetailPage({ params }: { params: Promise<{ 
                   />
                 </div>
               </section>
+              {vacancy.emergencyRecruitment && <EmergencyComplianceReview vacancyId={vacancy.id} />}
             </div>
 
             <aside className="space-y-5">

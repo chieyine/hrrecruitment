@@ -28,7 +28,7 @@ test.describe('candidate offer, policy, and course completion', () => {
   test('candidate completes the documented offer and preboarding evidence paths', async ({ page }) => {
     test.setTimeout(180_000)
     const [hr, candidateUser, department, dutyStation] = await Promise.all([
-      prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@frad.org' }, select: { id: true } }),
+      prisma.user.findUniqueOrThrow({ where: { email: 'hrmanager@fradfoundation.org' }, select: { id: true } }),
       prisma.user.findUniqueOrThrow({
         where: { email: 'candidate@example.com' },
         include: { candidateProfile: { select: { id: true } } },
@@ -38,7 +38,7 @@ test.describe('candidate offer, policy, and course completion', () => {
     ])
     if (!candidateUser.candidateProfile) throw new Error('The seeded candidate profile is missing')
 
-    await login(page, 'hrmanager@frad.org')
+    await login(page, 'hrmanager@fradfoundation.org')
     const officialOfferFileId = await uploadPdf(page, `official-offer-${runId}.pdf`)
     await logout(page)
 
@@ -301,7 +301,7 @@ test.describe('candidate offer, policy, and course completion', () => {
     ).toBe('%PDF-')
     await logout(page)
 
-    await login(page, 'course.admin@frad.org')
+    await login(page, 'course.admin@fradfoundation.org')
     const courseAdminView = await page.request.get('/api/admin/configuration-builder?mode=courses')
     expect(courseAdminView.status()).toBe(200)
     const reset = await page.request.post('/api/admin/configuration-builder', {

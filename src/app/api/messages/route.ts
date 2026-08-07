@@ -8,6 +8,7 @@ import { rateLimitDistributed } from '@/lib/rate-limit'
 import { z } from 'zod'
 import { hasStaffRole } from '@/lib/roles'
 import { canRunRecruitmentOperations } from '@/lib/recruitment-role-policy'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 const messageSchema = z
   .object({
@@ -94,6 +95,7 @@ export async function POST(request: Request) {
       })
       if (!app) throw new AuthzError('Application not found', 404)
       if (app.internalStatus === 'DRAFT') throw new AuthzError('Application not found', 404)
+      requireOpenRecruitmentFile(app.internalStatus)
       if (!isStaff) {
         if (app.candidate.userId !== user.userId) throw new AuthzError('Forbidden', 403)
       } else {

@@ -5,6 +5,7 @@ import { logAudit } from '@/lib/audit'
 import { z } from 'zod'
 import { parseBody } from '@/lib/validation'
 import { findIndependentApprover } from '@/lib/approvals'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 const schema = z
   .object({
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
       },
     })
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    requireOpenRecruitmentFile(application.internalStatus)
     if (!['RECOMMENDED', 'OFFER_DRAFT'].includes(application.internalStatus)) {
       return NextResponse.json(
         { error: `Cannot issue an offer from status ${application.internalStatus}` },

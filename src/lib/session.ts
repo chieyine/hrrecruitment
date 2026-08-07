@@ -54,7 +54,10 @@ export interface IssuedSession {
  * per-device handle: revoking the row invalidates that one device without
  * touching `sessionVersion` (which signs out everything).
  */
-export async function issueSession(request: Request, session: Omit<UserSession, 'tokenId'>): Promise<IssuedSession> {
+export async function issueSession(
+  request: Request,
+  session: Omit<UserSession, 'tokenId' | 'emailVerifiedAt'>
+): Promise<IssuedSession> {
   const tokenId = randomUUID()
   const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000)
 

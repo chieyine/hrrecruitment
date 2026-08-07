@@ -27,8 +27,58 @@ function ApplyForm() {
   const [loadProblem, setLoadProblem] = useState('')
   const [saveStatus, setSaveStatus] = useState('')
   const [reviewOpen, setReviewOpen] = useState(false)
+  const [lowData, setLowData] = useState(false)
+  const [online, setOnline] = useState(true)
   const submissionKey = useRef(crypto.randomUUID())
   const formRef = useRef<HTMLFormElement>(null)
+  const localDraftKey = vacancyId ? `frad-application-draft:${vacancyId}` : null
+
+  useEffect(() => {
+    setLowData(localStorage.getItem('frad-low-data') === 'true' || searchParams.get('lowData') === '1')
+    const updateConnection = () => setOnline(navigator.onLine)
+    updateConnection()
+    window.addEventListener('online', updateConnection)
+    window.addEventListener('offline', updateConnection)
+    return () => {
+      window.removeEventListener('online', updateConnection)
+      window.removeEventListener('offline', updateConnection)
+    }
+  }, [searchParams])
+
+  const toggleLowData = () => {
+    setLowData((current) => {
+      localStorage.setItem('frad-low-data', String(!current))
+      return !current
+    })
+  }
+
+  const restoreLocalDraft = useCallback(() => {
+    if (!localDraftKey) return false
+    try {
+      const saved = JSON.parse(localStorage.getItem(localDraftKey) || 'null')
+      if (!saved?.vacancy) return false
+      setVacancy(saved.vacancy)
+      setAnswers(saved.answers || {})
+      setSelectedDocuments(saved.selectedDocuments || {})
+      setDeclarationsAccepted(Boolean(saved.declarationsAccepted))
+      setLoadProblem('Connection unavailable. Restored your locally saved application draft.')
+      setLoading(false)
+      return true
+    } catch {
+      return false
+    }
+  }, [localDraftKey])
+
+  // Keep a device-local recovery copy as the candidate types. The account
+  // draft remains authoritative when reachable; this copy only prevents a
+  // connection loss or interrupted save from destroying current work.
+  useEffect(() => {
+    if (!localDraftKey || !vacancy || loading) return
+    localStorage.setItem(
+      localDraftKey,
+      JSON.stringify({ vacancy, answers, selectedDocuments, declarationsAccepted, savedAt: new Date().toISOString() })
+    )
+  }, [answers, declarationsAccepted, loading, localDraftKey, selectedDocuments, vacancy])
 
   useEffect(() => {
     if (!vacancyId) {
@@ -92,10 +142,11 @@ function ApplyForm() {
       })
       .catch(() => {
         if (unavailable) return
+        if (restoreLocalDraft()) return
         setLoadProblem('The application could not be loaded. Check your connection and try again.')
         setLoading(false)
       })
-  }, [vacancyId, router])
+  }, [restoreLocalDraft, vacancyId, router])
 
   const save = async (mode: 'DRAFT' | 'SUBMIT') => {
     if (mode === 'SUBMIT' && !declarationsAccepted) {
@@ -146,6 +197,7 @@ function ApplyForm() {
     e.preventDefault()
     const applicationId = await save('SUBMIT')
     if (applicationId) {
+      if (localDraftKey) localStorage.removeItem(localDraftKey)
       router.push(`/candidate/applications/${applicationId}/receipt`)
       router.refresh()
     }
@@ -227,7 +279,7 @@ function ApplyForm() {
       }
     }, 1500)
     return () => window.clearTimeout(timer)
-  }, [answers, selectedDocuments, loading, vacancyId, vacancy])
+  }, [answers, selectedDocuments, loading, vacancyId, vacancy, online])
 
   const visibleQuestions = vacancy?.questions?.filter(questionVisible) || []
   const requiredQuestions = visibleQuestions.filter((question: any) => question.required)
@@ -274,8 +326,8 @@ function ApplyForm() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
-      <Header />
+    <div className={`flex min-h-screen flex-col bg-slate-50 ${lowData ? '[&_img]:hidden' : ''}`}>
+      {!lowData && <Header />}
 
       <main id="main-content" className="flex-1 py-10">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 space-y-8">
@@ -288,6 +340,16 @@ function ApplyForm() {
 
           <div className="section-panel p-5 sm:p-8 space-y-6">
             <div className="border-b border-slate-100 pb-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p role="status" className={`text-xs font-semibold ${online ? 'text-emerald-700' : 'text-amber-800'}`}>
+                  {online
+                    ? 'Online — account autosave available'
+                    : 'Offline — changes are safe on this device and will resume when connected'}
+                </p>
+                <button type="button" onClick={toggleLowData} className="rounded border px-3 py-1.5 text-xs font-bold">
+                  {lowData ? 'Standard view' : 'Low-data mode'}
+                </button>
+              </div>
               <span className="font-mono text-xs font-bold text-stone-600">
                 {vacancy?.referenceNumber || 'FRAD-VACANCY'}
               </span>
@@ -625,7 +687,7 @@ function ApplyForm() {
         </div>
       </Dialog>
 
-      <Footer />
+      {!lowData && <Footer />}
     </div>
   )
 }

@@ -32,6 +32,7 @@ const schema = z.discriminatedUnion('action', [
     operator: z.enum(['GTE', 'EQUALS', 'IN', 'TRUE']),
     expected: z.unknown(),
     failureMessage: z.string().trim().min(5).max(500),
+    label: z.string().trim().min(3).max(200).optional(),
   }),
   z.object({ action: z.literal('EVALUATE'), applicationId: z.string().min(1) }),
   z.object({
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
       result = await prisma.eligibilityRule.create({
         data: {
           vacancyId: input.vacancyId,
+          label: input.label?.trim() || input.failureMessage,
           ruleType: input.ruleType,
           field: input.field || null,
           operator: input.operator,

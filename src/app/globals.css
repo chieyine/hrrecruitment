@@ -13,6 +13,13 @@
     --brand: #27513d;
     --brand-dark: #172f25;
     --signal: #bc6747;
+    --success: #2b5237;
+    --warning: #754e18;
+    --danger: #7f331f;
+    --info: #354b5a;
+    /* Vertical rhythm. Panels, stacks and page sections are multiples of this
+       so unrelated screens still line up with one another. */
+    --rhythm: 1.5rem;
     --font-sans: 'Avenir Next', Avenir, 'Segoe UI', Helvetica, Arial, sans-serif;
     --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
   }
@@ -168,8 +175,42 @@
     @apply mt-1.5 text-xs leading-5 text-stone-500;
   }
 
+  /* One pill, five roles. Pages must not hand-mix pill colours: a screen with
+     four differently-saturated badges is the clearest tell of an unowned
+     design. Borders are tinted rather than grey so the chip reads as a single
+     object at small sizes. */
   .status-chip {
-    @apply inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.04em] leading-none;
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-2xs font-bold uppercase leading-none;
+  }
+
+  .status-chip--neutral {
+    @apply border-stone-300 bg-stone-100 text-stone-700;
+  }
+
+  .status-chip--success {
+    @apply border-success-200 bg-success-50 text-success-800;
+  }
+
+  .status-chip--warning {
+    @apply border-warning-200 bg-warning-50 text-warning-800;
+  }
+
+  .status-chip--danger {
+    @apply border-danger-200 bg-danger-50 text-danger-800;
+  }
+
+  .status-chip--info {
+    @apply border-info-200 bg-info-50 text-info-800;
+  }
+
+  .status-chip--brand {
+    @apply border-brand-200 bg-brand-50 text-brand-800;
+  }
+
+  /* A 5px dot carrying the state colour, for use inside a chip or before a
+     label. Reads faster than text alone and survives greyscale printing. */
+  .status-dot {
+    @apply inline-block h-1.5 w-1.5 shrink-0 rounded-full;
   }
 
   .empty-state {
@@ -204,6 +245,27 @@
     @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-5 py-2.5 text-sm font-semibold text-navy-800 shadow-sm transition hover:-translate-y-px hover:border-stone-400 hover:bg-stone-50 hover:shadow-md disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none;
   }
 
+  /* Destructive actions were being hand-built with raw rose/red utilities on
+     every screen that needed one. */
+  .btn-danger {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-danger-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-px hover:bg-danger-800 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger-600 disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none;
+  }
+
+  /* Low-emphasis action inside dense rows and tables, where a bordered button
+     every few pixels turns a list into a grid of boxes. */
+  .btn-quiet {
+    @apply inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-stone-700 transition hover:bg-stone-100 hover:text-navy-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-50;
+  }
+
+  .btn-link {
+    @apply font-semibold text-brand-800 underline decoration-brand-300 underline-offset-4 transition hover:decoration-brand-700;
+  }
+
+  /* Small variant of the two primary buttons, for toolbars and card footers. */
+  .btn-sm {
+    @apply min-h-9 px-3.5 py-2 text-xs;
+  }
+
   .metric-card {
     @apply relative overflow-hidden rounded-2xl border border-stone-200 bg-white p-5;
     box-shadow:
@@ -217,6 +279,60 @@
     inset: 0 auto 0 0;
     width: 3px;
     background: var(--brand);
+  }
+
+  /* Standard vertical rhythm for a page's sections. Screens were using an
+     assortment of space-y-4/5/6/8, which is why no two felt related. */
+  .page-stack {
+    @apply space-y-6;
+  }
+
+  .section-body {
+    @apply px-5 py-5 sm:px-6;
+  }
+
+  /* Definition lists (label above value) appear on nearly every detail screen. */
+  .detail-grid {
+    @apply grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .detail-label {
+    @apply text-2xs font-bold uppercase text-stone-500;
+  }
+
+  .detail-value {
+    @apply mt-1 text-sm leading-6 text-navy-900;
+  }
+
+  /* Inline notices. Previously each screen invented its own coloured box. */
+  .notice {
+    @apply flex items-start gap-3 rounded-xl border px-4 py-3 text-sm leading-6;
+  }
+
+  .notice--info {
+    @apply border-info-200 bg-info-50 text-info-900;
+  }
+
+  .notice--success {
+    @apply border-success-200 bg-success-50 text-success-900;
+  }
+
+  .notice--warning {
+    @apply border-warning-200 bg-warning-50 text-warning-900;
+  }
+
+  .notice--danger {
+    @apply border-danger-200 bg-danger-50 text-danger-900;
+  }
+
+  /* Numeric emphasis. Tabular figures stop columns of numbers from jittering. */
+  .figure-lg {
+    @apply text-3xl font-semibold tracking-[-0.03em] text-navy-900;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 
   .workspace-band {

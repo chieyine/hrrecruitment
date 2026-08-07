@@ -27,10 +27,18 @@ describe('candidate status guidance', () => {
       'INELIGIBLE',
       'WITHDRAWN',
       'CANCELLED',
+      // End_to_End.md §21.2 additions the candidate can actually see.
+      'INCOMPLETE',
+      'CONDITIONAL_OFFER',
     ]
     for (const status of statuses) {
       expect(candidateStatusGuidance(status).meaning).not.toContain('progressing through')
     }
+  })
+
+  it('labels the new §21.2 candidate-facing statuses', () => {
+    expect(candidateStatusLabel('INCOMPLETE')).toBe('Incomplete')
+    expect(candidateStatusLabel('CONDITIONAL_OFFER')).toBe('Conditional offer')
   })
 
   it('uses safe guidance for an unknown future state', () => {
@@ -46,5 +54,12 @@ describe('candidate status guidance', () => {
 
   it('uses the candidate-visible status after submission', () => {
     expect(candidateFacingStatus('SUBMITTED', 'APPLICATION_RECEIVED')).toBe('APPLICATION_RECEIVED')
+  })
+
+  it('does not trust legacy display values that expose internal deliberation', () => {
+    expect(candidateFacingStatus('REFERENCE_CHECK', 'REFERENCE_CHECK')).toBe('UNDER_REVIEW')
+    expect(candidateFacingStatus('RECOMMENDED', 'RECOMMENDED')).toBe('UNDER_REVIEW')
+    expect(candidateFacingStatus('NOT_LONGLISTED', 'NOT_LONGLISTED')).toBe('UNSUCCESSFUL')
+    expect(candidateFacingStatus('TRANSFERRED_TO_ERP', 'TRANSFERRED_TO_ERP')).toBe('RECRUITMENT_COMPLETED')
   })
 })

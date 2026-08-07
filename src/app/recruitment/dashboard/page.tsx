@@ -65,6 +65,20 @@ export default async function RecruitmentDashboardPage() {
       }
   const now = new Date()
 
+  /**
+   * §22.1 / §22.2 queue tiles. Each count is only issued when the viewer holds
+   * the permission to act on it — an officer's dashboard should not run seven
+   * extra aggregates to render queues that are then filtered out of the page.
+   */
+  const isHrManager = user.roles.includes('HR_MANAGER')
+  const [canReviewLonglist, canSeeStaffing, canSeeChecks, canSeeTransfers] = await Promise.all([
+    hasPermission(user.userId, 'longlist.review'),
+    hasPermission(user.userId, 'staffing.request.read.all'),
+    hasPermission(user.userId, 'backgroundcheck.manage'),
+    hasPermission(user.userId, 'erp.transfer'),
+  ])
+  const zero = Promise.resolve(0)
+
   const [
     openVacancies,
     pendingReview,
@@ -73,6 +87,13 @@ export default async function RecruitmentDashboardPage() {
     recentApplications,
     attentionItems,
     overdueWork,
+    exceptionQueue,
+    unconfirmedLonglists,
+    outstandingChecks,
+    awaitingTransfer,
+    requestsAwaitingFunding,
+    requestsAwaitingHr,
+    ruleChangesAwaitingApproval,
   ] = await Promise.all([
     prisma.vacancy.count({ where: { ...vacancyWhere, status: 'OPEN' } }),
     prisma.application.count({ where: { AND: [applicationWhere, { internalStatus: 'SUBMITTED' }] } }),
@@ -97,6 +118,23 @@ export default async function RecruitmentDashboardPage() {
     prisma.workItem.count({
       where: { ...workScope, status: { in: ['OPEN', 'IN_PROGRESS', 'BLOCKED'] }, dueAt: { lt: now } },
     }),
+    canReviewLonglist
+      ? prisma.eligibilityEvaluation.count({ where: { suggestedOutcome: 'REQUIRES_REVIEW', humanDecision: null } })
+      : zero,
+    isHrManager ? prisma.longlistRun.count({ where: { status: 'AWAITING_CONFIRMATION' } }) : zero,
+    canSeeChecks
+      ? prisma.backgroundCheck.count({
+          where: { status: { in: ['REQUESTED', 'IN_PROGRESS', 'RECEIVED', 'CONCERNS_RAISED'] } },
+        })
+      : zero,
+    canSeeTransfers
+      ? prisma.application.count({
+          where: { internalStatus: { in: ['RESUMED', 'READY_FOR_ERP_TRANSFER'] }, erpTransferRecord: null },
+        })
+      : zero,
+    canSeeStaffing ? prisma.staffingRequest.count({ where: { status: 'AWAITING_FUNDING_CONFIRMATION' } }) : zero,
+    canSeeStaffing ? prisma.staffingRequest.count({ where: { status: 'AWAITING_HR_REVIEW' } }) : zero,
+    isHrManager ? prisma.eligibilityRuleChange.count({ where: { status: 'PENDING' } }) : zero,
   ])
 
   const stageCounts = Object.fromEntries(groupedStages.map((stage) => [stage.internalStatus, stage._count]))
@@ -134,6 +172,53 @@ export default async function RecruitmentDashboardPage() {
     : user.roles.includes('RECRUITMENT_OFFICER')
       ? 'Recruitment / HR officer'
       : 'Recruitment team'
+
+  // Counts are already zero where the viewer lacks the permission, so a queue
+  // simply never appears rather than being fetched and then hidden.
+  const queues = [
+    {
+      label: 'Exception review',
+      value: exceptionQueue,
+      href: '/recruitment/longlisting/exceptions',
+      show: true,
+    },
+    {
+      label: 'Longlists to confirm',
+      value: unconfirmedLonglists,
+      href: '/recruitment/longlisting',
+      show: isHrManager,
+    },
+    {
+      label: 'Rule changes to approve',
+      value: ruleChangesAwaitingApproval,
+      href: '/recruitment/longlisting',
+      show: isHrManager,
+    },
+    {
+      label: 'Requests awaiting funding',
+      value: requestsAwaitingFunding,
+      href: '/recruitment/staffing-requests',
+      show: true,
+    },
+    {
+      label: 'Requests awaiting HR review',
+      value: requestsAwaitingHr,
+      href: '/recruitment/staffing-requests',
+      show: true,
+    },
+    {
+      label: 'Background checks outstanding',
+      value: outstandingChecks,
+      href: '/recruitment/background-checks',
+      show: true,
+    },
+    {
+      label: 'Awaiting ERP handover',
+      value: awaitingTransfer,
+      href: '/recruitment/erp-transfers',
+      show: true,
+    },
+  ].filter((queue) => queue.show && queue.value > 0)
 
   return (
     <div className="flex min-h-screen flex-col bg-surface-50">
@@ -195,6 +280,29 @@ export default async function RecruitmentDashboardPage() {
               </div>
             </div>
           </section>
+
+          {queues.length > 0 && (
+            <section aria-labelledby="queues-heading" className="section-panel">
+              <div className="section-heading">
+                <div>
+                  <h2 id="queues-heading" className="text-lg font-semibold text-navy-900">
+                    Waiting on the recruitment team
+                  </h2>
+                  <p className="mt-1 text-sm text-stone-600">
+                    Each of these blocks a recruitment stage from moving forward.
+                  </p>
+                </div>
+              </div>
+              <div className="grid divide-y divide-stone-200 sm:grid-cols-2 sm:divide-x lg:grid-cols-4 lg:divide-y-0">
+                {queues.map((queue) => (
+                  <Link key={queue.label} href={queue.href} className="group p-5 hover:bg-stone-50">
+                    <p className="text-xs font-bold text-stone-700 group-hover:text-brand-800">{queue.label}</p>
+                    <p className="mt-3 text-3xl font-semibold tracking-[-.04em] text-navy-900">{queue.value}</p>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section aria-labelledby="pipeline-heading" className="section-panel">
             <div className="section-heading">

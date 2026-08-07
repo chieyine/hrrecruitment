@@ -5,6 +5,7 @@ import { generateToken, hashToken } from '@/lib/tokens'
 import { protectOutboxPayload } from '@/lib/outbox'
 import { logAudit } from '@/lib/audit'
 import { logger } from '@/lib/logger'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
   const params = await context.params
@@ -21,9 +22,11 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
         permissionToContact: true,
         contactStatus: true,
         preferredContactMethod: true,
+        application: { select: { internalStatus: true } },
       },
     })
     if (!referee) return NextResponse.json({ error: 'Referee not found' }, { status: 404 })
+    requireOpenRecruitmentFile(referee.application.internalStatus)
     if (!referee.permissionToContact)
       return NextResponse.json({ error: 'The candidate has not authorised contact with this referee' }, { status: 409 })
     if (referee.contactStatus !== 'READY')

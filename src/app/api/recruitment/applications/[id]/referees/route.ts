@@ -5,6 +5,8 @@ import { requirePermission, authzResponse } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 import { recalculateApplicationReferenceStatus } from '@/lib/references'
+import { candidateVisibleStatusForInternal } from '@/lib/state-machine'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 const schema = z
   .object({
@@ -52,6 +54,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Only an HR manager may approve a reference waiver' }, { status: 403 })
     const application = await prisma.application.findUnique({ where: { id: params.id } })
     if (!application) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    requireOpenRecruitmentFile(application.internalStatus)
     const referee = await prisma.$transaction(async (tx) => {
       const created = await tx.referee.create({
         data: {
@@ -98,7 +101,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       ) {
         await tx.application.update({
           where: { id: application.id },
-          data: { internalStatus: 'REFERENCE_CHECK', candidateVisibleStatus: 'REFERENCE_CHECK' },
+          data: {
+            internalStatus: 'REFERENCE_CHECK',
+            candidateVisibleStatus: candidateVisibleStatusForInternal('REFERENCE_CHECK'),
+          },
         })
         await tx.applicationStageHistory.create({
           data: {

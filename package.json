@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "if [ \"$CI\" != 'true' ]; then npm run db:postgres:deploy; fi && prisma generate && next build",
-    "build:postgres": "npm run db:postgres:schema && prisma generate --schema prisma/postgresql/schema.prisma && next build",
+    "build": "if [ \"$CI\" != 'true' ]; then npm run db:postgres:deploy; fi && prisma generate && next build --webpack",
+    "build:postgres": "npm run db:postgres:schema && prisma generate --schema prisma/postgresql/schema.prisma && next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
@@ -21,6 +21,9 @@
     "db:postgres:deploy": "prisma migrate deploy --schema prisma/postgresql/schema.prisma",
     "audit:inventory": "node scripts/generate-file-audit.mjs",
     "audit:frontend-coverage": "node scripts/check-frontend-coverage.mjs",
+    "check:schema": "node scripts/check-schema-relations.mjs && node scripts/check-prisma-usage.mjs",
+    "docs:guide": "python3 scripts/build-platform-guide.py",
+    "docs:guide:docx": "python3 scripts/build-platform-guide-docx.py",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

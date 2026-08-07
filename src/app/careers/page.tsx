@@ -7,6 +7,7 @@ import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import { prisma } from '@/lib/prisma'
 import { getVerifiedUser } from '@/lib/auth'
+import { visibleAudiencesFor } from '@/lib/internal-identity'
 import { formatDate } from '@/lib/utils'
 
 export const metadata: Metadata = {
@@ -40,6 +41,10 @@ export default async function VacanciesPage({
     status: 'OPEN',
     openingAt: { lte: new Date() },
     closingAt: { gt: new Date() },
+    // §28.8 an internal vacancy is visible only to a verified member of staff,
+    // identified by their organisation email domain rather than by their
+    // recruitment role — an internal applicant applies as a candidate.
+    audience: { in: visibleAudiencesFor(user) },
   }
 
   if (query.departmentId) where.departmentId = query.departmentId

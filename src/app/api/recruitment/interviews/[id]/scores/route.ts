@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { parseBody } from '@/lib/validation'
 import { AuthzError } from '@/lib/authz'
 import { createNotification } from '@/lib/notifications'
+import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 const schema = z
   .object({
@@ -41,13 +42,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     )
 
     // The panel member must belong to THIS interview (prevents cross-interview writes).
-    const panelMember = await prisma.interviewPanelMember.findUnique({ where: { id: panelMemberId } })
+    const panelMember = await prisma.interviewPanelMember.findUnique({
+      where: { id: panelMemberId },
+      include: { interview: { include: { application: { select: { internalStatus: true } } } } },
+    })
     if (!panelMember || panelMember.interviewId !== params.id) {
       return NextResponse.json({ error: 'Panel member does not belong to this interview' }, { status: 422 })
     }
     if (panelMember.userId !== user.userId) {
       return NextResponse.json({ error: 'You may only submit your own independent panel score' }, { status: 403 })
     }
+    requireOpenRecruitmentFile(panelMember.interview.application.internalStatus)
     const declaredConflict = conflictType
     if (!declaredConflict) return NextResponse.json({ error: 'Conflict declaration is required' }, { status: 400 })
     if (panelMember.conflictStatus !== 'NONE' && panelMember.conflictStatus !== 'RESOLVED_EXCEPTION')

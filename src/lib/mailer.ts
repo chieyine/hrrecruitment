@@ -54,7 +54,7 @@ async function getTransport(): Promise<any | null> {
 }
 
 export async function sendEmail(message: EmailMessage) {
-  const from = process.env.SMTP_FROM || 'FRAD Recruitment <no-reply@frad.org>'
+  const from = process.env.SMTP_FROM || 'FRAD Recruitment <no-reply@fradfoundation.org>'
   try {
     const transport = await getTransport()
     if (!transport) {
