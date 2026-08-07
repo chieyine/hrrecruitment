@@ -218,7 +218,7 @@ export async function POST(request: Request) {
         status: item.internalStatus,
         detail:
           input.action === 'INTERVIEW_SCHEDULE' && input.interview
-            ? `Interview ${new Date(input.interview.firstStart.getTime() + index * (input.interview.durationMinutes + input.interview.gapMinutes) * 60_000).toLocaleString('en-NG', { timeZone: input.interview.timezone })}`
+            ? `Interview ${new Date(input.interview.firstStart.getTime() + index * (input.interview.durationMinutes + (input.interview.gapMinutes || 0)) * 60_000).toLocaleString('en-NG', { timeZone: input.interview.timezone })}`
             : input.action === 'ERP_TRANSFER'
               ? `Record ERP number ${input.personnelNumbers?.[item.id]}`
               : input.action === 'DOCUMENT_REQUEST' || input.action === 'MESSAGE'
@@ -293,7 +293,7 @@ export async function POST(request: Request) {
         } else if (input.action === 'INTERVIEW_SCHEDULE' && input.interview) {
           const start = new Date(
             input.interview.firstStart.getTime() +
-              eligibleIndex * (input.interview.durationMinutes + input.interview.gapMinutes) * 60_000
+              eligibleIndex * (input.interview.durationMinutes + (input.interview.gapMinutes || 0)) * 60_000
           )
           const end = new Date(start.getTime() + input.interview.durationMinutes * 60_000)
           const interview = await prisma.interview.create({
