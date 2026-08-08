@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "if [ \"$CI\" != 'true' ]; then npm run db:postgres:deploy; fi && prisma generate && next build --webpack",
+    "build": "prisma generate && next build --webpack",
     "build:postgres": "npm run db:postgres:schema && prisma generate --schema prisma/postgresql/schema.prisma && next build --webpack",
     "start": "next start",
     "lint": "eslint .",

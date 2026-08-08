@@ -31,6 +31,24 @@ log mailer are development facilities only.
 Never run the SQLite migration set against PostgreSQL. The generated production
 schema and migrations live under `prisma/postgresql` and are validated in CI.
 
+### Vercel deployments
+
+The ordinary `npm run build` command does not apply database migrations. This is
+intentional: Vercel can build production and preview deployments concurrently,
+and a build process must not mutate a shared database.
+
+Configure `DATABASE_URL` and the other runtime secrets in the Vercel project.
+Apply migrations once as a controlled release step, using the separate migration
+principal as `DATABASE_URL`, before promoting the deployment:
+
+```bash
+DATABASE_URL="$DATABASE_MIGRATION_URL" npm run db:postgres:deploy
+```
+
+Do not add the migration principal to the Vercel runtime environment. Preview
+deployments must use an isolated preview database or remain read-only against
+production data.
+
 ## Upgrade preflight
 
 Migration `0002_operating_system` adds uniqueness constraints that convert
