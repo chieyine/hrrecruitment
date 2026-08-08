@@ -301,9 +301,9 @@ test.describe('candidate offer, policy, and course completion', () => {
     ).toBe('%PDF-')
     await logout(page)
 
-    await login(page, 'course.admin@fradfoundation.org')
-    const courseAdminView = await page.request.get('/api/admin/configuration-builder?mode=courses')
-    expect(courseAdminView.status()).toBe(200)
+    await login(page, 'hrmanager@fradfoundation.org')
+    const hrCourseView = await page.request.get('/api/admin/configuration-builder?mode=courses')
+    expect(hrCourseView.status()).toBe(200)
     const reset = await page.request.post('/api/admin/configuration-builder', {
       data: {
         action: 'RESET_COURSE_ATTEMPT',

@@ -8,9 +8,9 @@ const STAFF_ROLES = [
   'RECRUITMENT_OFFICER',
   'HR_MANAGER',
   'HIRING_MANAGER',
+  'BUDGET_HOLDER',
   'APPROVER',
   'PANEL_MEMBER',
-  'COURSE_ADMIN',
   'SYSTEM_ADMIN',
   'AUDITOR',
 ]
@@ -19,9 +19,9 @@ const ROLE_LABELS: Record<string, string> = {
   RECRUITMENT_OFFICER: 'Recruitment officer',
   HR_MANAGER: 'HR manager',
   HIRING_MANAGER: 'Hiring manager',
+  BUDGET_HOLDER: 'Budget holder',
   APPROVER: 'Approver',
   PANEL_MEMBER: 'Panel member',
-  COURSE_ADMIN: 'Course administrator',
   SYSTEM_ADMIN: 'System administrator',
   AUDITOR: 'Auditor',
 }
@@ -40,9 +40,7 @@ export default function UserManager({ currentUserId }: { currentUserId: string }
   const [accessTarget, setAccessTarget] = useState<any>(null)
   const [selectedRole, setSelectedRole] = useState('')
   const [reasonTarget, setReasonTarget] = useState<
-    | { kind: 'role'; user: any; assignment: any }
-    | { kind: 'status'; user: any; status: 'ACTIVE' | 'SUSPENDED' }
-    | null
+    { kind: 'role'; user: any; assignment: any } | { kind: 'status'; user: any; status: 'ACTIVE' | 'SUSPENDED' } | null
   >(null)
 
   const load = useCallback(async () => {
@@ -234,9 +232,7 @@ export default function UserManager({ currentUserId }: { currentUserId: string }
                   {!isSelf && (
                     <button
                       type="button"
-                      onClick={() =>
-                        setReasonTarget({ kind: 'status', user, status: active ? 'SUSPENDED' : 'ACTIVE' })
-                      }
+                      onClick={() => setReasonTarget({ kind: 'status', user, status: active ? 'SUSPENDED' : 'ACTIVE' })}
                       className="mt-2 block text-xs font-semibold text-stone-600 hover:text-brand-800 lg:ml-auto"
                     >
                       {active ? 'Suspend account' : 'Restore account'}
@@ -254,13 +250,17 @@ export default function UserManager({ currentUserId }: { currentUserId: string }
           <div className="flex items-start gap-3 border-l-2 border-brand-600 bg-brand-50 px-4 py-3">
             <KeyRound className="mt-0.5 h-4 w-4 text-brand-700" />
             <p className="text-xs leading-5 text-brand-950">
-              This gives {accessTarget?.email} access across the role’s workspace. Use vacancy and panel assignments
-              for case-specific participation.
+              This gives {accessTarget?.email} access across the role’s workspace. Use vacancy and panel assignments for
+              case-specific participation.
             </p>
           </div>
           <label className="block">
             <span className="field-label">Role</span>
-            <select value={selectedRole} onChange={(event) => setSelectedRole(event.target.value)} className="field-control">
+            <select
+              value={selectedRole}
+              onChange={(event) => setSelectedRole(event.target.value)}
+              className="field-control"
+            >
               <option value="">Choose a role</option>
               {roles
                 .filter((role) => !accessTarget?.userRoles.some((assignment: any) => assignment.roleId === role.id))

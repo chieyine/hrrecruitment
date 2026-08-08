@@ -5,7 +5,7 @@ import { getVerifiedUser } from '@/lib/auth'
 export default async function ConfigurationReleasesPage() {
   const user = await getVerifiedUser()
   if (!user) redirect('/auth/login')
-  if (!user.roles.some((role) => role === 'HR_MANAGER' || role === 'COURSE_ADMIN')) redirect('/recruitment/dashboard')
+  if (!user.roles.includes('HR_MANAGER')) redirect('/recruitment/dashboard')
   return (
     <div className="page-shell space-y-7">
       <div className="page-intro">

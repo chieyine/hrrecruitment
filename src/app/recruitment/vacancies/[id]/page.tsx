@@ -6,7 +6,7 @@ import Footer from '@/components/shared/Footer'
 import VacancyLifecycleActions from '@/components/recruitment/VacancyLifecycleActions'
 import { PageIntro } from '@/components/ui/PageElements'
 import { getVerifiedUser } from '@/lib/auth'
-import { hasPermission } from '@/lib/rbac'
+import { allowedPermissions } from '@/lib/rbac'
 import { prisma } from '@/lib/prisma'
 import { formatDate, getStatusBadgeClass } from '@/lib/utils'
 import { canMakeHrManagerDecision } from '@/lib/recruitment-role-policy'
@@ -18,12 +18,16 @@ export default async function VacancyDetailPage({ params }: { params: Promise<{ 
   const { id } = await params
   const user = await getVerifiedUser()
   if (!user) redirect(`/auth/login?next=/recruitment/vacancies/${id}`)
-  const [readAll, readAssigned, canUpdate, canExport] = await Promise.all([
-    hasPermission(user.userId, 'vacancy.read.all'),
-    hasPermission(user.userId, 'vacancy.read.assigned'),
-    hasPermission(user.userId, 'vacancy.update.all'),
-    hasPermission(user.userId, 'report.export'),
+  const permissions = await allowedPermissions(user.userId, [
+    'vacancy.read.all',
+    'vacancy.read.assigned',
+    'vacancy.update.all',
+    'report.export',
   ])
+  const readAll = permissions.has('vacancy.read.all')
+  const readAssigned = permissions.has('vacancy.read.assigned')
+  const canUpdate = permissions.has('vacancy.update.all')
+  const canExport = permissions.has('report.export')
   if (!readAll && !readAssigned) redirect('/recruitment/dashboard')
 
   const vacancy = await prisma.vacancy.findUnique({

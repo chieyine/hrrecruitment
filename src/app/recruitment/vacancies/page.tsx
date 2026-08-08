@@ -7,7 +7,7 @@ import { EmptyState, PageIntro } from '@/components/ui/PageElements'
 import { prisma } from '@/lib/prisma'
 import { getVerifiedUser } from '@/lib/auth'
 import { formatDate, getStatusBadgeClass } from '@/lib/utils'
-import { hasPermission } from '@/lib/rbac'
+import { allowedPermissions } from '@/lib/rbac'
 import { hasStaffRole } from '@/lib/roles'
 
 const vacancyStatuses = [
@@ -31,11 +31,14 @@ export default async function RecruitmentVacanciesPage({
   const user = await getVerifiedUser()
   if (!user || !hasStaffRole(user.roles)) redirect('/auth/login')
 
-  const [readAll, readAssigned, canCreate] = await Promise.all([
-    hasPermission(user.userId, 'vacancy.read.all'),
-    hasPermission(user.userId, 'vacancy.read.assigned'),
-    hasPermission(user.userId, 'vacancy.create.all'),
+  const permissions = await allowedPermissions(user.userId, [
+    'vacancy.read.all',
+    'vacancy.read.assigned',
+    'vacancy.create.all',
   ])
+  const readAll = permissions.has('vacancy.read.all')
+  const readAssigned = permissions.has('vacancy.read.assigned')
+  const canCreate = permissions.has('vacancy.create.all')
   if (!readAll && !readAssigned) redirect('/recruitment/dashboard')
 
   const scopeWhere = readAll ? {} : { ownerUserId: user.userId }

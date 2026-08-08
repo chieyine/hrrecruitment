@@ -37,9 +37,6 @@ export default async function RecruitmentDashboardPage() {
   if (user.roles.includes('APPROVER') && !canRunRecruitmentOperations(user.roles)) redirect('/recruitment/approvals')
   if (user.roles.includes('PANEL_MEMBER') && user.roles.every((role) => role === 'PANEL_MEMBER'))
     redirect('/recruitment/interviews')
-  if (user.roles.includes('COURSE_ADMIN') && user.roles.every((role) => role === 'COURSE_ADMIN'))
-    redirect('/admin/courses')
-
   const permissions = await allowedPermissions(user.userId, [
     'vacancy.read.all',
     'vacancy.read.assigned',

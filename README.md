@@ -39,7 +39,6 @@ any of these accounts. Every seeded account uses that same password.
 | Budget holder        | `budget.holder@fradfoundation.org`       |
 | Panel member         | `panel.member@fradfoundation.org`        |
 | Approver             | `approver@fradfoundation.org`            |
-| Course administrator | `course.admin@fradfoundation.org`        |
 | Auditor              | `auditor@fradfoundation.org`             |
 | System administrator | `admin@fradfoundation.org`               |
 

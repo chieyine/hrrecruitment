@@ -3,7 +3,7 @@ import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import LonglistingWorkspace from '@/components/recruitment/LonglistingWorkspace'
 import { getVerifiedUser } from '@/lib/auth'
-import { hasPermission } from '@/lib/rbac'
+import { allowedPermissions } from '@/lib/rbac'
 import { prisma } from '@/lib/prisma'
 import { hasStaffRole } from '@/lib/roles'
 import { PageIntro } from '@/components/ui/PageElements'
@@ -24,12 +24,16 @@ export default async function LonglistingPage({
   const user = await getVerifiedUser()
   if (!user || !hasStaffRole(user.roles)) redirect('/auth/login')
 
-  const [canManageRules, canRun, canConfirm, canOverride] = await Promise.all([
-    hasPermission(user.userId, 'longlist.rule.manage'),
-    hasPermission(user.userId, 'longlist.run'),
-    hasPermission(user.userId, 'longlist.confirm'),
-    hasPermission(user.userId, 'longlist.override'),
+  const permissions = await allowedPermissions(user.userId, [
+    'longlist.rule.manage',
+    'longlist.run',
+    'longlist.confirm',
+    'longlist.override',
   ])
+  const canManageRules = permissions.has('longlist.rule.manage')
+  const canRun = permissions.has('longlist.run')
+  const canConfirm = permissions.has('longlist.confirm')
+  const canOverride = permissions.has('longlist.override')
   if (!canManageRules && !canRun) redirect('/recruitment/dashboard')
 
   // Longlisting only makes sense for vacancies that exist to be assessed.

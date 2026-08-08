@@ -11,7 +11,6 @@ export function homeRouteForRoles(roles: readonly string[]): string {
   if (!hasStaffRole(roles)) return '/careers'
   if (roles.length === 1 && roles[0] === 'PANEL_MEMBER') return '/recruitment/interviews'
   if (roles.length === 1 && roles[0] === 'APPROVER') return '/recruitment/approvals'
-  if (roles.length === 1 && roles[0] === 'COURSE_ADMIN') return '/admin/courses'
   if (roles.length === 1 && roles[0] === 'AUDITOR') return '/recruitment/audit'
   // §22.3 A Budget Holder only ever confirms money, so the funding queue is the
   // whole of their workspace.

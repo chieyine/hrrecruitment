@@ -70,7 +70,7 @@ test.describe('Admin and Reports', () => {
     await targetDialog.getByRole('button', { name: /cancel/i }).click()
 
     await logout(page)
-    await login(page, 'course.admin@fradfoundation.org')
+    await login(page, 'hrmanager@fradfoundation.org')
     await page.goto('/admin/courses')
     await page.getByRole('combobox', { name: /course/i }).selectOption({ index: 1 })
     await page.getByRole('button', { name: /add quiz question/i }).click()

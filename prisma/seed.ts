@@ -1,6 +1,7 @@
 /* eslint-disable no-console -- seeding is a CLI script and reports progress on stdout */
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import { BUILTIN_ROLES, BUILTIN_ROLE_GRANTS, PERMISSION_DEFINITIONS } from './access-model'
 
 const prisma = new PrismaClient()
 
@@ -11,22 +12,7 @@ async function main() {
   console.log('🌱 Starting database seed...')
 
   // 1. Roles
-  const roles = [
-    { name: 'PUBLIC', description: 'Public visitor' },
-    { name: 'CANDIDATE', description: 'Job applicant and preboarding candidate' },
-    { name: 'RECRUITMENT_OFFICER', description: 'HR recruitment officer managing vacancies & candidates' },
-    { name: 'HR_MANAGER', description: 'HR Manager approving vacancies, offers & waivers' },
-    { name: 'HIRING_MANAGER', description: 'Hiring manager reviewing assigned candidates & panels' },
-    {
-      name: 'BUDGET_HOLDER',
-      description: 'Budget Holder confirming funding, ceilings and budget lines for staffing requests',
-    },
-    { name: 'PANEL_MEMBER', description: 'Interview panel scoring member' },
-    { name: 'APPROVER', description: 'Executive approver' },
-    { name: 'COURSE_ADMIN', description: 'Preboarding course administrator' },
-    { name: 'SYSTEM_ADMIN', description: 'System administrator' },
-    { name: 'AUDITOR', description: 'Read-only compliance auditor' },
-  ]
+  const roles = BUILTIN_ROLES
 
   for (const role of roles) {
     await prisma.role.upsert({
@@ -149,7 +135,6 @@ async function main() {
     ['budget.holder@fradfoundation.org', 'BUDGET_HOLDER'],
     ['panel.member@fradfoundation.org', 'PANEL_MEMBER'],
     ['approver@fradfoundation.org', 'APPROVER'],
-    ['course.admin@fradfoundation.org', 'COURSE_ADMIN'],
     ['auditor@fradfoundation.org', 'AUDITOR'],
   ] as const
   for (const [email, roleName] of personaUsers) {
@@ -648,169 +633,12 @@ async function main() {
   }
 
   // 11. Permissions & role-permission grants (§8)
-  const permissions = [
-    { code: '*', description: 'Legacy wildcard; not assigned to built-in roles' },
-    { code: 'vacancy.create.all', description: 'Create vacancies' },
-    { code: 'vacancy.read.all', description: 'Read all vacancies' },
-    { code: 'vacancy.read.assigned', description: 'Read vacancies owned by or assigned to the user' },
-    { code: 'vacancy.update.all', description: 'Update vacancies' },
-    { code: 'application.read.assigned', description: 'Read assigned applications' },
-    { code: 'application.read.all', description: 'Read all applications' },
-    { code: 'application.stage.change', description: 'Change application stage' },
-    { code: 'scorecard.submit', description: 'Submit scorecards' },
-    { code: 'scorecard.reopen', description: 'Reopen submitted scorecards with a reason' },
-    { code: 'assessment.manage', description: 'Manage assessments' },
-    { code: 'interview.manage', description: 'Manage interviews' },
-    { code: 'interview.score.assigned', description: 'Score interviews assigned to the user' },
-    { code: 'reference.manage', description: 'Manage reference checks' },
-    { code: 'offer.manage', description: 'Manage offers' },
-    { code: 'preboarding.manage', description: 'Manage preboarding' },
-    { code: 'preboarding.clearance', description: 'Issue final preboarding clearance' },
-    { code: 'resumption.confirm', description: 'Confirm actual resumption' },
-    { code: 'course.manage', description: 'Manage course content and enrolment' },
-    {
-      code: 'preboarding.restricted.read',
-      description: 'Read restricted bank, pension, medical, accessibility and next-of-kin forms',
-    },
-    { code: 'erp.transfer', description: 'Record ERP transfer' },
-    { code: 'admin.manage', description: 'Administer configuration' },
-    { code: 'audit.read', description: 'Read audit logs' },
-    { code: 'report.export', description: 'Export recruitment and preboarding reports' },
-    { code: 'complaint.manage', description: 'Manage restricted complaints and case records' },
-    { code: 'governance.manage', description: 'Manage legal holds, retention and access reviews' },
-
-    // §5 Staffing requests
-    { code: 'staffing.request.create', description: 'Raise and edit own staffing requests' },
-    { code: 'staffing.request.read.assigned', description: 'Read own or departmental staffing requests' },
-    { code: 'staffing.request.read.all', description: 'Read all staffing requests' },
-    { code: 'staffing.request.review', description: 'Review and return staffing requests as HR' },
-    { code: 'staffing.request.approve', description: 'Approve a staffing request for vacancy preparation' },
-
-    // §3.7, §17 Budget Holder funding authority
-    { code: 'funding.confirm', description: 'Confirm or reject funding, ceilings and budget lines' },
-    { code: 'funding.read', description: 'Read funding confirmations and financial envelopes' },
-    { code: 'offer.financial.confirm', description: 'Confirm offer terms above the approved ceiling' },
-
-    // §11 Longlisting
-    { code: 'longlist.rule.manage', description: 'Define and amend vacancy longlisting rules' },
-    { code: 'longlist.run', description: 'Run automatic longlisting over a vacancy' },
-    { code: 'longlist.review', description: 'Work the longlisting exception-review queue' },
-    { code: 'longlist.override', description: 'Override an automated longlisting outcome with a reason' },
-    { code: 'longlist.confirm', description: 'Confirm the final longlist for a vacancy' },
-
-    // §16, §28.11 Due diligence
-    { code: 'backgroundcheck.manage', description: 'Request and record background and due-diligence checks' },
-    { code: 'backgroundcheck.read.restricted', description: 'Read restricted background-check findings' },
-
-    // §28.10 Electronic signatures
-    { code: 'signature.sign', description: 'Apply an electronic signature or approval' },
-    { code: 'signature.read', description: 'Read the electronic signature register' },
-  ]
+  const permissions = PERMISSION_DEFINITIONS
   for (const p of permissions) {
     await prisma.permission.upsert({ where: { code: p.code }, update: { description: p.description }, create: p })
   }
 
-  const grants: Record<string, string[]> = {
-    SYSTEM_ADMIN: ['admin.manage', 'audit.read', 'governance.manage'],
-    HR_MANAGER: [
-      'vacancy.create.all',
-      'vacancy.read.all',
-      'vacancy.update.all',
-      'application.read.all',
-      'application.stage.change',
-      'scorecard.submit',
-      'scorecard.reopen',
-      'assessment.manage',
-      'interview.manage',
-      'reference.manage',
-      'offer.manage',
-      'preboarding.manage',
-      'preboarding.clearance',
-      'resumption.confirm',
-      'preboarding.restricted.read',
-      'erp.transfer',
-      'audit.read',
-      'report.export',
-      'complaint.manage',
-      'governance.manage',
-      'staffing.request.create',
-      'staffing.request.read.all',
-      'staffing.request.review',
-      'staffing.request.approve',
-      'funding.read',
-      'longlist.rule.manage',
-      'longlist.run',
-      'longlist.review',
-      'longlist.override',
-      'longlist.confirm',
-      'backgroundcheck.manage',
-      'backgroundcheck.read.restricted',
-      'signature.sign',
-      'signature.read',
-    ],
-    RECRUITMENT_OFFICER: [
-      'vacancy.create.all',
-      'vacancy.read.all',
-      'vacancy.update.all',
-      'application.read.all',
-      'application.stage.change',
-      'scorecard.submit',
-      'assessment.manage',
-      'interview.manage',
-      'interview.score.assigned',
-      'reference.manage',
-      'offer.manage',
-      'preboarding.manage',
-      'resumption.confirm',
-      'erp.transfer',
-      'complaint.manage',
-      // §11 The recruitment officer prepares rules and works the exception
-      // queue, but confirming the longlist and overriding an automated outcome
-      // stay with the HR Manager.
-      'staffing.request.create',
-      'staffing.request.read.all',
-      'staffing.request.review',
-      'funding.read',
-      'longlist.rule.manage',
-      'longlist.run',
-      'longlist.review',
-      'backgroundcheck.manage',
-      'backgroundcheck.read.restricted',
-      'signature.sign',
-      'signature.read',
-    ],
-    HIRING_MANAGER: [
-      'vacancy.read.assigned',
-      'application.read.assigned',
-      'scorecard.submit',
-      'interview.manage',
-      'interview.score.assigned',
-      // §3.6 raises staffing requests and sees its own, but approves nothing.
-      'staffing.request.create',
-      'staffing.request.read.assigned',
-      'signature.sign',
-    ],
-    // §3.7 Money only. No candidate records, no scores, no offers.
-    BUDGET_HOLDER: [
-      'staffing.request.read.assigned',
-      'funding.confirm',
-      'funding.read',
-      'offer.financial.confirm',
-      'signature.sign',
-    ],
-    PANEL_MEMBER: ['application.read.assigned', 'interview.score.assigned', 'signature.sign'],
-    COURSE_ADMIN: ['course.manage'],
-    APPROVER: ['staffing.request.read.all', 'signature.sign'],
-    AUDITOR: [
-      'vacancy.read.all',
-      'application.read.all',
-      'audit.read',
-      'report.export',
-      'staffing.request.read.all',
-      'funding.read',
-      'signature.read',
-    ],
-  }
+  const grants = BUILTIN_ROLE_GRANTS
   for (const [roleName, codes] of Object.entries(grants)) {
     const role = await prisma.role.findUnique({ where: { name: roleName } })
     if (!role) continue

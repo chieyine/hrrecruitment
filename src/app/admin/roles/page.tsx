@@ -10,9 +10,9 @@ const ROLE_ORDER = [
   'RECRUITMENT_OFFICER',
   'HR_MANAGER',
   'HIRING_MANAGER',
+  'BUDGET_HOLDER',
   'APPROVER',
   'PANEL_MEMBER',
-  'COURSE_ADMIN',
   'SYSTEM_ADMIN',
   'AUDITOR',
 ] as const
@@ -29,7 +29,7 @@ const ROLE_GUIDANCE: Record<
   },
   HR_MANAGER: {
     name: 'HR manager',
-    purpose: 'Owns recruitment policy, controlled configuration and the decisions reserved for HR leadership.',
+    purpose: 'Owns recruitment policy, preboarding courses, controlled configuration and HR leadership decisions.',
     boundary: 'Approval is a decision responsibility, not a substitute for the recruitment officer’s daily work.',
     group: 'Recruitment',
   },
@@ -38,6 +38,12 @@ const ROLE_GUIDANCE: Record<
     purpose: 'Reviews candidates and contributes to selection for vacancies they own or have been assigned.',
     boundary: 'Cannot browse unrelated candidates or administer recruitment settings.',
     group: 'Recruitment',
+  },
+  BUDGET_HOLDER: {
+    name: 'Budget holder',
+    purpose: 'Confirms funding, ceilings and budget lines for approved staffing requests.',
+    boundary: 'Cannot browse candidate records, scores, checks or offers.',
+    group: 'Specialist',
   },
   APPROVER: {
     name: 'Approver',
@@ -49,12 +55,6 @@ const ROLE_GUIDANCE: Record<
     name: 'Panel member',
     purpose: 'Reviews assigned interview material and submits their own assessment.',
     boundary: 'Cannot see unrelated applications, other panels or administrative records.',
-    group: 'Specialist',
-  },
-  COURSE_ADMIN: {
-    name: 'Course administrator',
-    purpose: 'Maintains preboarding learning content, questions and enrolment support.',
-    boundary: 'Cannot manage recruitment decisions or confidential candidate checks.',
     group: 'Specialist',
   },
   SYSTEM_ADMIN: {
@@ -135,8 +135,8 @@ export default async function AdminRolesPage() {
             Product-defined roles
           </div>
           <p className="mt-2 text-sm leading-6 text-stone-600">
-            Names and capabilities cannot be edited here. This prevents a settings change from silently widening
-            access across the service.
+            Names and capabilities cannot be edited here. This prevents a settings change from silently widening access
+            across the service.
           </p>
         </div>
       </section>

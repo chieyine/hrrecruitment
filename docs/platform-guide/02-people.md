@@ -10,19 +10,19 @@ Anyone may browse published vacancies without an account. Applying requires regi
 
 **An applicant can never see:** internal recruitment notes, screening or interview scores, panel comments, other candidates, salary deliberations, reference responses, background-check findings, or safeguarding records. This is enforced by a separate candidate-facing status vocabulary — several distinct internal stages collapse to the same words an applicant sees, so the granularity of internal deliberation never leaks.
 
-| Internal stage | What the applicant sees |
-| --- | --- |
-| `UNDER_REVIEW`, `EXCEPTION_REVIEW`, `LONGLISTED` | Under review |
-| `REFERENCE_CHECK`, `BACKGROUND_CHECK`, `RECOMMENDED`, `RESERVE` | Under review |
-| `NOT_LONGLISTED`, `NOT_SHORTLISTED`, `INELIGIBLE`, `NOT_SELECTED` | Unsuccessful |
-| `PREBOARDING`, `PRE_EMPLOYMENT_CLEARANCE` | Preboarding in progress |
-| `RESUMED`, `READY_FOR_ERP_TRANSFER`, `TRANSFERRED_TO_ERP` | Recruitment completed |
+| Internal stage                                                    | What the applicant sees |
+| ----------------------------------------------------------------- | ----------------------- |
+| `UNDER_REVIEW`, `EXCEPTION_REVIEW`, `LONGLISTED`                  | Under review            |
+| `REFERENCE_CHECK`, `BACKGROUND_CHECK`, `RECOMMENDED`, `RESERVE`   | Under review            |
+| `NOT_LONGLISTED`, `NOT_SHORTLISTED`, `INELIGIBLE`, `NOT_SELECTED` | Unsuccessful            |
+| `PREBOARDING`, `PRE_EMPLOYMENT_CLEARANCE`                         | Preboarding in progress |
+| `RESUMED`, `READY_FOR_ERP_TRANSFER`, `TRANSFERRED_TO_ERP`         | Recruitment completed   |
 
 ^ Table 1. An applicant told "under review" cannot tell whether their file was flagged as an exception. That is intentional.
 
 ## 2.2 Internal candidates
 
-An internal candidate is a member of staff applying for a vacancy. They apply with the ordinary applicant role, because a recruitment role describes what someone does *in the recruitment system*, not whether they work here.
+An internal candidate is a member of staff applying for a vacancy. They apply with the ordinary applicant role, because a recruitment role describes what someone does _in the recruitment system_, not whether they work here.
 
 They are identified by their **verified** `@fradfoundation.org` email address. Two rules make this safe to rely on:
 
@@ -81,9 +81,9 @@ The platform decides when to escalate rather than leaving it to judgement. A sta
 
 An external person completing a reference. They reach the platform through a single-use, expiring link and never hold an account. They see the questions and nothing else — no internal records, no other referees' responses, no candidate file.
 
-## 2.10 Course administrator
+## 2.10 Preboarding learning ownership
 
-Manages preboarding course content, quiz authoring, enrolment visibility and attempt resets. Sees nothing else.
+The HR Manager manages preboarding course content, quiz authoring, enrolment visibility and attempt resets. HR remains the candidate's operational contact through recruitment, offer and preboarding until confirmed resumption and controlled ERP handover. There is no separate course-administrator persona.
 
 ## 2.11 Auditor
 
@@ -95,21 +95,21 @@ Manages the technology, not the recruitment process.
 
 **They can:** create and disable accounts; assign roles on approved instruction; configure authentication; manage backups, integrations and email delivery; monitor availability; manage security settings and software updates; restore from backup where authorised.
 
-**They cannot:** approve vacancies or candidates, alter scores, change selection decisions, issue offers, approve funding, or change any recruitment outcome. This is enforced structurally: a system-administrator account is restricted to three technical permissions and *cannot inherit recruitment authority even if an operational role is mistakenly also assigned to it*. Someone who does both jobs needs two accounts, so every decision has an unambiguous actor.
+**They cannot:** approve vacancies or candidates, alter scores, change selection decisions, issue offers, approve funding, or change any recruitment outcome. This is enforced structurally: a system-administrator account is restricted to three technical permissions and _cannot inherit recruitment authority even if an operational role is mistakenly also assigned to it_. Someone who does both jobs needs two accounts, so every decision has an unambiguous actor.
 
 All technical-administrator access to recruitment data is logged.
 
 ## 2.13 Separation of duties, summarised
 
-| Decision | Who may make it | Who is excluded |
-| --- | --- | --- |
-| Raise a staffing request | Hiring department, HR | — |
-| Confirm funding | Budget Holder | Anyone who raised the request; Finance |
-| Approve a vacancy | HR Manager; automatic when HR owns it | Recruitment officers |
-| Change a locked rule | HR Manager | The person who proposed it |
-| Confirm a longlist | HR Manager | — |
-| Reverse an automatic outcome | HR Manager | Recruitment officers |
-| Score an interview | Assigned panel members | Anyone unassigned |
-| Approve an offer | HR Manager, executive | The person who prepared it |
-| Approve an ERP transfer | HR Manager | — |
-| Waive a required check | HR Manager | Recruitment officers |
+| Decision                     | Who may make it                       | Who is excluded                        |
+| ---------------------------- | ------------------------------------- | -------------------------------------- |
+| Raise a staffing request     | Hiring department, HR                 | —                                      |
+| Confirm funding              | Budget Holder                         | Anyone who raised the request; Finance |
+| Approve a vacancy            | HR Manager; automatic when HR owns it | Recruitment officers                   |
+| Change a locked rule         | HR Manager                            | The person who proposed it             |
+| Confirm a longlist           | HR Manager                            | —                                      |
+| Reverse an automatic outcome | HR Manager                            | Recruitment officers                   |
+| Score an interview           | Assigned panel members                | Anyone unassigned                      |
+| Approve an offer             | HR Manager, executive                 | The person who prepared it             |
+| Approve an ERP transfer      | HR Manager                            | —                                      |
+| Waive a required check       | HR Manager                            | Recruitment officers                   |

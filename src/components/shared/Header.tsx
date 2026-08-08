@@ -131,13 +131,10 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
   const isOperationalStaff = isStaff && !isSystemAdmin
   const isHrManager = Boolean(resolvedUser?.roles.includes('HR_MANAGER'))
   const isRecruitmentOfficer = Boolean(resolvedUser?.roles.includes('RECRUITMENT_OFFICER'))
-  const isCourseAdmin = Boolean(resolvedUser?.roles?.includes('COURSE_ADMIN') && !isSystemAdmin)
   const isApprover = Boolean(resolvedUser?.roles?.includes('APPROVER') && !resolvedUser.roles.includes('HR_MANAGER'))
   const isPanelOnly = Boolean(resolvedUser?.roles?.length === 1 && resolvedUser.roles.includes('PANEL_MEMBER'))
   const isAuditorOnly = Boolean(resolvedUser?.roles?.length === 1 && resolvedUser.roles.includes('AUDITOR'))
-  const isBudgetHolderOnly = Boolean(
-    resolvedUser?.roles?.length === 1 && resolvedUser.roles.includes('BUDGET_HOLDER')
-  )
+  const isBudgetHolderOnly = Boolean(resolvedUser?.roles?.length === 1 && resolvedUser.roles.includes('BUDGET_HOLDER'))
   const isHiringManagerOnly = Boolean(
     resolvedUser?.roles?.length === 1 && resolvedUser.roles.includes('HIRING_MANAGER')
   )
@@ -170,11 +167,6 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
         links: [{ href: '/admin/configuration-releases', label: 'Change drafts' }],
       },
     ]
-  } else if (isCourseAdmin) {
-    primaryLinks = [
-      { href: '/admin/courses', label: 'Courses' },
-      { href: '/admin/configuration-releases', label: 'Change drafts' },
-    ]
   } else if (isApprover) {
     primaryLinks = [{ href: '/recruitment/approvals', label: 'My approvals' }]
   } else if (isPanelOnly) {
@@ -204,7 +196,20 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
       { href: '/recruitment/vacancies', label: 'Vacancies' },
       { href: '/recruitment/applications', label: 'Candidates' },
     ]
-    secondaryGroups = STAFF_MORE_GROUPS
+    secondaryGroups = [
+      ...STAFF_MORE_GROUPS,
+      ...(isHrManager
+        ? [
+            {
+              label: 'HR administration',
+              links: [
+                { href: '/admin/courses', label: 'Preboarding courses' },
+                { href: '/admin/configuration-releases', label: 'Review controlled changes' },
+              ],
+            },
+          ]
+        : []),
+    ]
   }
   const secondaryLinks = secondaryGroups.flatMap((group) => group.links)
 
@@ -212,23 +217,21 @@ export default function Header({ currentUser }: { currentUser?: UserSession | nu
     ? 'Candidate'
     : isSystemAdmin
       ? 'System administrator'
-      : isCourseAdmin
-        ? 'Course administrator'
-        : isHrManager
-          ? 'HR manager'
-          : isRecruitmentOfficer
-            ? 'Recruitment / HR officer'
-            : isApprover
-              ? 'Approver'
-              : isPanelOnly
-                ? 'Panel member'
-                : isAuditorOnly
-                  ? 'Auditor'
-                  : isBudgetHolderOnly
-                    ? 'Budget holder'
-                    : isHiringManagerOnly
-                      ? 'Hiring manager'
-                      : 'Recruitment staff'
+      : isHrManager
+        ? 'HR manager'
+        : isRecruitmentOfficer
+          ? 'Recruitment / HR officer'
+          : isApprover
+            ? 'Approver'
+            : isPanelOnly
+              ? 'Panel member'
+              : isAuditorOnly
+                ? 'Auditor'
+                : isBudgetHolderOnly
+                  ? 'Budget holder'
+                  : isHiringManagerOnly
+                    ? 'Hiring manager'
+                    : 'Recruitment staff'
 
   const signOut = async () => {
     setSigningOut(true)

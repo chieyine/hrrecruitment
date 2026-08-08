@@ -80,7 +80,7 @@ const recruitmentSetupPages = [
   '/admin/configuration-releases',
 ]
 
-const courseAdminPages = ['/admin/courses', '/admin/configuration-releases']
+const hrLearningPages = ['/admin/courses', '/admin/configuration-releases']
 
 const officerOperationsPages = ['/admin/automations', '/admin/fraud-reports']
 
@@ -114,11 +114,7 @@ test('all administration pages render for the system administrator', async ({ pa
 test('recruitment setup pages render for the HR manager', async ({ page }) => {
   await login(page, 'hrmanager@fradfoundation.org')
   for (const path of recruitmentSetupPages) await assertPageRenders(page, path)
-})
-
-test('learning setup pages render for the course administrator', async ({ page }) => {
-  await login(page, 'course.admin@fradfoundation.org')
-  for (const path of courseAdminPages) await assertPageRenders(page, path)
+  for (const path of hrLearningPages) await assertPageRenders(page, path)
 })
 
 test('recruitment operations pages render for the Recruitment / HR Officer', async ({ page }) => {

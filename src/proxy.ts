@@ -123,7 +123,6 @@ export async function proxy(req: NextRequest) {
   if (needsAuth && !session) return deny(401, '/auth/login')
 
   const isAdmin = roles.includes('SYSTEM_ADMIN')
-  const isCourseAdmin = roles.includes('COURSE_ADMIN')
   const isHrManager = roles.includes('HR_MANAGER')
   const isRecruitmentOfficer = roles.includes('RECRUITMENT_OFFICER')
 
@@ -144,7 +143,7 @@ export async function proxy(req: NextRequest) {
       // through this endpoint by ordinary staff forms; the handler itself
       // distinguishes reads from writes, so any staff member may reach it.
       const staffReferenceDataPath = pathname === '/api/admin/generic'
-      const courseAdminPath =
+      const courseManagementPath =
         pathname === '/admin/courses' ||
         pathname.startsWith('/admin/courses/') ||
         pathname === '/admin/configuration-releases' ||
@@ -158,12 +157,12 @@ export async function proxy(req: NextRequest) {
         pathname === '/api/admin/fraud-reports'
       const hrManagerPath =
         recruitmentOperationsPath ||
+        courseManagementPath ||
         matchesRoute(pathname, RECRUITMENT_SETUP_ROUTES) ||
         pathname === '/api/admin/configuration-releases' ||
         pathname.startsWith('/api/admin/configuration-builder')
       if (
         !staffReferenceDataPath &&
-        !(isCourseAdmin && courseAdminPath) &&
         !(isHrManager && hrManagerPath) &&
         !(isRecruitmentOfficer && recruitmentOperationsPath)
       ) {
@@ -181,8 +180,16 @@ export async function proxy(req: NextRequest) {
   requestHeaders.set('x-request-id', requestId)
   const response = NextResponse.next({ request: { headers: requestHeaders } })
   if (pathname.startsWith('/careers') && !req.cookies.has(APPLICATION_SOURCE_COOKIE)) {
-    const source = normalizeApplicationSource(req.nextUrl.searchParams.get('utm_source') || req.nextUrl.searchParams.get('source'))
-    response.cookies.set(APPLICATION_SOURCE_COOKIE, source, { httpOnly: true, sameSite: 'lax', secure: req.nextUrl.protocol === 'https:', path: '/', maxAge: 60 * 60 * 24 * 30 })
+    const source = normalizeApplicationSource(
+      req.nextUrl.searchParams.get('utm_source') || req.nextUrl.searchParams.get('source')
+    )
+    response.cookies.set(APPLICATION_SOURCE_COOKIE, source, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: req.nextUrl.protocol === 'https:',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    })
   }
   response.headers.set('x-request-id', requestId)
   return response

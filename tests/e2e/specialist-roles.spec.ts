@@ -57,15 +57,6 @@ test.describe('documented specialist personas', () => {
     await logout(page)
   })
 
-  test('course administrator is limited to course administration', async ({ page }) => {
-    await login(page, 'course.admin@fradfoundation.org')
-    await expect(page).toHaveURL(/\/admin\/courses/)
-    await expect(page.getByRole('heading', { name: /compulsory courses/i })).toBeVisible()
-    await page.goto('/admin/users')
-    await expect(page).toHaveURL(/\/admin\/courses/)
-    await logout(page)
-  })
-
   test('auditor can read audit and exports but cannot change administration', async ({ page }) => {
     await login(page, 'auditor@fradfoundation.org')
     await page.goto('/recruitment/audit')

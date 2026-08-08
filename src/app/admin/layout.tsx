@@ -16,9 +16,7 @@ const SYSTEM_NAV_GROUPS: AdminNavGroup[] = [
   },
   {
     label: 'Platform',
-    items: [
-      { href: '/admin/system-settings', label: 'System settings' },
-    ],
+    items: [{ href: '/admin/system-settings', label: 'System settings' }],
   },
   {
     label: 'Assurance',
@@ -75,10 +73,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const user = await getVerifiedUser()
   if (!user) redirect('/auth/login')
   const isSystemAdmin = user.roles.includes('SYSTEM_ADMIN')
-  const isCourseAdmin = user.roles.includes('COURSE_ADMIN')
   const isHrManager = user.roles.includes('HR_MANAGER')
   const isRecruitmentOfficer = user.roles.includes('RECRUITMENT_OFFICER')
-  if (!isSystemAdmin && !isCourseAdmin && !isHrManager && !isRecruitmentOfficer) redirect('/recruitment/dashboard')
+  if (!isSystemAdmin && !isHrManager && !isRecruitmentOfficer) redirect('/recruitment/dashboard')
   const recruitmentOperationsNav: AdminNavGroup[] = [
     {
       label: 'Recruitment operations',
@@ -101,7 +98,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     ? SYSTEM_NAV_GROUPS
     : [
         ...(isHrManager ? RECRUITMENT_SETUP_NAV_GROUPS : []),
-        ...(isCourseAdmin ? courseNav : []),
+        ...(isHrManager ? courseNav : []),
         ...(isHrManager || isRecruitmentOfficer ? recruitmentOperationsNav : []),
       ]
 
@@ -118,18 +115,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                   ? 'Platform administration'
                   : isHrManager
                     ? 'Recruitment configuration'
-                    : isCourseAdmin
-                      ? 'Learning configuration'
-                      : 'Recruitment operations'}
+                    : 'Recruitment operations'}
               </h1>
               <p className="mt-1 text-sm text-stone-600">
                 {isSystemAdmin
                   ? 'Access, infrastructure, privacy and technical controls.'
                   : isHrManager
                     ? 'The reference data and templates used throughout recruitment.'
-                    : isCourseAdmin
-                      ? 'Courses, content, questions and controlled course changes.'
-                      : 'Case queues, schedules and day-to-day recruitment controls.'}
+                    : 'Case queues, schedules and day-to-day recruitment controls.'}
               </p>
             </div>
             {!isSystemAdmin && (
@@ -141,13 +134,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <AdminNav
             groups={nav}
             label={
-              isSystemAdmin
-                ? 'Platform controls'
-                : isHrManager
-                  ? 'Recruitment configuration'
-                  : isCourseAdmin
-                    ? 'Learning configuration'
-                    : 'Recruitment operations'
+              isSystemAdmin ? 'Platform controls' : isHrManager ? 'Recruitment configuration' : 'Recruitment operations'
             }
           />
           {children}

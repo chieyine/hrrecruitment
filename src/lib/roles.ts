@@ -11,7 +11,6 @@ export const STAFF_ROLE_NAMES = [
   'BUDGET_HOLDER',
   'PANEL_MEMBER',
   'APPROVER',
-  'COURSE_ADMIN',
   'SYSTEM_ADMIN',
   'AUDITOR',
 ] as const
