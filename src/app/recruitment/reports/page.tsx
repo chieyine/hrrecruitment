@@ -7,7 +7,7 @@ import ReportScheduler from '@/components/admin/ReportScheduler'
 import RecruitmentInsightsOverview from '@/components/recruitment/RecruitmentInsightsOverview'
 import { PageIntro } from '@/components/ui/PageElements'
 import { getVerifiedUser } from '@/lib/auth'
-import { hasPermission } from '@/lib/rbac'
+import { allowedPermissions } from '@/lib/rbac'
 import { hasStaffRole } from '@/lib/roles'
 
 const REPORTS = [
@@ -64,28 +64,28 @@ export default async function RecruitmentReportsPage({
   const user = await getVerifiedUser()
 
   if (!user || !hasStaffRole(user.roles)) redirect('/auth/login')
-  if (!(await hasPermission(user.userId, 'report.export'))) redirect('/recruitment/dashboard')
+  const permissions = await allowedPermissions(user.userId, [
+    'report.export',
+    'complaint.manage',
+    'audit.read',
+    'governance.manage',
+    'reference.manage',
+    'offer.manage',
+    'preboarding.manage',
+    'funding.read',
+    'backgroundcheck.manage',
+  ])
+  if (!permissions.has('report.export')) redirect('/recruitment/dashboard')
 
   const view = ['overview', 'downloads', 'scheduled'].includes(String(query.view)) ? String(query.view) : 'overview'
-  const [
-    canExportComplaints,
-    canExportAudit,
-    canExportGovernance,
-    canExportReferences,
-    canExportOffers,
-    canExportPreboarding,
-    canReadFunding,
-    canReadRestrictedChecks,
-  ] = await Promise.all([
-    hasPermission(user.userId, 'complaint.manage'),
-    hasPermission(user.userId, 'audit.read'),
-    hasPermission(user.userId, 'governance.manage'),
-    hasPermission(user.userId, 'reference.manage'),
-    hasPermission(user.userId, 'offer.manage'),
-    hasPermission(user.userId, 'preboarding.manage'),
-    hasPermission(user.userId, 'funding.read'),
-    hasPermission(user.userId, 'backgroundcheck.manage'),
-  ])
+  const canExportComplaints = permissions.has('complaint.manage')
+  const canExportAudit = permissions.has('audit.read')
+  const canExportGovernance = permissions.has('governance.manage')
+  const canExportReferences = permissions.has('reference.manage')
+  const canExportOffers = permissions.has('offer.manage')
+  const canExportPreboarding = permissions.has('preboarding.manage')
+  const canReadFunding = permissions.has('funding.read')
+  const canReadRestrictedChecks = permissions.has('backgroundcheck.manage')
   const auditor = user.roles.includes('AUDITOR')
   const canAccessReport = (code: string) => {
     if (auditor && !['complaints', 'configuration-changes'].includes(code)) return true

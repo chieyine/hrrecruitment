@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { FileText, Plus, Wallet } from 'lucide-react'
 import { EmptyState, SaveIndicator } from '@/components/ui/PageElements'
 import { ReasonDialog } from '@/components/ui/Dialog'
@@ -147,8 +147,6 @@ export default function StaffingRequestWorkspace({
   useEffect(() => {
     void load()
   }, [load])
-
-  const selected = useMemo(() => requests.find((item) => item.id === selectedId) || null, [requests, selectedId])
 
   const post = async (url: string, payload: unknown, label: string) => {
     setBusy(label)
@@ -658,125 +656,123 @@ export default function StaffingRequestWorkspace({
 
                     {/* §3.7 The funding decision form appears only for a Budget Holder,
                         and only while the request is actually awaiting the money. */}
-                    {capabilities.confirmFunding &&
-                      request.status === 'AWAITING_FUNDING_CONFIRMATION' &&
-                      !isOwner && (
-                        <div className="border border-stone-300 bg-stone-50 p-4">
-                          <h3 className="flex items-center gap-2 text-sm font-bold text-stone-950">
-                            <Wallet className="h-4 w-4" /> Confirm funding
-                          </h3>
-                          <div className="mt-3 grid gap-3 md:grid-cols-2">
-                            {field(
-                              'Decision',
-                              <select
-                                value={fundingForm.decision}
-                                onChange={(event) => setFundingForm({ ...fundingForm, decision: event.target.value })}
-                                className="field-control"
-                              >
-                                <option value="CONFIRMED">Funding confirmed</option>
-                                <option value="REJECTED">Not funded</option>
-                                <option value="RETURNED">Return for correction</option>
-                              </select>
-                            )}
-                            {field(
-                              'Budget line',
-                              <input
-                                value={fundingForm.budgetLine}
-                                onChange={(event) => setFundingForm({ ...fundingForm, budgetLine: event.target.value })}
-                                className="field-control"
-                                placeholder={request.budgetLine}
-                              />
-                            )}
-                            {field(
-                              'Salary / fee ceiling',
-                              <input
-                                type="number"
-                                min={0}
-                                value={fundingForm.salaryCeilingAmount}
-                                onChange={(event) =>
-                                  setFundingForm({ ...fundingForm, salaryCeilingAmount: event.target.value })
-                                }
-                                className="field-control"
-                              />
-                            )}
-                            {field(
-                              'Maximum recruitment cost',
-                              <input
-                                type="number"
-                                min={0}
-                                value={fundingForm.maximumRecruitmentCost}
-                                onChange={(event) =>
-                                  setFundingForm({ ...fundingForm, maximumRecruitmentCost: event.target.value })
-                                }
-                                className="field-control"
-                              />
-                            )}
-                            {field(
-                              'Funding end date',
-                              <input
-                                type="date"
-                                value={fundingForm.fundingEndDate}
-                                onChange={(event) =>
-                                  setFundingForm({ ...fundingForm, fundingEndDate: event.target.value })
-                                }
-                                className="field-control"
-                              />
-                            )}
-                            {field(
-                              'Donor approval reference',
-                              <input
-                                value={fundingForm.donorApprovalReference}
-                                onChange={(event) =>
-                                  setFundingForm({ ...fundingForm, donorApprovalReference: event.target.value })
-                                }
-                                className="field-control"
-                              />
-                            )}
-                          </div>
-                          <div className="mt-3 flex flex-wrap gap-4 text-sm text-stone-800">
-                            <label className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={fundingForm.grantFunded}
-                                onChange={(event) =>
-                                  setFundingForm({ ...fundingForm, grantFunded: event.target.checked })
-                                }
-                              />
-                              Grant funded
-                            </label>
-                            <label className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={fundingForm.donorApprovalRequired}
-                                onChange={(event) =>
-                                  setFundingForm({ ...fundingForm, donorApprovalRequired: event.target.checked })
-                                }
-                              />
-                              Donor approval required
-                            </label>
-                          </div>
-                          <div className="mt-3">
-                            {field(
-                              'Comment',
-                              <textarea
-                                rows={2}
-                                value={fundingForm.comment}
-                                onChange={(event) => setFundingForm({ ...fundingForm, comment: event.target.value })}
-                                className="field-control"
-                              />,
-                              'Required when returning or rejecting.'
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => confirmFunding(request)}
-                            disabled={Boolean(busy)}
-                            className="btn-primary mt-3"
-                          >
-                            {busy === 'funding' ? 'Recording…' : 'Record funding decision'}
-                          </button>
+                    {capabilities.confirmFunding && request.status === 'AWAITING_FUNDING_CONFIRMATION' && !isOwner && (
+                      <div className="border border-stone-300 bg-stone-50 p-4">
+                        <h3 className="flex items-center gap-2 text-sm font-bold text-stone-950">
+                          <Wallet className="h-4 w-4" /> Confirm funding
+                        </h3>
+                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                          {field(
+                            'Decision',
+                            <select
+                              value={fundingForm.decision}
+                              onChange={(event) => setFundingForm({ ...fundingForm, decision: event.target.value })}
+                              className="field-control"
+                            >
+                              <option value="CONFIRMED">Funding confirmed</option>
+                              <option value="REJECTED">Not funded</option>
+                              <option value="RETURNED">Return for correction</option>
+                            </select>
+                          )}
+                          {field(
+                            'Budget line',
+                            <input
+                              value={fundingForm.budgetLine}
+                              onChange={(event) => setFundingForm({ ...fundingForm, budgetLine: event.target.value })}
+                              className="field-control"
+                              placeholder={request.budgetLine}
+                            />
+                          )}
+                          {field(
+                            'Salary / fee ceiling',
+                            <input
+                              type="number"
+                              min={0}
+                              value={fundingForm.salaryCeilingAmount}
+                              onChange={(event) =>
+                                setFundingForm({ ...fundingForm, salaryCeilingAmount: event.target.value })
+                              }
+                              className="field-control"
+                            />
+                          )}
+                          {field(
+                            'Maximum recruitment cost',
+                            <input
+                              type="number"
+                              min={0}
+                              value={fundingForm.maximumRecruitmentCost}
+                              onChange={(event) =>
+                                setFundingForm({ ...fundingForm, maximumRecruitmentCost: event.target.value })
+                              }
+                              className="field-control"
+                            />
+                          )}
+                          {field(
+                            'Funding end date',
+                            <input
+                              type="date"
+                              value={fundingForm.fundingEndDate}
+                              onChange={(event) =>
+                                setFundingForm({ ...fundingForm, fundingEndDate: event.target.value })
+                              }
+                              className="field-control"
+                            />
+                          )}
+                          {field(
+                            'Donor approval reference',
+                            <input
+                              value={fundingForm.donorApprovalReference}
+                              onChange={(event) =>
+                                setFundingForm({ ...fundingForm, donorApprovalReference: event.target.value })
+                              }
+                              className="field-control"
+                            />
+                          )}
                         </div>
-                      )}
+                        <div className="mt-3 flex flex-wrap gap-4 text-sm text-stone-800">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={fundingForm.grantFunded}
+                              onChange={(event) =>
+                                setFundingForm({ ...fundingForm, grantFunded: event.target.checked })
+                              }
+                            />
+                            Grant funded
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={fundingForm.donorApprovalRequired}
+                              onChange={(event) =>
+                                setFundingForm({ ...fundingForm, donorApprovalRequired: event.target.checked })
+                              }
+                            />
+                            Donor approval required
+                          </label>
+                        </div>
+                        <div className="mt-3">
+                          {field(
+                            'Comment',
+                            <textarea
+                              rows={2}
+                              value={fundingForm.comment}
+                              onChange={(event) => setFundingForm({ ...fundingForm, comment: event.target.value })}
+                              className="field-control"
+                            />,
+                            'Required when returning or rejecting.'
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => confirmFunding(request)}
+                          disabled={Boolean(busy)}
+                          className="btn-primary mt-3"
+                        >
+                          {busy === 'funding' ? 'Recording…' : 'Record funding decision'}
+                        </button>
+                      </div>
+                    )}
 
                     <div className="flex flex-wrap gap-2 border-t border-stone-200 pt-4">
                       {isOwner && ['DRAFT', 'RETURNED_FOR_CORRECTION'].includes(request.status) && (

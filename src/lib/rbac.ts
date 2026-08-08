@@ -8,11 +8,14 @@ import { prisma } from './prisma'
  */
 const SYSTEM_ADMIN_PERMISSIONS = new Set(['admin.manage', 'audit.read', 'governance.manage'])
 
-export async function hasPermission(
+export async function allowedPermissions(
   userId: string,
-  requiredPermissionCode: string,
+  requiredPermissionCodes: readonly string[],
   scope?: { type?: string; id?: string }
-): Promise<boolean> {
+): Promise<Set<string>> {
+  const required = new Set(requiredPermissionCodes)
+  const allowed = new Set<string>()
+  if (!required.size) return allowed
   const userRoles = await prisma.userRole.findMany({
     where: { userId },
     include: {
@@ -29,7 +32,6 @@ export async function hasPermission(
   })
 
   const isSystemAdmin = userRoles.some((assignment) => assignment.role.name === 'SYSTEM_ADMIN')
-  if (isSystemAdmin && !SYSTEM_ADMIN_PERMISSIONS.has(requiredPermissionCode)) return false
 
   for (const ur of userRoles) {
     // A system-admin account may exercise only the technical permission set,
@@ -44,13 +46,27 @@ export async function hasPermission(
     }
 
     for (const rp of ur.role.rolePermissions) {
-      if (rp.permission.code === requiredPermissionCode || rp.permission.code === '*') {
-        return true
-      }
+      if (rp.permission.code === '*') {
+        for (const code of required) {
+          if (!isSystemAdmin || SYSTEM_ADMIN_PERMISSIONS.has(code)) allowed.add(code)
+        }
+      } else if (
+        required.has(rp.permission.code) &&
+        (!isSystemAdmin || SYSTEM_ADMIN_PERMISSIONS.has(rp.permission.code))
+      )
+        allowed.add(rp.permission.code)
     }
   }
 
-  return false
+  return allowed
+}
+
+export async function hasPermission(
+  userId: string,
+  requiredPermissionCode: string,
+  scope?: { type?: string; id?: string }
+): Promise<boolean> {
+  return (await allowedPermissions(userId, [requiredPermissionCode], scope)).has(requiredPermissionCode)
 }
 
 export async function getUserRoles(userId: string): Promise<string[]> {

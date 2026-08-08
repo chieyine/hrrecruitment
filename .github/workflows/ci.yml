@@ -39,9 +39,9 @@ jobs:
       # E2E_CANDIDATE_PASSWORD / E2E_HR_PASSWORD names were read by nothing.
       E2E_TEST_PASSWORD: CI-Only-Strong-Password-123!
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with: { node-version: 22, cache: npm }
       # `npm ci` installs exactly what package-lock.json pins; `npm install`
       # could silently resolve different versions than the ones reviewed.
       - run: npm ci
@@ -58,9 +58,11 @@ jobs:
       - run: npm test
       - run: npm run test:integration
       - run: npm run build
+      # Run dependency policy before the longer browser suite so a browser
+      # failure or timeout cannot silently skip the security gate.
+      - run: npm audit --audit-level=high
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
-      - run: npm audit --audit-level=high
       - uses: actions/upload-artifact@v4
         if: failure()
         with: { name: playwright-report, path: playwright-report, retention-days: 14 }

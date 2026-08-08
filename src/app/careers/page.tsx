@@ -31,11 +31,6 @@ export default async function VacanciesPage({
   const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1
   const pageSize = 20
   const user = await getVerifiedUser()
-  const [departments, categories, dutyStations] = await Promise.all([
-    prisma.department.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
-    prisma.vacancyCategory.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
-    prisma.dutyStation.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
-  ])
 
   const where: Prisma.VacancyWhereInput = {
     status: 'OPEN',
@@ -61,7 +56,13 @@ export default async function VacanciesPage({
     ]
   }
 
-  const [vacancies, totalVacancies] = await Promise.all([
+  // These queries are independent. Running reference filters, results and the
+  // total in one batch removes an entire database round trip from the public
+  // landing page, which is the platform's highest-traffic route.
+  const [departments, categories, dutyStations, vacancies, totalVacancies] = await Promise.all([
+    prisma.department.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+    prisma.vacancyCategory.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+    prisma.dutyStation.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
     prisma.vacancy.findMany({
       where,
       include: { department: true, category: true, dutyStation: true },
@@ -291,9 +292,7 @@ export default async function VacanciesPage({
                       href={pageHref(Math.min(totalPages, page + 1))}
                       aria-disabled={page >= totalPages}
                       className={`text-sm font-semibold ${
-                        page >= totalPages
-                          ? 'pointer-events-none text-stone-400'
-                          : 'text-brand-800 hover:underline'
+                        page >= totalPages ? 'pointer-events-none text-stone-400' : 'text-brand-800 hover:underline'
                       }`}
                     >
                       Next

@@ -194,11 +194,59 @@ export async function getCurrentUser(): Promise<UserSession | null> {
  * suspended/locked user cannot keep acting with a still-valid 24h token.
  * Returns null if the account no longer exists or is not ACTIVE.
  */
-export async function getVerifiedUser(): Promise<UserSession | null> {
+async function loadVerifiedUser(): Promise<UserSession | null> {
   const session = await getCurrentUser()
   if (!session) return null
   // Imported lazily to avoid pulling Prisma into edge/runtime that only needs token checks.
   const { prisma } = await import('./prisma')
+
+  // Every current session carries a unique token id. Resolve the session,
+  // account, roles and revocation state in one database round trip instead of
+  // loading User and UserSession sequentially on every authenticated page.
+  if (session.tokenId) {
+    const record = await prisma.userSession.findUnique({
+      where: { tokenId: session.tokenId },
+      select: {
+        userId: true,
+        sessionVersion: true,
+        revokedAt: true,
+        expiresAt: true,
+        user: {
+          select: {
+            email: true,
+            emailVerifiedAt: true,
+            accountStatus: true,
+            sessionVersion: true,
+            userRoles: { include: { role: true } },
+          },
+        },
+      },
+    })
+    const user = record?.user
+    if (
+      !record ||
+      !user ||
+      record.userId !== session.userId ||
+      record.sessionVersion !== session.sessionVersion ||
+      record.revokedAt ||
+      record.expiresAt <= new Date() ||
+      user.accountStatus !== 'ACTIVE' ||
+      user.sessionVersion !== session.sessionVersion
+    )
+      return null
+    return {
+      userId: session.userId,
+      email: user.email,
+      emailVerifiedAt: user.emailVerifiedAt,
+      roles: user.userRoles
+        .filter((assignment) => (assignment.scopeType || 'GLOBAL') === 'GLOBAL')
+        .map((assignment) => assignment.role.name),
+      sessionVersion: user.sessionVersion,
+      tokenId: session.tokenId,
+    }
+  }
+
+  // Compatibility path for sessions issued before per-device records existed.
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
     select: {
@@ -211,16 +259,6 @@ export async function getVerifiedUser(): Promise<UserSession | null> {
   })
   if (!user || user.accountStatus !== 'ACTIVE' || user.sessionVersion !== session.sessionVersion) return null
 
-  // Per-device revocation. Tokens minted before this feature carry no tokenId
-  // and remain valid until they expire, so the rollout does not sign everyone
-  // out; tokens that do carry one must match a live, unrevoked session row.
-  if (session.tokenId) {
-    const record = await prisma.userSession.findUnique({
-      where: { tokenId: session.tokenId },
-      select: { revokedAt: true, expiresAt: true },
-    })
-    if (!record || record.revokedAt || record.expiresAt <= new Date()) return null
-  }
   return {
     userId: session.userId,
     email: user.email,
@@ -235,3 +273,5 @@ export async function getVerifiedUser(): Promise<UserSession | null> {
     tokenId: session.tokenId,
   }
 }
+
+export const getVerifiedUser = loadVerifiedUser

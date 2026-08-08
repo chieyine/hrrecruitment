@@ -50,8 +50,20 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'mobile-chromium', use: { ...devices['Pixel 7'] } },
+    {
+      name: 'chromium',
+      testIgnore: /mobile-smoke\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      // Stateful workflow tests run once on desktop. Re-running all of them on
+      // the same seeded database made the mobile pass inherit changed records,
+      // retry for 40+ minutes, and hit GitHub's job timeout. Mobile retains a
+      // focused responsive/access smoke suite with independent browser state.
+      name: 'mobile-chromium',
+      testMatch: /mobile-smoke\.spec\.ts/,
+      use: { ...devices['Pixel 7'] },
+    },
   ],
   webServer: localRun
     ? {

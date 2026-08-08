@@ -10,7 +10,7 @@ recruitment marketing homepage.
 
 ## Run locally
 
-Requirements: Node.js 20+, npm, and PostgreSQL 16+.
+Requirements: Node.js 20.9+, npm, and PostgreSQL 16+.
 
 ```bash
 cp .env.example .env
@@ -24,6 +24,28 @@ npm run dev
 Open `http://localhost:3000`. Seed users are created only for local evaluation;
 their password is the `SEED_PASSWORD` value. Change or remove those accounts
 before using real candidate data.
+
+### Demo access
+
+Run `npm run db:seed` with a non-production `SEED_PASSWORD`, then sign in with
+any of these accounts. Every seeded account uses that same password.
+
+| Demo role            | Email                                    |
+| -------------------- | ---------------------------------------- |
+| Candidate            | `candidate@example.com`                  |
+| HR manager           | `hrmanager@fradfoundation.org`           |
+| Recruitment officer  | `recruitment.officer@fradfoundation.org` |
+| Hiring manager       | `hiring.manager@fradfoundation.org`      |
+| Budget holder        | `budget.holder@fradfoundation.org`       |
+| Panel member         | `panel.member@fradfoundation.org`        |
+| Approver             | `approver@fradfoundation.org`            |
+| Course administrator | `course.admin@fradfoundation.org`        |
+| Auditor              | `auditor@fradfoundation.org`             |
+| System administrator | `admin@fradfoundation.org`               |
+
+For example, a private local demo can use `SEED_PASSWORD=Demo-Access-2026!`.
+Do not use or expose that example password on an internet-facing deployment.
+The seed command deliberately refuses to run when `NODE_ENV=production`.
 
 Set independent random values of at least 32 characters for `JWT_SECRET`,
 `SESSION_SECRET`, `STORAGE_ENCRYPTION_KEY`, and `CRON_SECRET`. SMTP is optional
@@ -44,8 +66,9 @@ npm run build
 The integration suite requires an explicitly configured disposable PostgreSQL
 database. Never point `TEST_DATABASE_URL` at a database containing data you need.
 The production build runs Prisma Client generation before compiling Next.js.
-Browser tests run desktop and mobile Chromium profiles; authenticated flows
-require the test credentials configured in CI.
+Browser workflow tests run once in desktop Chromium, with a focused mobile
+Chromium suite covering responsive public, candidate, and staff access.
+Authenticated flows require the test credentials configured in CI.
 
 ## Implemented workflow
 

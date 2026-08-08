@@ -3,7 +3,7 @@ import Header from '@/components/shared/Header'
 import Footer from '@/components/shared/Footer'
 import StaffingRequestWorkspace from '@/components/recruitment/StaffingRequestWorkspace'
 import { getVerifiedUser } from '@/lib/auth'
-import { hasPermission } from '@/lib/rbac'
+import { allowedPermissions } from '@/lib/rbac'
 import { prisma } from '@/lib/prisma'
 import { hasStaffRole } from '@/lib/roles'
 import { PageIntro } from '@/components/ui/PageElements'
@@ -19,14 +19,20 @@ export default async function StaffingRequestsPage() {
   const user = await getVerifiedUser()
   if (!user || !hasStaffRole(user.roles)) redirect('/auth/login')
 
-  const [canReadAll, canReadAssigned, canCreate, canReview, canApprove, canConfirmFunding] = await Promise.all([
-    hasPermission(user.userId, 'staffing.request.read.all'),
-    hasPermission(user.userId, 'staffing.request.read.assigned'),
-    hasPermission(user.userId, 'staffing.request.create'),
-    hasPermission(user.userId, 'staffing.request.review'),
-    hasPermission(user.userId, 'staffing.request.approve'),
-    hasPermission(user.userId, 'funding.confirm'),
+  const permissions = await allowedPermissions(user.userId, [
+    'staffing.request.read.all',
+    'staffing.request.read.assigned',
+    'staffing.request.create',
+    'staffing.request.review',
+    'staffing.request.approve',
+    'funding.confirm',
   ])
+  const canReadAll = permissions.has('staffing.request.read.all')
+  const canReadAssigned = permissions.has('staffing.request.read.assigned')
+  const canCreate = permissions.has('staffing.request.create')
+  const canReview = permissions.has('staffing.request.review')
+  const canApprove = permissions.has('staffing.request.approve')
+  const canConfirmFunding = permissions.has('funding.confirm')
   if (!canReadAll && !canReadAssigned) redirect('/recruitment/dashboard')
 
   const [departments, dutyStations, projects, contractTypes] = await Promise.all([

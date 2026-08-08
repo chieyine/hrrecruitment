@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/ui/PageElements'
 import { prisma } from '@/lib/prisma'
 import { getVerifiedUser } from '@/lib/auth'
 import { formatDateTime, getStatusBadgeClass } from '@/lib/utils'
-import { hasPermission } from '@/lib/rbac'
+import { allowedPermissions } from '@/lib/rbac'
 import { hasStaffRole } from '@/lib/roles'
 import { workItemHref } from '@/lib/work-items'
 import { canRunRecruitmentOperations } from '@/lib/recruitment-role-policy'
@@ -40,11 +40,18 @@ export default async function RecruitmentDashboardPage() {
   if (user.roles.includes('COURSE_ADMIN') && user.roles.every((role) => role === 'COURSE_ADMIN'))
     redirect('/admin/courses')
 
-  const [readAll, readAssigned, canCreateVacancy] = await Promise.all([
-    hasPermission(user.userId, 'vacancy.read.all'),
-    hasPermission(user.userId, 'vacancy.read.assigned'),
-    hasPermission(user.userId, 'vacancy.create.all'),
+  const permissions = await allowedPermissions(user.userId, [
+    'vacancy.read.all',
+    'vacancy.read.assigned',
+    'vacancy.create.all',
+    'longlist.review',
+    'staffing.request.read.all',
+    'backgroundcheck.manage',
+    'erp.transfer',
   ])
+  const readAll = permissions.has('vacancy.read.all')
+  const readAssigned = permissions.has('vacancy.read.assigned')
+  const canCreateVacancy = permissions.has('vacancy.create.all')
   if (!readAll && !readAssigned) redirect('/')
 
   const vacancyWhere = readAll ? {} : { ownerUserId: user.userId }
@@ -71,12 +78,10 @@ export default async function RecruitmentDashboardPage() {
    * extra aggregates to render queues that are then filtered out of the page.
    */
   const isHrManager = user.roles.includes('HR_MANAGER')
-  const [canReviewLonglist, canSeeStaffing, canSeeChecks, canSeeTransfers] = await Promise.all([
-    hasPermission(user.userId, 'longlist.review'),
-    hasPermission(user.userId, 'staffing.request.read.all'),
-    hasPermission(user.userId, 'backgroundcheck.manage'),
-    hasPermission(user.userId, 'erp.transfer'),
-  ])
+  const canReviewLonglist = permissions.has('longlist.review')
+  const canSeeStaffing = permissions.has('staffing.request.read.all')
+  const canSeeChecks = permissions.has('backgroundcheck.manage')
+  const canSeeTransfers = permissions.has('erp.transfer')
   const zero = Promise.resolve(0)
 
   const [
