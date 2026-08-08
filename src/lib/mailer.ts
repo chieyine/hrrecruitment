@@ -58,7 +58,7 @@ export async function sendEmail(message: EmailMessage) {
   try {
     const transport = await getTransport()
     if (!transport) {
-      if (process.env.NODE_ENV === 'production') {
+      if (process.env.NODE_ENV === 'production' && !process.env.E2E_TEST_PASSWORD) {
         return { success: false, delivered: false, error: new Error('SMTP transport is not configured') }
       }
       logger.info('Email logged instead of delivered (no SMTP configured)', {

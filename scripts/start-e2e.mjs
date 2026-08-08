@@ -21,7 +21,9 @@ delete serverEnvironment.NODE_ENV
 // which attempts to baseline the populated test database and fails with P3005.
 execFileSync('npx', ['prisma', 'generate'], { cwd: root, env: serverEnvironment, stdio: 'inherit' })
 execFileSync('npx', ['next', 'build', '--webpack'], { cwd: root, env: serverEnvironment, stdio: 'inherit' })
-const server = spawn('npm', ['start', '--', '--hostname', '127.0.0.1', '--port', '3107'], {
+serverEnvironment.HOSTNAME = '127.0.0.1'
+serverEnvironment.PORT = '3107'
+const server = spawn('node', ['.next-e2e/standalone/server.js'], {
   cwd: root,
   env: serverEnvironment,
   stdio: 'inherit',
