@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, FileLock2, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, FileLock2, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
 import { Dialog, ReasonDialog } from '@/components/ui/Dialog'
 import { PageSkeleton } from '@/components/ui/Skeleton'
 import { formatDate, formatDateTime } from '@/lib/utils'

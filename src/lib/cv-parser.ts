@@ -48,7 +48,7 @@ const MONTHS: Record<string, number> = {
   jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
 }
 
-const SECTION_PATTERNS: Array<[keyof typeof SECTION_KEYS, RegExp]> = [
+const SECTION_PATTERNS: Array<[SectionKey, RegExp]> = [
   ['education', /^\s*(education|academic (background|qualification)s?|qualifications?)\s*:?\s*$/i],
   ['employment', /^\s*(work|professional|employment)\s+(experience|history)|^\s*(experience|career history)\s*:?\s*$/i],
   ['skills', /^\s*(skills|technical skills|competenc(y|ies)|core competencies)\s*:?\s*$/i],
@@ -58,17 +58,14 @@ const SECTION_PATTERNS: Array<[keyof typeof SECTION_KEYS, RegExp]> = [
   ['other', /^\s*(references?|referees?|hobbies|interests|personal (details|profile)|objective|summary|profile)\s*:?\s*$/i],
 ]
 
-const SECTION_KEYS = {
-  education: 1,
-  employment: 1,
-  skills: 1,
-  certifications: 1,
-  languages: 1,
-  memberships: 1,
-  other: 1,
-} as const
-
-type SectionKey = keyof typeof SECTION_KEYS
+type SectionKey =
+  | 'education'
+  | 'employment'
+  | 'skills'
+  | 'certifications'
+  | 'languages'
+  | 'memberships'
+  | 'other'
 
 const QUALIFICATION_PATTERN =
   /\b(ph\.?d|doctorate|m\.?sc|m\.?a\b|m\.?eng|mba|mph|msn|master(?:'?s)?|pgde?|b\.?sc|b\.?a\b|b\.?eng|b\.?tech|bachelor(?:'?s)?|hnd|ond|nce|national diploma|higher national diploma|diploma|ssce|waec|neco)\b/i

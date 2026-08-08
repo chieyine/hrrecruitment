@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Too many reports; please try again later.' }, { status: 429 })
     const input = await parseBody(request, schema)
     const referenceNumber = `FRAD-FRAUD-${new Date().getUTCFullYear()}-${randomBytes(4).toString('hex').toUpperCase()}`
-    const report = await prisma.fraudReport.create({
+    await prisma.fraudReport.create({
       data: {
         referenceNumber,
         suspectContact: input.suspectContact,

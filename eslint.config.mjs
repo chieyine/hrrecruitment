@@ -22,7 +22,7 @@ const reactCompilerAdvisories = {
   "react-hooks/static-components": "warn",
 };
 
-export default [
+const config = [
   ...nextConfig,
   {
     ignores: [
@@ -63,3 +63,5 @@ export default [
     },
   },
 ];
+
+export default config;
