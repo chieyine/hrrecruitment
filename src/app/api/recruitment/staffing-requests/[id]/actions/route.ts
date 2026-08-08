@@ -167,7 +167,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       if (!confirmation || confirmation.decision !== 'CONFIRMED')
         throw new AuthzError('Budget Holder funding confirmation is required before HR approval', 409)
 
-      const needsExecutive = requiresExecutiveApproval({
+      const hrOwnedRequest = user.roles.includes('HR_MANAGER') && existing.hiringManagerUserId === user.userId
+      const needsExecutive = !hrOwnedRequest && requiresExecutiveApproval({
         jobGrade: existing.jobGrade,
         urgency: existing.urgency,
         isReplacement: existing.isReplacement,

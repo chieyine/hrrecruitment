@@ -34,11 +34,12 @@ export default function InterviewManager({
   const [title, setTitle] = useState('Panel interview')
   const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Africa/Lagos')
   const [format, setFormat] = useState('VIRTUAL')
+  const [interviewType, setInterviewType] = useState('PANEL')
   const [venue, setVenue] = useState('')
   const [meetingLink, setMeetingLink] = useState('')
   const [instructions, setInstructions] = useState('')
   const [reminderMinutesBefore, setReminderMinutesBefore] = useState(1440)
-  const [questions, setQuestions] = useState([{ question: '', competency: '', maximumScore: 10 }])
+  const [questions, setQuestions] = useState([{ question: '', competency: '', maximumScore: 10, isSafeguarding: true }])
   const [attachments, setAttachments] = useState<File[]>([])
   const [scores, setScores] = useState<Record<string, string>>({})
   const [comments, setComments] = useState<Record<string, string>>({})
@@ -71,6 +72,7 @@ export default function InterviewManager({
         scheduledEnd,
         timezone,
         format,
+        interviewType,
         venue,
         meetingLink,
         instructions,
@@ -288,6 +290,15 @@ export default function InterviewManager({
                 <option value="HYBRID">Hybrid</option>
               </select>
             </label>
+            <label className="text-xs font-bold">
+              Interview type
+              <select value={interviewType} onChange={(event) => setInterviewType(event.target.value)} className="field-control mt-1">
+                <option value="PANEL">Panel interview</option>
+                <option value="TECHNICAL">Technical interview</option>
+                <option value="COMPETENCY">Competency interview</option>
+                <option value="FINAL">Final interview</option>
+              </select>
+            </label>
             {format !== 'VIRTUAL' && (
               <input
                 required
@@ -364,7 +375,7 @@ export default function InterviewManager({
                 <h3 className="text-xs font-bold">Questions</h3>
                 <button
                   type="button"
-                  onClick={() => setQuestions([...questions, { question: '', competency: '', maximumScore: 10 }])}
+                  onClick={() => setQuestions([...questions, { question: '', competency: '', maximumScore: 10, isSafeguarding: false }])}
                   className="text-xs font-bold text-brand-700"
                 >
                   Add question
@@ -373,7 +384,7 @@ export default function InterviewManager({
               {questions.map((item, index) => (
                 <div
                   key={index}
-                  className="grid gap-2 rounded-xl border border-stone-200 bg-stone-50 p-3 md:grid-cols-[1fr_180px_100px_auto]"
+                  className="grid gap-2 rounded-xl border border-stone-200 bg-stone-50 p-3 md:grid-cols-[1fr_180px_100px_150px_auto]"
                 >
                   <input
                     required
@@ -388,6 +399,10 @@ export default function InterviewManager({
                     placeholder="Interview question"
                     className="field-control"
                   />
+                  <label className="flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold">
+                    <input type="checkbox" checked={item.isSafeguarding} onChange={(event) => setQuestions(questions.map((question, i) => i === index ? { ...question, isSafeguarding: event.target.checked } : question))} />
+                    Safeguarding
+                  </label>
                   <input
                     value={item.competency}
                     onChange={(event) =>
@@ -425,7 +440,7 @@ export default function InterviewManager({
               ))}
             </div>
             <button
-              disabled={!panelUserIds.length || !questions.some((item) => item.question.trim())}
+              disabled={!panelUserIds.length || !questions.some((item) => item.question.trim()) || !questions.some((item) => item.isSafeguarding && item.question.trim())}
               className="btn-primary w-fit disabled:opacity-50"
             >
               Save interview

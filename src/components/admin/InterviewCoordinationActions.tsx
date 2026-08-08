@@ -33,6 +33,8 @@ export default function InterviewCoordinationActions({
   scheduledEnd,
   canResolveExceptions,
   canReopenScores,
+  panelApproved,
+  canApprovePanel,
   panelMembers,
 }: {
   interviewId: string
@@ -42,12 +44,15 @@ export default function InterviewCoordinationActions({
   scheduledEnd: string
   canResolveExceptions: boolean
   canReopenScores: boolean
+  panelApproved: boolean
+  canApprovePanel: boolean
   panelMembers: PanelMember[]
 }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [inviteMessage, setInviteMessage] = useState('')
+  const [panelApprovalComment, setPanelApprovalComment] = useState('')
   const [newStart, setNewStart] = useState(localDateTimeValue(scheduledStart))
   const [newEnd, setNewEnd] = useState(localDateTimeValue(scheduledEnd))
   const [reasons, setReasons] = useState<Record<string, string>>({})
@@ -77,7 +82,7 @@ export default function InterviewCoordinationActions({
   }
 
   const spinner = (label: string) => busy === label && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-  const canInvite =
+  const canInvite = panelApproved &&
     status !== 'CANCELLED' && ['SHORTLISTED', 'ASSESSMENT_COMPLETED', 'INTERVIEW_INVITED'].includes(applicationStatus)
   const declaredConflicts = panelMembers.filter(
     (member) => member.conflictStatus !== 'NONE' && member.conflictStatus !== 'RESOLVED_EXCEPTION'
@@ -111,6 +116,20 @@ export default function InterviewCoordinationActions({
       </div>
 
       {/* ---- invite the candidate ---- */}
+      {!panelApproved && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <h5 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-900">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> Panel approval
+          </h5>
+          <p className="mt-2 text-xs text-amber-900">The HR Manager must approve the chair, panel members and safeguarding question before the invitation is sent. Panels created by the HR Manager are approved automatically.</p>
+          {canApprovePanel && (
+            <>
+              <textarea rows={2} value={panelApprovalComment} onChange={(event) => setPanelApprovalComment(event.target.value)} placeholder="Why this panel is suitable" className="mt-2 w-full rounded-lg border border-amber-300 p-2 text-sm" />
+              <button type="button" disabled={busy !== null || panelApprovalComment.trim().length < 5} onClick={() => send(`/api/recruitment/interviews/${interviewId}/approve-panel`, 'POST', { comment: panelApprovalComment }, 'panel-approval', 'Panel approved')} className="mt-2 btn-secondary">{spinner('panel-approval')}Approve panel</button>
+            </>
+          )}
+        </div>
+      )}
       <div className="rounded-xl border border-slate-200 bg-white p-3">
         <h5 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
           <Send className="h-3.5 w-3.5 text-brand-700" aria-hidden /> Send candidate invitation
@@ -145,7 +164,7 @@ export default function InterviewCoordinationActions({
           </>
         ) : (
           <p className="mt-2 text-xs italic text-slate-500">
-            Not available: the application is at {applicationStatus.replaceAll('_', ' ').toLowerCase()}.
+            {!panelApproved ? 'Approve the panel before sending the invitation.' : `Not available: the application is at ${applicationStatus.replaceAll('_', ' ').toLowerCase()}.`}
           </p>
         )}
       </div>

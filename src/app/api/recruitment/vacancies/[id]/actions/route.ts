@@ -40,13 +40,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!vacancy) return NextResponse.json({ error: 'Vacancy not found' }, { status: 404 })
 
     let result: unknown
+    let automaticallyApproved = false
     if (input.action === 'SUBMIT_APPROVAL') {
       if (vacancy.ownerUserId !== user.userId && !canMakeHrManagerDecision(user.roles))
         return NextResponse.json(
           { error: 'Only the vacancy owner or an HR manager can submit this draft' },
           { status: 403 }
         )
-      const approverUserId = await findIndependentApprover(user.userId, ['HR_MANAGER'])
       if (!canTransitionVacancy(vacancy.status, 'PENDING_APPROVAL'))
         return NextResponse.json({ error: `Cannot submit from ${vacancy.status}` }, { status: 422 })
       if (!vacancy.preboardingPackageId)
@@ -54,8 +54,19 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           { error: 'Choose the preboarding package candidates will receive after accepting an offer' },
           { status: 422 }
         )
+      const autoApprove = user.roles.includes('HR_MANAGER') && vacancy.ownerUserId === user.userId
+      automaticallyApproved = autoApprove
+      const approverUserId = autoApprove ? user.userId : await findIndependentApprover(user.userId, ['HR_MANAGER'])
       result = await prisma.$transaction([
-        prisma.vacancy.update({ where: { id: vacancy.id }, data: { status: 'PENDING_APPROVAL' } }),
+        prisma.vacancy.update({
+          where: { id: vacancy.id },
+          data: {
+            status: autoApprove ? 'APPROVED' : 'PENDING_APPROVAL',
+            ...(autoApprove && vacancy.emergencyRecruitment
+              ? { emergencyApprovedBy: user.userId, emergencyApprovedAt: new Date() }
+              : {}),
+          },
+        }),
         prisma.approval.create({
           data: {
             resourceType: 'VACANCY',
@@ -63,7 +74,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
             stage: 1,
             approverUserId,
             requestedBy: user.userId,
-            decision: 'PENDING',
+            decision: autoApprove ? 'APPROVED' : 'PENDING',
+            decidedAt: autoApprove ? new Date() : null,
+            comment: autoApprove ? 'Automatically approved under the single HR Manager operating model.' : null,
           },
         }),
       ])
@@ -177,7 +190,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         return NextResponse.json({ error: 'This vacancy is not marked as emergency recruitment' }, { status: 422 })
       if (!vacancy.emergencyJustification?.trim())
         return NextResponse.json({ error: 'Record the emergency justification first' }, { status: 422 })
-      if (vacancy.ownerUserId === user.userId)
+      if (vacancy.ownerUserId === user.userId && !user.roles.includes('HR_MANAGER'))
         return NextResponse.json(
           { error: 'You cannot approve the emergency route for a vacancy you own' },
           { status: 403 }
@@ -268,7 +281,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       newValue: result,
       reason: input.reason,
     })
-    return NextResponse.json({ success: true, result })
+    if (automaticallyApproved)
+      await logAudit({ actorUserId: user.userId, action: 'VACANCY_AUTO_APPROVED', resourceType: 'Vacancy', resourceId: vacancy.id, reason: 'Single HR Manager operating model' })
+    return NextResponse.json({ success: true, result, automaticallyApproved })
   } catch (err) {
     return authzResponse(err)
   }

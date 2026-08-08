@@ -12,9 +12,9 @@ Offers are versioned. A revised offer supersedes its predecessor, and both are r
 
 ### The candidate's side
 
-The candidate can view and download the offer as a PDF, request clarification, propose a different start date, accept by typing their full legal name as an electronic signature and confirming they have read the terms, upload a countersigned PDF, or decline. Unanswered offers expire at the deadline.
+The candidate can view and download the offer as a PDF, request clarification, propose a different start date, accept by typing their full legal name as an electronic signature, or download, sign and upload the countersigned PDF. Both acceptance paths require confirmation that the terms were read. The candidate may also decline. Unanswered offers expire at the deadline.
 
-Acceptance captures the typed name, the method, the IP address and the user agent, and is signed — a critical signature, so an acceptance that cannot be signed is not recorded at all.
+Acceptance captures the chosen signature method, the typed name where used, the signed file where used, the IP address and the user agent. It is a critical signature, so an acceptance that cannot be signed is not recorded at all.
 
 ## 9.2 Preboarding
 
@@ -25,7 +25,7 @@ Once an offer is accepted the candidate receives a preboarding package: a versio
 | Forms | Dynamic forms with auto-save, submission, HR review, approval, return or waiver |
 | Documents | Versioned uploads with verification, expiry and rejection reasons |
 | Policies | Acknowledgement by tick, typed name, drawn signature or signed PDF |
-| Courses | Versioned content, quizzes, attempts, reasoned resets, grading, downloadable certificates |
+| Courses | Versioned internal or external learning links, quizzes, attempts, reasoned resets and grading; an external provider certificate can be uploaded for HR review and completion |
 | Tasks | Assigned pre-start actions with due dates |
 | Meetings | Scheduled orientation with attendance confirmation |
 | Information items | Reporting instructions and travel details |

@@ -6,6 +6,7 @@ import { PageIntro } from '@/components/ui/PageElements'
 import SecuritySettings from '@/components/shared/SecuritySettings'
 import { hasStaffRole } from '@/lib/roles'
 import CalendarConnections from '@/components/recruitment/CalendarConnections'
+import NotificationPreferences from '@/components/shared/NotificationPreferences'
 
 /**
  * Staff account security. Staff hold the privileged access, so this is the
@@ -29,6 +30,7 @@ export default async function StaffSecuritySettingsPage() {
           />
 
           <SecuritySettings />
+          <NotificationPreferences />
           <CalendarConnections />
         </div>
       </main>

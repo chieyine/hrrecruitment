@@ -40,6 +40,8 @@ export default function VacancyLifecycleActions({
       const body = await response.json()
       if (!response.ok) throw new Error(body.error || 'The vacancy could not be updated.')
       setReasonAction(null)
+      if (action === 'SUBMIT_APPROVAL' && body.automaticallyApproved)
+        setMessage('Vacancy approved. It is ready for the final publication checks.')
       router.refresh()
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'The vacancy could not be updated.')
@@ -96,7 +98,7 @@ export default function VacancyLifecycleActions({
         )}
       </div>
       {message && (
-        <p role="alert" className="mt-3 text-xs text-rose-700">
+        <p role="status" className="mt-3 text-xs text-slate-700">
           {message}
         </p>
       )}

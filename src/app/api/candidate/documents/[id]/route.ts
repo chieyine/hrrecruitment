@@ -13,6 +13,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       where: { id: params.id, candidate: { userId: user.userId } },
     })
     if (!document) throw new AuthzError('Document not found', 404)
+    if (document.status === 'SUPERSEDED' || document.verifiedAt)
+      throw new AuthzError('Verified and superseded document versions are preserved in the record', 409)
     const data = await parseBody(
       request,
       z.object({
@@ -49,6 +51,8 @@ export async function DELETE(_: Request, context: { params: Promise<{ id: string
       where: { id: params.id, candidate: { userId: user.userId } },
     })
     if (!document) throw new AuthzError('Document not found', 404)
+    if (document.status === 'SUPERSEDED' || document.verifiedAt)
+      throw new AuthzError('Verified and superseded document versions are preserved in the record', 409)
     const used = await prisma.applicationFile.count({ where: { fileAssetId: document.fileAssetId } })
     if (used) throw new AuthzError('This document is preserved with a submitted application and cannot be deleted', 409)
     await prisma.candidateDocument.delete({ where: { id: document.id } })

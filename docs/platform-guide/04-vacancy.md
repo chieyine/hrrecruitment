@@ -41,7 +41,7 @@ Each required document specifies its type, whether it is mandatory, the accepted
 
 ## 4.5 Approval and publication
 
-A vacancy moves `DRAFT` to `PENDING_APPROVAL` to published. Submitting for approval routes it to an HR Manager who is independent of the person who created it.
+A recruitment-officer vacancy moves `DRAFT` to `PENDING_APPROVAL`, then to approved and published. Submitting routes it to the HR Manager. If the sole HR Manager owns and submits the vacancy, the platform records an automatic approval and moves it directly to `APPROVED`; there is no extra approval tier. Publication remains a separate action and all gates below still apply.
 
 Publication is gated. The platform refuses to publish until every one of these is true:
 

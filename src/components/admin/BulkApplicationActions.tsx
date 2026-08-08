@@ -58,6 +58,7 @@ export default function BulkApplicationActions({
     interviewMeetingLink: '',
     interviewInstructions: '',
     interviewQuestion: '',
+    interviewSafeguardingQuestion: '',
     interviewPanelUserIds: [] as string[],
     reason: '',
   })
@@ -164,6 +165,7 @@ export default function BulkApplicationActions({
                 instructions: actionData.interviewInstructions || undefined,
                 panelUserIds: actionData.interviewPanelUserIds,
                 question: actionData.interviewQuestion,
+                safeguardingQuestion: actionData.interviewSafeguardingQuestion,
               },
             }
           : {}),
@@ -411,7 +413,7 @@ export default function BulkApplicationActions({
               </select>
             </label>
           )}
-          {bulkAction === 'ASSIGN_REVIEWER' && (
+          {['ASSIGN_REVIEWER', 'ASSESSMENT_INVITE'].includes(bulkAction) && (
             <label className="block">
               <span className="field-label">Reviewer</span>
               <select
@@ -528,6 +530,7 @@ export default function BulkApplicationActions({
               <label className="block sm:col-span-2"><span className="field-label">Meeting link</span><input type="url" value={actionData.interviewMeetingLink} onChange={(event) => setActionData({ ...actionData, interviewMeetingLink: event.target.value })} className="field-control" /></label>
               <label className="block sm:col-span-2"><span className="field-label">Panel members</span><select multiple required value={actionData.interviewPanelUserIds} onChange={(event) => setActionData({ ...actionData, interviewPanelUserIds: Array.from(event.target.selectedOptions, (option) => option.value) })} className="field-control min-h-28">{options.reviewers.map((item) => <option key={item.id} value={item.id}>{item.email}</option>)}</select></label>
               <label className="block sm:col-span-2"><span className="field-label">Scorecard question / criterion</span><textarea required value={actionData.interviewQuestion} onChange={(event) => setActionData({ ...actionData, interviewQuestion: event.target.value })} className="field-control" /></label>
+              <label className="block sm:col-span-2"><span className="field-label">Safeguarding question</span><textarea required value={actionData.interviewSafeguardingQuestion} onChange={(event) => setActionData({ ...actionData, interviewSafeguardingQuestion: event.target.value })} className="field-control" /></label>
               <label className="block sm:col-span-2"><span className="field-label">Candidate instructions</span><textarea value={actionData.interviewInstructions} onChange={(event) => setActionData({ ...actionData, interviewInstructions: event.target.value })} className="field-control" /></label>
             </div>
           )}

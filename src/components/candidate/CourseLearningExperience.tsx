@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { BookOpen, Check, CheckCircle2, Clock3, ExternalLink, LockKeyhole } from 'lucide-react'
+import { BookOpen, Check, CheckCircle2, Clock3, ExternalLink, FileUp, LockKeyhole } from 'lucide-react'
 import ControlledDocumentViewer from '@/components/shared/ControlledDocumentViewer'
 import { CourseAction } from '@/components/shared/PreboardingActions'
 import { formatDate, getStatusBadgeClass } from '@/lib/utils'
@@ -70,6 +70,7 @@ export default function CourseLearningExperience({
   const [completed, setCompleted] = useState(initialCompleted)
   const [busyId, setBusyId] = useState('')
   const [message, setMessage] = useState('')
+  const [certificate, setCertificate] = useState<File | null>(null)
   const allModulesComplete = contents.every((content) => completed.has(content.id))
   const progress = contents.length ? Math.round((completed.size / contents.length) * 100) : 100
   const remainingAttempts = Math.max(0, (course.allowedAttempts ?? 3) - (assignment.attempts || 0))
@@ -98,6 +99,38 @@ export default function CourseLearningExperience({
       setMessage(`Completed: ${content.title}`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not record module completion.')
+    } finally {
+      setBusyId('')
+    }
+  }
+
+  async function submitCertificate() {
+    if (!certificate) return
+    setBusyId('certificate')
+    setMessage('')
+    try {
+      const form = new FormData()
+      form.set('file', certificate)
+      form.set('sensitivityClass', 'CONFIDENTIAL')
+      const upload = await fetch('/api/assets/upload', { method: 'POST', body: form })
+      const uploaded = await upload.json()
+      if (!upload.ok) throw new Error(uploaded.error || 'The certificate could not be uploaded.')
+      const response = await fetch('/api/candidate/preboarding/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'COURSE_CERTIFICATE_SUBMIT',
+          resourceId: assignment.id,
+          data: { certificateFileId: uploaded.fileAssetId },
+        }),
+      })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error || 'The certificate could not be submitted.')
+      setMessage('Certificate submitted for review.')
+      setCertificate(null)
+      window.setTimeout(() => window.location.reload(), 700)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'The certificate could not be submitted.')
     } finally {
       setBusyId('')
     }
@@ -254,6 +287,40 @@ export default function CourseLearningExperience({
             </div>
           </div>
         </section>
+      )}
+
+      {!['COMPLETED', 'WAIVED', 'CERTIFICATE_SUBMITTED'].includes(assignment.status) && (
+        <section className="border-t border-stone-200 px-5 py-5 sm:px-6">
+          <div className="flex items-start gap-3">
+            <FileUp className="mt-0.5 h-5 w-5 text-brand-700" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-navy-900">Completed this course elsewhere?</h3>
+              <p className="mt-1 text-sm leading-6 text-stone-600">
+                If the learning resource opens on another provider, upload the certificate they issued. HR will review it and mark this course complete.
+              </p>
+              {assignment.status === 'CERTIFICATE_REJECTED' && (
+                <p className="mt-2 text-sm font-semibold text-amber-800">
+                  The previous certificate was not accepted. {assignment.certificateReviewComment || 'Upload a clearer or corrected copy.'}
+                </p>
+              )}
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                onChange={(event) => setCertificate(event.target.files?.[0] || null)}
+                className="mt-3 block w-full text-sm text-stone-600"
+              />
+              <button type="button" onClick={() => void submitCertificate()} disabled={!certificate || busyId === 'certificate'} className="btn-secondary mt-3">
+                <FileUp className="h-4 w-4" /> {busyId === 'certificate' ? 'Submitting…' : 'Submit certificate'}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {assignment.status === 'CERTIFICATE_SUBMITTED' && (
+        <p className="border-t border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 sm:px-6">
+          Certificate submitted. HR needs to review it before this course is marked complete.
+        </p>
       )}
 
       {assignment.status === 'COMPLETED' && course.certificateEnabled && (

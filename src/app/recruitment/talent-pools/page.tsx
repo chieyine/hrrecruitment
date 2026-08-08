@@ -37,6 +37,19 @@ export default async function TalentPoolsPage({
             notes: true,
             sourceApplicationId: true,
             addedAt: true,
+            consentExpiresAt: true,
+            technicalCategory: true,
+            preferredLocationsJson: true,
+            availabilityStatus: true,
+            availableFrom: true,
+            expectedRate: true,
+            expectedRateCurrency: true,
+            expectedRatePeriod: true,
+            expectedGrade: true,
+            rosterExpiresAt: true,
+            lastVerifiedAt: true,
+            deploymentHistoryJson: true,
+            deployments: { orderBy: { deployedAt: 'desc' }, take: 20 },
             candidate: {
               select: {
                 id: true,
@@ -53,7 +66,7 @@ export default async function TalentPoolsPage({
     }),
     prisma.candidateProfile.findMany({
       where: {
-        consentRecords: { some: { consentType: 'TALENT_POOL', decision: true, withdrawnAt: null } },
+        consentRecords: { some: { consentType: 'TALENT_POOL', decision: true, withdrawnAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } },
         user: { accountStatus: 'ACTIVE' },
         applications: {
           some: { internalStatus: { in: ['RESERVE', 'NOT_SELECTED', 'INTERVIEW_COMPLETED', 'REFERENCE_CHECK'] } },

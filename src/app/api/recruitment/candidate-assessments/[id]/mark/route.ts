@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { requirePermission, authzResponse } from '@/lib/authz'
+import { requirePermission, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
-import { refreshApplicationFinalScore } from '@/lib/recruitment-scoring.server'
 import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -33,6 +32,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       include: { assessment: { include: { questions: true } }, answers: true, application: true },
     })
     if (!record) return NextResponse.json({ error: 'Candidate assessment not found' }, { status: 404 })
+    if (record.assignedReviewerUserId && record.assignedReviewerUserId !== user.userId)
+      throw new AuthzError('This assessment is assigned to another reviewer', 403)
     requireOpenRecruitmentFile(record.application.internalStatus)
     const offlineTypes = new Set(['OFFLINE_WRITTEN', 'PRACTICAL', 'PRESENTATION', 'DRIVING_TEST', 'SIMULATION'])
     const isOffline = offlineTypes.has(record.assessment.type)
@@ -83,31 +84,23 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         data: {
           score: finalScore,
           passed,
-          status: passed ? 'PASSED' : 'FAILED',
+          status: 'AWAITING_APPROVAL',
           markerUserId: user.userId,
           markerComment: input.comment || null,
           offlineRecordJson: input.offlineRecord ? JSON.stringify(input.offlineRecord) : null,
         },
       })
       if (marked.count !== 1) throw new Error('ASSESSMENT_CHANGED')
-      await tx.application.update({
-        where: { id: record.applicationId },
-        data: {
-          assessmentScore: finalScore,
-          internalStatus: 'ASSESSMENT_COMPLETED',
-          candidateVisibleStatus: 'ASSESSMENT_COMPLETED',
-        },
-      })
+      await tx.application.update({ where: { id: record.applicationId }, data: { candidateVisibleStatus: 'ASSESSMENT_COMPLETED' } })
     })
-    await refreshApplicationFinalScore(record.applicationId)
     await logAudit({
       actorUserId: user.userId,
-      action: 'ASSESSMENT_MARKED',
+      action: 'ASSESSMENT_MARKED_PENDING_APPROVAL',
       resourceType: 'CandidateAssessment',
       resourceId: record.id,
       newValue: { score: finalScore, passed },
     })
-    return NextResponse.json({ success: true, score: finalScore, passed })
+    return NextResponse.json({ success: true, score: finalScore, passed, awaitingApproval: true })
   } catch (err) {
     if (err instanceof Error && err.message === 'ASSESSMENT_CHANGED')
       return NextResponse.json({ error: 'Assessment was already marked; refresh and try again' }, { status: 409 })

@@ -1,8 +1,8 @@
 /**
  * Role classification shared by Edge middleware, server routes and client UI.
  *
- * Do not infer staff access from "not CANDIDATE": PUBLIC and REFEREE are valid
- * roles too, but neither belongs in the recruitment workspace.
+ * Do not infer staff access from "not CANDIDATE": public and candidate
+ * identities do not belong in the recruitment workspace.
  */
 export const STAFF_ROLE_NAMES = [
   'RECRUITMENT_OFFICER',

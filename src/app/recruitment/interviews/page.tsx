@@ -53,6 +53,8 @@ export default async function RecruitmentInterviewsPage({
       status: true,
       candidateResponse: true,
       panelConfirmedAt: true,
+      panelApprovedAt: true,
+      createdBy: true,
       varianceFlag: true,
       application: {
         select: {
@@ -110,7 +112,7 @@ export default async function RecruitmentInterviewsPage({
   ])
 
   const myPanels = interviews.flatMap((interview) =>
-    interview.scheduledStart <= now && interview.status !== 'CANCELLED'
+    interview.panelApprovedAt && interview.scheduledStart <= now && interview.status !== 'CANCELLED'
       ? interview.panelMembers
           .filter((member) => {
             if (member.userId !== user.userId) return false
@@ -336,6 +338,8 @@ export default async function RecruitmentInterviewsPage({
                             scheduledEnd={interview.scheduledEnd.toISOString()}
                             canResolveExceptions={canResolveExceptions}
                             canReopenScores={canResolveExceptions}
+                            panelApproved={Boolean(interview.panelApprovedAt)}
+                            canApprovePanel={user.roles.includes('HR_MANAGER') && interview.createdBy !== user.userId}
                             panelMembers={interview.panelMembers.map((member) => ({
                               id: member.id,
                               email: member.user.email,

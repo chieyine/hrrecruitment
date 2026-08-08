@@ -48,6 +48,7 @@ const schema = z.object({
       instructions: z.string().max(5000).optional(),
       panelUserIds: z.array(z.string().min(1)).min(1).max(25),
       question: z.string().trim().min(1).max(1000),
+      safeguardingQuestion: z.string().trim().min(1).max(1000),
     })
     .optional(),
   reason: z.string().trim().min(3).max(1000),
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
     const readAll = await hasPermission(user.userId, 'application.read.all')
     if (input.action === 'ERP_TRANSFER' && !(await hasPermission(user.userId, 'erp.transfer')))
       throw new AuthzError('ERP transfer permission is required', 403)
-    if (input.action === 'ASSESSMENT_INVITE' && !input.assessmentId) throw new AuthzError('Choose an assessment', 400)
+    if (input.action === 'ASSESSMENT_INVITE' && (!input.assessmentId || !input.reviewerUserId)) throw new AuthzError('Choose an assessment and assigned reviewer', 400)
     if (input.action === 'ASSIGN_REVIEWER' && !input.reviewerUserId) throw new AuthzError('Choose a reviewer', 400)
     if (input.action === 'TALENT_POOL' && !input.talentPoolId) throw new AuthzError('Choose a talent pool', 400)
     if (['MESSAGE', 'DOCUMENT_REQUEST'].includes(input.action) && (!input.subject || !input.message))
@@ -255,7 +256,7 @@ export async function POST(request: Request) {
             })
             if (!existing)
               await tx.candidateAssessment.create({
-                data: { applicationId: application.id, assessmentId: assessment.id, status: 'INVITED' },
+                data: { applicationId: application.id, assessmentId: assessment.id, status: 'INVITED', assignedReviewerUserId: reviewer!.id },
               })
             await tx.application.update({
               where: { id: application.id },
@@ -308,6 +309,9 @@ export async function POST(request: Request) {
               meetingLink: input.interview.meetingLink || null,
               instructions: input.interview.instructions || null,
               createdBy: user.userId,
+              ...(user.roles.includes('HR_MANAGER')
+                ? { panelApprovedAt: new Date(), panelApprovedBy: user.userId, panelApprovalComment: 'Automatically approved under the single HR Manager operating model.' }
+                : {}),
               panelMembers: {
                 create: input.interview.panelUserIds.map((userId, index) => ({
                   userId,
@@ -315,7 +319,10 @@ export async function POST(request: Request) {
                 })),
               },
               questions: {
-                create: { question: input.interview.question, maximumScore: 100, displayOrder: 0 },
+                create: [
+                  { question: input.interview.question, maximumScore: 80, displayOrder: 0 },
+                  { question: input.interview.safeguardingQuestion, competency: 'Safeguarding', maximumScore: 20, displayOrder: 1, isSafeguarding: true },
+                ],
               },
             },
           })
@@ -326,6 +333,8 @@ export async function POST(request: Request) {
             resourceId: interview.id,
             reason: input.reason,
           })
+          if (user.roles.includes('HR_MANAGER'))
+            await logAudit({ actorUserId: user.userId, action: 'INTERVIEW_PANEL_AUTO_APPROVED', resourceType: 'Interview', resourceId: interview.id, reason: 'Single HR Manager operating model' })
         } else if (input.action === 'MESSAGE' || input.action === 'DOCUMENT_REQUEST') {
           const thread = await prisma.messageThread.create({
             data: {

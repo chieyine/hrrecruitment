@@ -63,10 +63,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       },
     })
     if (!record) throw new AuthzError('Candidate assessment not found', 404)
+    if (record.assignedReviewerUserId && record.assignedReviewerUserId !== user.userId && !user.roles.includes('HR_MANAGER'))
+      throw new AuthzError('This assessment is assigned to another reviewer', 403)
 
     // Answers may only be inspected once the candidate has finished, so a
     // marker cannot watch a live attempt.
-    const readable = ['SUBMITTED', 'AUTO_SUBMITTED', 'MARKED', 'PASSED', 'FAILED']
+    const readable = ['SUBMITTED', 'AUTO_SUBMITTED', 'AWAITING_APPROVAL', 'PASSED', 'FAILED']
     if (!readable.includes(record.status)) {
       throw new AuthzError('This assessment has not been submitted yet', 409)
     }
@@ -169,7 +171,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       include: { assessment: { include: { questions: { select: { id: true, maximumScore: true } } } } },
     })
     if (!record) throw new AuthzError('Candidate assessment not found', 404)
-    if (['PASSED', 'FAILED'].includes(record.status)) {
+    if (record.assignedReviewerUserId && record.assignedReviewerUserId !== user.userId)
+      throw new AuthzError('This assessment is assigned to another reviewer', 403)
+    if (['AWAITING_APPROVAL', 'PASSED', 'FAILED'].includes(record.status)) {
       throw new AuthzError('This assessment is already marked. Reset it to mark again.', 409)
     }
 

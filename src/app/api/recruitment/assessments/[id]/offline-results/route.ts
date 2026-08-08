@@ -4,7 +4,6 @@ import { prisma } from '@/lib/prisma'
 import { requirePermission, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
-import { refreshApplicationFinalScore } from '@/lib/recruitment-scoring.server'
 import { requireOpenRecruitmentFile } from '@/lib/recruitment-file'
 
 const rowSchema = z.object({
@@ -69,7 +68,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           data: {
             score: row.score,
             passed,
-            status: passed ? 'PASSED' : 'FAILED',
+            status: 'AWAITING_APPROVAL',
             markerUserId: user.userId,
             markerComment: row.comment,
             offlineRecordJson: JSON.stringify({
@@ -82,21 +81,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           },
         })
         if (changed.count !== 1) throw new AuthzError('An assessment changed; preview the import again', 409)
-        await tx.application.update({
-          where: { id: record.applicationId },
-          data: {
-            assessmentScore: row.score,
-            internalStatus: 'ASSESSMENT_COMPLETED',
-            candidateVisibleStatus: 'ASSESSMENT_COMPLETED',
-            lockVersion: { increment: 1 },
-          },
-        })
+        await tx.application.update({ where: { id: record.applicationId }, data: { candidateVisibleStatus: 'ASSESSMENT_COMPLETED', lockVersion: { increment: 1 } } })
       }
     })
-    for (const record of records) await refreshApplicationFinalScore(record.applicationId)
     await logAudit({
       actorUserId: user.userId,
-      action: 'OFFLINE_ASSESSMENT_RESULTS_IMPORTED',
+      action: 'OFFLINE_ASSESSMENT_RESULTS_IMPORTED_PENDING_APPROVAL',
       resourceType: 'Assessment',
       resourceId: id,
       newValue: { imported: input.rows.length, candidateAssessmentIds: input.rows.map((row) => row.candidateAssessmentId) },

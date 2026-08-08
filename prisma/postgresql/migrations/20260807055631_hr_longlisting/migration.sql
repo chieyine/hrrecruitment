@@ -9,22 +9,22 @@
 
 */
 -- DropIndex
-DROP INDEX "CandidateProfile_lastName_trgm_idx";
+DROP INDEX IF EXISTS "CandidateProfile_lastName_trgm_idx";
 
 -- DropIndex
-DROP INDEX "CandidateProfile_searchVector_idx";
+DROP INDEX IF EXISTS "CandidateProfile_searchVector_idx";
 
 -- DropIndex
-DROP INDEX "EligibilityRule_vacancyId_active_idx";
+DROP INDEX IF EXISTS "EligibilityRule_vacancyId_active_idx";
 
 -- DropIndex
-DROP INDEX "User_lockedUntil_idx";
+DROP INDEX IF EXISTS "User_lockedUntil_idx";
 
 -- DropIndex
-DROP INDEX "Vacancy_searchVector_idx";
+DROP INDEX IF EXISTS "Vacancy_searchVector_idx";
 
 -- DropIndex
-DROP INDEX "Vacancy_title_trgm_idx";
+DROP INDEX IF EXISTS "Vacancy_title_trgm_idx";
 
 -- AlterTable
 ALTER TABLE "ApplicationFile" ADD COLUMN     "vacancyRequiredDocumentId" TEXT;
@@ -65,18 +65,31 @@ ALTER TABLE "EligibilityEvaluation" ADD COLUMN     "decidingRuleId" TEXT,
 ADD COLUMN     "eligibilityScore" DECIMAL(6,2),
 ADD COLUMN     "longlistRunId" TEXT,
 ADD COLUMN     "maximumScore" DECIMAL(6,2),
-ADD COLUMN     "originalOutcome" TEXT NOT NULL,
+ADD COLUMN     "originalOutcome" TEXT,
 ADD COLUMN     "overrideApprovalId" TEXT,
 ADD COLUMN     "overrideEvidenceFileId" TEXT,
 ADD COLUMN     "overrideReasonCode" TEXT;
 
+UPDATE "EligibilityEvaluation"
+SET "originalOutcome" = COALESCE("suggestedOutcome", 'REQUIRES_REVIEW')
+WHERE "originalOutcome" IS NULL;
+ALTER TABLE "EligibilityEvaluation" ALTER COLUMN "originalOutcome" SET NOT NULL;
+
 -- AlterTable
 ALTER TABLE "EligibilityRule" ADD COLUMN     "classification" TEXT NOT NULL DEFAULT 'MANDATORY_KNOCKOUT',
 ADD COLUMN     "displayOrder" INTEGER NOT NULL DEFAULT 0,
-ADD COLUMN     "label" TEXT NOT NULL,
-ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL,
+ADD COLUMN     "label" TEXT,
+ADD COLUMN     "updatedAt" TIMESTAMP(3),
 ADD COLUMN     "weight" DECIMAL(6,2) NOT NULL DEFAULT 0,
 ALTER COLUMN "operator" SET DEFAULT 'GTE';
+
+UPDATE "EligibilityRule"
+SET "label" = INITCAP(REPLACE("ruleType", '_', ' ')),
+    "updatedAt" = COALESCE("createdAt", CURRENT_TIMESTAMP)
+WHERE "label" IS NULL OR "updatedAt" IS NULL;
+ALTER TABLE "EligibilityRule"
+  ALTER COLUMN "label" SET NOT NULL,
+  ALTER COLUMN "updatedAt" SET NOT NULL;
 
 -- AlterTable
 ALTER TABLE "Interview" ADD COLUMN     "attachmentFileIdsJson" TEXT,

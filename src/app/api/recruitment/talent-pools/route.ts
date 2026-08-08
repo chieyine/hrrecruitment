@@ -19,11 +19,31 @@ const schema = z.discriminatedUnion('action', [
     sourceApplicationId: z.string().optional(),
     tags: z.array(z.string().trim().min(1).max(50)).max(20).default([]),
     notes: z.string().trim().max(2000).optional(),
+    technicalCategory: z.string().trim().max(150).optional(),
+    preferredLocations: z.array(z.string().trim().min(1).max(150)).max(20).default([]),
+    availabilityStatus: z.enum(['IMMEDIATE', 'DATE_SPECIFIED', 'NOTICE_PERIOD', 'UNAVAILABLE']).optional(),
+    availableFrom: z.coerce.date().optional(),
+    expectedRate: z.coerce.number().nonnegative().optional(),
+    expectedRateCurrency: z.string().trim().length(3).optional(),
+    expectedRatePeriod: z.enum(['HOURLY', 'DAILY', 'MONTHLY', 'ANNUAL', 'FIXED']).optional(),
+    expectedGrade: z.string().trim().max(100).optional(),
+    rosterExpiresAt: z.coerce.date().optional(),
   }),
   z.object({
     action: z.literal('REMOVE_MEMBER'),
     memberId: z.string().min(1),
     reason: z.string().trim().min(5).max(1000),
+  }),
+  z.object({
+    action: z.literal('RECORD_DEPLOYMENT'),
+    memberId: z.string().uuid(),
+    applicationId: z.string().uuid().optional(),
+    vacancyReference: z.string().trim().min(2).max(100),
+    roleTitle: z.string().trim().min(2).max(200),
+    deploymentStatus: z.enum(['CONTACTED', 'NOMINATED', 'APPLIED', 'HIRED', 'STARTED', 'ENDED']),
+    deployedAt: z.coerce.date(),
+    endedAt: z.coerce.date().optional(),
+    notes: z.string().trim().max(2000).optional(),
   }),
 ])
 
@@ -56,7 +76,7 @@ export async function GET() {
       }),
       prisma.candidateProfile.findMany({
         where: {
-          consentRecords: { some: { consentType: 'TALENT_POOL', decision: true, withdrawnAt: null } },
+          consentRecords: { some: { consentType: 'TALENT_POOL', decision: true, withdrawnAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } },
           user: { accountStatus: 'ACTIVE' },
           applications: {
             some: { internalStatus: { in: ['RESERVE', 'NOT_SELECTED', 'INTERVIEW_COMPLETED', 'REFERENCE_CHECK'] } },
@@ -135,12 +155,12 @@ export async function POST(request: Request) {
           where: {
             id: input.candidateId,
             user: { accountStatus: 'ACTIVE' },
-            consentRecords: { some: { consentType: 'TALENT_POOL', decision: true, withdrawnAt: null } },
+            consentRecords: { some: { consentType: 'TALENT_POOL', decision: true, withdrawnAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } },
             applications: {
               some: { internalStatus: { in: ['RESERVE', 'NOT_SELECTED', 'INTERVIEW_COMPLETED', 'REFERENCE_CHECK'] } },
             },
           },
-          select: { id: true },
+          select: { id: true, consentRecords: { where: { consentType: 'TALENT_POOL', decision: true, withdrawnAt: null }, orderBy: { decidedAt: 'desc' }, take: 1, select: { expiresAt: true } } },
         }),
       ])
       if (!pool) throw new AuthzError('Talent pool not found or inactive', 404)
@@ -164,6 +184,17 @@ export async function POST(request: Request) {
           notes: input.notes || null,
           sourceApplicationId: input.sourceApplicationId || null,
           addedBy: user.userId,
+          consentExpiresAt: candidate.consentRecords[0]?.expiresAt || null,
+          technicalCategory: input.technicalCategory || null,
+          preferredLocationsJson: JSON.stringify(input.preferredLocations),
+          availabilityStatus: input.availabilityStatus || null,
+          availableFrom: input.availableFrom || null,
+          expectedRate: input.expectedRate ?? null,
+          expectedRateCurrency: input.expectedRateCurrency?.toUpperCase() || null,
+          expectedRatePeriod: input.expectedRatePeriod || null,
+          expectedGrade: input.expectedGrade || null,
+          rosterExpiresAt: input.rosterExpiresAt || null,
+          lastVerifiedAt: new Date(),
         },
         create: {
           talentPoolId: input.talentPoolId,
@@ -172,6 +203,17 @@ export async function POST(request: Request) {
           tagsJson: JSON.stringify(input.tags),
           notes: input.notes || null,
           addedBy: user.userId,
+          consentExpiresAt: candidate.consentRecords[0]?.expiresAt || null,
+          technicalCategory: input.technicalCategory || null,
+          preferredLocationsJson: JSON.stringify(input.preferredLocations),
+          availabilityStatus: input.availabilityStatus || null,
+          availableFrom: input.availableFrom || null,
+          expectedRate: input.expectedRate ?? null,
+          expectedRateCurrency: input.expectedRateCurrency?.toUpperCase() || null,
+          expectedRatePeriod: input.expectedRatePeriod || null,
+          expectedGrade: input.expectedGrade || null,
+          rosterExpiresAt: input.rosterExpiresAt || null,
+          lastVerifiedAt: new Date(),
         },
       })
       await logAudit({
@@ -181,6 +223,22 @@ export async function POST(request: Request) {
         resourceId: member.id,
       })
       return Response.json({ success: true, member })
+    }
+    if (input.action === 'RECORD_DEPLOYMENT') {
+      const member = await prisma.talentPoolMember.findUnique({ where: { id: input.memberId } })
+      if (!member) throw new AuthzError('Talent-pool member not found', 404)
+      if (input.endedAt && input.endedAt < input.deployedAt) throw new AuthzError('End date cannot be before deployment date', 422)
+      if (input.applicationId) {
+        const application = await prisma.application.findFirst({ where: { id: input.applicationId, candidateId: member.candidateId }, select: { id: true } })
+        if (!application) throw new AuthzError('The application does not belong to this candidate', 422)
+      }
+      const deployment = await prisma.$transaction(async (tx) => {
+        const created = await tx.talentPoolDeployment.create({ data: { talentPoolMemberId: member.id, applicationId: input.applicationId || null, vacancyReference: input.vacancyReference, roleTitle: input.roleTitle, deploymentStatus: input.deploymentStatus, deployedAt: input.deployedAt, endedAt: input.endedAt || null, notes: input.notes || null, recordedBy: user.userId } })
+        await tx.talentPoolMember.update({ where: { id: member.id }, data: { status: ['HIRED', 'STARTED'].includes(input.deploymentStatus) ? 'CONVERTED' : input.deploymentStatus === 'CONTACTED' ? 'CONTACTED' : member.status, lastVerifiedAt: new Date() } })
+        return created
+      })
+      await logAudit({ actorUserId: user.userId, action: 'TALENT_POOL_DEPLOYMENT_RECORDED', resourceType: 'TalentPoolDeployment', resourceId: deployment.id, newValue: input })
+      return Response.json({ success: true, deployment }, { status: 201 })
     }
     const member = await prisma.talentPoolMember.findUnique({ where: { id: input.memberId } })
     if (!member) throw new AuthzError('Talent-pool member not found', 404)

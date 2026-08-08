@@ -20,7 +20,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const access = await applicationAccess(user.userId, record.applicationId)
     if (!access.readAll && !access.vacancyOwner && !access.assignedReviewer)
       throw new AuthzError('Assessment assignment not found or outside your assigned scope', 404)
-    if (!['SUBMITTED', 'AUTO_SUBMITTED', 'MARKED', 'PASSED', 'FAILED'].includes(record.status))
+    if (!['SUBMITTED', 'AUTO_SUBMITTED', 'AWAITING_APPROVAL', 'PASSED', 'FAILED'].includes(record.status))
       throw new AuthzError('Only a completed attempt can be reset', 409)
     const priorAttempts = await prisma.auditLog.count({
       where: { resourceType: 'CandidateAssessment', resourceId: record.id, action: 'ASSESSMENT_SUBMITTED' },
@@ -39,10 +39,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           startedAt: null,
           submittedAt: null,
           autoSubmitted: false,
+          submittedLate: false,
           score: null,
           passed: null,
           markerUserId: null,
           markerComment: null,
+          resultApprovedBy: null,
+          resultApprovedAt: null,
+          resultApprovalComment: null,
         },
       }),
       prisma.application.update({

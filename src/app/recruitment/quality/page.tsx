@@ -104,7 +104,7 @@ export default async function RecruitmentQualityPage({
       where: {
         OR: [
           { status: { in: ['PASSED', 'FAILED'] }, score: null },
-          { status: 'MARKED', passed: null },
+          { status: 'AWAITING_APPROVAL', passed: null },
         ],
       },
     }),

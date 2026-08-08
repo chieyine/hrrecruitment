@@ -1,30 +1,7 @@
 import { prisma } from '@/lib/prisma'
+import { hasPermission } from '@/lib/rbac'
 import { textPdf } from '@/lib/simple-pdf'
-
-const models: Record<string, string> = {
-  pipeline: 'vacancy',
-  'candidate-stages': 'application',
-  assessments: 'candidateAssessment',
-  interviews: 'interview',
-  references: 'referenceRequest',
-  offers: 'offer',
-  preboarding: 'candidatePreboarding',
-  outstanding: 'candidatePreboarding',
-  courses: 'candidateCourse',
-  readiness: 'readinessCheck',
-  resumption: 'resumptionRecord',
-  erp: 'eRPTransferRecord',
-  waivers: 'readinessCheck',
-  'work-items': 'workItem',
-  communications: 'messageThread',
-  approvals: 'approval',
-  audit: 'auditLog',
-  complaints: 'complaintCase',
-  'privacy-deletions': 'dataDeletionRequest',
-  'configuration-changes': 'configurationChangeRequest',
-  delivery: 'outboxMessage',
-  'data-quality': 'candidateMergeReview',
-}
+import { REPORT_TYPE_VALUES, reportRows } from '@/lib/recruitment-reports.server'
 
 function cell(value: unknown) {
   let text =
@@ -124,16 +101,39 @@ function workbook(rows: Record<string, unknown>[], headers: string[]) {
   ])
 }
 
-export async function generateScheduledReportAttachment(reportType: string, format: string) {
-  const model = models[reportType]
-  if (!model) throw new Error('Unknown scheduled report type')
-  const where =
-    reportType === 'outstanding'
-      ? { readinessStatus: { not: 'READY_TO_RESUME' } }
-      : reportType === 'waivers'
-        ? { status: 'WAIVED' }
-        : {}
-  const records = await (prisma as any)[model].findMany({ where, take: 10000 })
+async function assertScheduleOwnerStillAuthorized(userId: string, reportType: string) {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, accountStatus: 'ACTIVE' },
+    select: { userRoles: { select: { role: { select: { name: true } } } } },
+  })
+  if (!user || !(await hasPermission(userId, 'report.export')))
+    throw new Error('Scheduled report owner is no longer authorized')
+  const roles = user.userRoles.map((assignment) => assignment.role.name)
+  if (roles.includes('AUDITOR') && !['complaints', 'configuration-changes'].includes(reportType)) return
+  const restrictedPermission =
+    reportType === 'complaints'
+      ? 'complaint.manage'
+      : reportType === 'audit'
+        ? 'audit.read'
+        : ['configuration-changes', 'privacy-deletions', 'delivery', 'data-quality'].includes(reportType)
+          ? 'governance.manage'
+          : reportType === 'references'
+            ? 'reference.manage'
+            : reportType === 'offers'
+              ? 'offer.manage'
+              : ['preboarding', 'outstanding', 'courses', 'readiness', 'resumption', 'erp', 'waivers'].includes(
+                    reportType
+                  )
+                ? 'preboarding.manage'
+                : null
+  if (restrictedPermission && !(await hasPermission(userId, restrictedPermission)))
+    throw new Error('Scheduled report owner no longer has access to this report')
+}
+
+export async function generateScheduledReportAttachment(reportType: string, format: string, userId: string) {
+  if (!(REPORT_TYPE_VALUES as readonly string[]).includes(reportType)) throw new Error('Unknown scheduled report type')
+  await assertScheduleOwnerStillAuthorized(userId, reportType)
+  const records = await reportRows(reportType)
   const headers: string[] = [
     ...new Set<string>(records.flatMap((record: Record<string, unknown>) => Object.keys(record))),
   ]

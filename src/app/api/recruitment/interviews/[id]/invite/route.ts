@@ -18,6 +18,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!interview) throw new AuthzError('Interview not found', 404)
     requireOpenRecruitmentFile(interview.application.internalStatus)
     if (interview.status === 'CANCELLED') throw new AuthzError('A cancelled interview cannot be invited', 409)
+    if (!interview.panelApprovedAt) throw new AuthzError('Approve the panel composition before inviting the candidate', 409)
     if (!['SHORTLISTED', 'ASSESSMENT_COMPLETED', 'INTERVIEW_INVITED'].includes(interview.application.internalStatus)) {
       throw new AuthzError(`Cannot invite from ${interview.application.internalStatus}`, 409)
     }

@@ -81,6 +81,8 @@ export default function AssessmentManager({
   eligible,
   assessments,
   candidateAssessments,
+  currentUserId,
+  reviewers,
 }: {
   vacancies: Array<{ id: string; title: string }>
   eligible: Array<{ id: string; name: string; vacancyId: string }>
@@ -91,7 +93,12 @@ export default function AssessmentManager({
     candidateName: string
     status: string
     assessmentType: string
+    markerUserId?: string | null
+    assignedReviewerUserId?: string | null
+    score?: number | null
   }>
+  currentUserId: string
+  reviewers: Array<{ id: string; email: string }>
 }) {
   const router = useRouter()
   const [message, setMessage] = useState('')
@@ -106,12 +113,18 @@ export default function AssessmentManager({
   const [closesAt, setClosesAt] = useState('')
   const [randomizeQuestions, setRandomizeQuestions] = useState(false)
   const [autoSubmit, setAutoSubmit] = useState(true)
+  const [lateSubmissionPolicy, setLateSubmissionPolicy] = useState('REJECT')
+  const [lateGraceMinutes, setLateGraceMinutes] = useState(0)
+  const [accommodationExtraMinutes, setAccommodationExtraMinutes] = useState(0)
+  const [accommodationInstructions, setAccommodationInstructions] = useState('')
   const [questions, setQuestions] = useState<Question[]>([{ ...EMPTY_QUESTION }])
   const [assessmentId, setAssessmentId] = useState('')
   const [applicationId, setApplicationId] = useState('')
+  const [reviewerUserId, setReviewerUserId] = useState('')
   const [resultId, setResultId] = useState('')
   const [resultScore, setResultScore] = useState('')
   const [resultComment, setResultComment] = useState('')
+  const [approvalComment, setApprovalComment] = useState('')
   const [offlineRecord, setOfflineRecord] = useState({
     venue: '',
     assessedAt: '',
@@ -200,6 +213,10 @@ export default function AssessmentManager({
         closesAt: closesAt || undefined,
         randomizeQuestions,
         autoSubmit,
+        lateSubmissionPolicy,
+        lateGraceMinutes,
+        accommodationExtraMinutes,
+        accommodationInstructions: accommodationInstructions || undefined,
         configuration: { deliveryMode: offline ? 'OFFLINE' : 'ONLINE' },
         questions: normalizedQuestions,
       }),
@@ -212,7 +229,7 @@ export default function AssessmentManager({
     const response = await fetch(`/api/recruitment/assessments/${assessmentId}/invite`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ applicationIds: [applicationId] }),
+      body: JSON.stringify({ applicationIds: [applicationId], reviewerUserId }),
     })
     const data = await response.json()
     setMessage(response.ok ? 'Invitation sent.' : data.error || 'Failed')
@@ -251,6 +268,19 @@ export default function AssessmentManager({
     const data = await response.json()
     setMessage(response.ok ? 'Assessment outcome recorded.' : data.error || 'Failed')
     if (response.ok) router.refresh()
+  }
+  const approveResult = async (id: string) => {
+    const response = await fetch(`/api/recruitment/candidate-assessments/${id}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comment: approvalComment }),
+    })
+    const data = await response.json()
+    setMessage(response.ok ? 'Assessment outcome approved and added to ranking.' : data.error || 'Approval failed')
+    if (response.ok) {
+      setApprovalComment('')
+      router.refresh()
+    }
   }
   const resetAttempt = async () => {
     const response = await fetch(`/api/recruitment/candidate-assessments/${resetId}/reset`, {
@@ -723,6 +753,10 @@ export default function AssessmentManager({
                 Auto-submit
               </label>
             </div>
+            <label className="text-xs font-bold">Late submission rule<select className="mt-1 w-full rounded border p-2 text-sm" value={lateSubmissionPolicy} onChange={(event) => setLateSubmissionPolicy(event.target.value)}><option value="REJECT">Reject after deadline</option><option value="GRACE_PERIOD">Allow a grace period</option><option value="HR_APPROVAL">Accept for HR approval</option></select></label>
+            {lateSubmissionPolicy === 'GRACE_PERIOD' && <label className="text-xs font-bold">Grace period (minutes)<input type="number" min={0} max={1440} className="mt-1 w-full rounded border p-2 text-sm" value={lateGraceMinutes} onChange={(event) => setLateGraceMinutes(Number(event.target.value))} /></label>}
+            <label className="text-xs font-bold">Approved accommodation extra time (minutes)<input type="number" min={0} max={480} className="mt-1 w-full rounded border p-2 text-sm" value={accommodationExtraMinutes} onChange={(event) => setAccommodationExtraMinutes(Number(event.target.value))} /></label>
+            <label className="text-xs font-bold">Accommodation instructions<input className="mt-1 w-full rounded border p-2 text-sm" value={accommodationInstructions} onChange={(event) => setAccommodationInstructions(event.target.value)} /></label>
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -811,6 +845,10 @@ export default function AssessmentManager({
               </option>
             ))}
           </select>
+          <select value={reviewerUserId} onChange={(event) => setReviewerUserId(event.target.value)} className="w-full rounded border p-2 text-sm">
+            <option value="">Assigned reviewer</option>
+            {reviewers.map((reviewer) => <option key={reviewer.id} value={reviewer.id}>{reviewer.email}</option>)}
+          </select>
           <select
             value={applicationId}
             onChange={(event) => setApplicationId(event.target.value)}
@@ -828,7 +866,7 @@ export default function AssessmentManager({
           <button
             type="button"
             onClick={invite}
-            disabled={!assessmentId || !applicationId}
+            disabled={!assessmentId || !applicationId || !reviewerUserId}
             className="rounded bg-emerald-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
           >
             Send invitation
@@ -927,6 +965,33 @@ export default function AssessmentManager({
           >
             Record outcome
           </button>
+          <div className="border-t border-stone-200 pt-4">
+            <h3 className="text-sm font-semibold text-stone-950">Outcomes awaiting approval</h3>
+            <p className="mt-1 text-xs text-stone-600">Approved scores are added to ranking. The person who marked an outcome cannot approve it.</p>
+            <textarea value={approvalComment} onChange={(event) => setApprovalComment(event.target.value)} placeholder="Approval note" className="mt-3 w-full rounded border p-2 text-sm" />
+            <div className="mt-3 space-y-2">
+              {candidateAssessments.filter((record) => record.status === 'AWAITING_APPROVAL').map((record) => {
+                const assignedReviewer = reviewers.find((reviewer) => reviewer.id === record.assignedReviewerUserId)
+                const markedByCurrentUser = record.markerUserId === currentUserId
+                return (
+                  <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-stone-200 p-3 text-sm">
+                    <div>
+                      <p>{record.candidateName} · {record.score ?? '—'}%</p>
+                      <p className="mt-1 text-xs text-stone-500">
+                        {markedByCurrentUser
+                          ? 'Waiting for another authorised reviewer; you recorded this outcome.'
+                          : assignedReviewer
+                            ? `Assigned reviewer: ${assignedReviewer.email}`
+                            : 'Waiting for an authorised reviewer to approve the outcome.'}
+                      </p>
+                    </div>
+                    <button type="button" className="btn-secondary" disabled={markedByCurrentUser || approvalComment.trim().length < 5} onClick={() => approveResult(record.id)}>Approve outcome</button>
+                  </div>
+                )
+              })}
+              {!candidateAssessments.some((record) => record.status === 'AWAITING_APPROVAL') && <p className="text-xs text-stone-500">No outcomes are waiting for approval.</p>}
+            </div>
+          </div>
         </div>
       </div>
       <div className="order-2 rounded-2xl border bg-white p-5 space-y-3">
@@ -986,7 +1051,7 @@ export default function AssessmentManager({
         >
           <option value="">Completed candidate assessment</option>
           {candidateAssessments
-            .filter((record) => ['SUBMITTED', 'AUTO_SUBMITTED', 'MARKED', 'PASSED', 'FAILED'].includes(record.status))
+            .filter((record) => ['SUBMITTED', 'AUTO_SUBMITTED', 'AWAITING_APPROVAL', 'PASSED', 'FAILED'].includes(record.status))
             .map((record) => (
               <option key={record.id} value={record.id}>
                 {record.candidateName} — {record.status}

@@ -20,6 +20,10 @@ function normalizeAssessmentAnswer(value: unknown): string {
   return String(value).trim().toLowerCase()
 }
 
+function escapeDigestText(value: string) {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 export async function processBackgroundSchedules() {
   const now = new Date()
   const leaseOwner = randomUUID()
@@ -280,6 +284,7 @@ export async function processBackgroundSchedules() {
     const assessmentInvitationCandidates = await prisma.application.findMany({
       where: {
         internalStatus: 'SHORTLISTED',
+        assignedReviewerId: { not: null },
         candidateAssessments: { none: {} },
         vacancy: { assessments: { some: {} } },
       },
@@ -300,7 +305,12 @@ export async function processBackgroundSchedules() {
         const assessment = application.vacancy.assessments[0]
         await prisma.$transaction(async (tx) => {
           await tx.candidateAssessment.create({
-            data: { applicationId: application.id, assessmentId: assessment.id, status: 'INVITED' },
+            data: {
+              applicationId: application.id,
+              assessmentId: assessment.id,
+              status: 'INVITED',
+              assignedReviewerUserId: application.assignedReviewerId,
+            },
           })
           await tx.application.update({
             where: { id: application.id },
@@ -409,7 +419,7 @@ export async function processBackgroundSchedules() {
       take: 100,
     })
     await automatedBatch('SCHEDULED_REPORTS', 'SEND_REPORT', 'ScheduledReport', dueReports, async (schedule) => {
-      const attachment = await generateScheduledReportAttachment(schedule.reportType, schedule.format)
+      const attachment = await generateScheduledReportAttachment(schedule.reportType, schedule.format, schedule.userId)
       await enqueueEmail({
         recipient: schedule.recipientEmail,
         subject: `Scheduled FRAD report: ${schedule.reportType}`,
@@ -468,14 +478,31 @@ export async function processBackgroundSchedules() {
       include: {
         assessment: { include: { questions: true } },
         answers: true,
+        application: {
+          include: {
+            accommodationRequests: { where: { status: { in: ['APPROVED', 'PARTIALLY_APPROVED'] } }, take: 1 },
+          },
+        },
       },
       take: 500,
     })
     const expiredCandidateAssessments = activeCandidateAssessments.filter((record) =>
       Boolean(
         record.startedAt &&
-        (record.startedAt.getTime() + record.assessment.durationMinutes * 60_000 <= now.getTime() ||
-          (record.assessment.closesAt && record.assessment.closesAt <= now))
+        (() => {
+          const extra = record.application.accommodationRequests.length
+            ? record.assessment.accommodationExtraMinutes
+            : 0
+          const grace =
+            record.assessment.lateSubmissionPolicy === 'GRACE_PERIOD' ? record.assessment.lateGraceMinutes : 0
+          return (
+            record.startedAt.getTime() + (record.assessment.durationMinutes + extra + grace) * 60_000 <=
+              now.getTime() ||
+            Boolean(
+              record.assessment.closesAt && record.assessment.closesAt.getTime() + grace * 60_000 <= now.getTime()
+            )
+          )
+        })()
       )
     )
 
@@ -518,7 +545,7 @@ export async function processBackgroundSchedules() {
           const submitted = await tx.candidateAssessment.updateMany({
             where: { id: ca.id, status: 'IN_PROGRESS' },
             data: {
-              status: fullyAutomatic ? (passed ? 'PASSED' : 'FAILED') : 'AUTO_SUBMITTED',
+              status: fullyAutomatic ? 'AWAITING_APPROVAL' : 'AUTO_SUBMITTED',
               autoSubmitted: true,
               submittedAt: now,
               score: possible > 0 ? score : null,
@@ -529,8 +556,6 @@ export async function processBackgroundSchedules() {
             await tx.application.updateMany({
               where: { id: ca.applicationId, internalStatus: 'ASSESSMENT_INVITED' },
               data: {
-                assessmentScore: score,
-                internalStatus: 'ASSESSMENT_COMPLETED',
                 candidateVisibleStatus: 'ASSESSMENT_COMPLETED',
                 lockVersion: { increment: 1 },
               },
@@ -580,6 +605,82 @@ export async function processBackgroundSchedules() {
         })
       }
     )
+
+    const expiredTalentPoolMembers = await prisma.talentPoolMember.updateMany({
+      where: {
+        status: { in: ['ACTIVE', 'CONTACTED'] },
+        OR: [{ consentExpiresAt: { lte: now } }, { rosterExpiresAt: { lte: now } }],
+      },
+      data: { status: 'EXPIRED' },
+    })
+    const expiredBankQuestions = await prisma.assessmentBankQuestion.updateMany({
+      where: { status: 'ACTIVE', expiresAt: { lte: now } },
+      data: { status: 'EXPIRED' },
+    })
+    const bankQuestionsDueForReview = await prisma.assessmentBankQuestion.count({
+      where: { status: 'ACTIVE', reviewDueAt: { lte: now } },
+    })
+    if (bankQuestionsDueForReview) {
+      const assessmentManagers = await prisma.user.findMany({
+        where: {
+          accountStatus: 'ACTIVE',
+          userRoles: { some: { role: { name: { in: ['HR_MANAGER', 'RECRUITMENT_OFFICER'] } } } },
+        },
+        select: { id: true },
+        take: 100,
+      })
+      for (const manager of assessmentManagers)
+        await notifyOnceToday(
+          manager.id,
+          'ASSESSMENT_BANK_REVIEW_DUE',
+          'Assessment questions need review',
+          `${bankQuestionsDueForReview} approved question${bankQuestionsDueForReview === 1 ? ' is' : 's are'} due for review.`
+        )
+    }
+
+    // Send one concise daily email rather than a separate email for every
+    // in-app notification. The outbox key keeps reruns idempotent.
+    const digestStart = new Date(now)
+    digestStart.setUTCHours(0, 0, 0, 0)
+    const digestNotifications = await prisma.notification.findMany({
+      where: {
+        status: 'UNREAD',
+        sentAt: { gte: digestStart },
+        deliveryChannelsJson: { contains: 'DIGEST' },
+        user: { accountStatus: 'ACTIVE' },
+      },
+      include: { user: { select: { email: true, notificationPreference: true } } },
+      orderBy: { sentAt: 'asc' },
+      take: 5000,
+    })
+    const digestByUser = new Map<string, typeof digestNotifications>()
+    for (const notification of digestNotifications)
+      digestByUser.set(notification.userId, [...(digestByUser.get(notification.userId) || []), notification])
+    for (const [userId, notifications] of digestByUser) {
+      const recipient = notifications[0]?.user.email
+      if (!recipient) continue
+      const localHour = Number(
+        new Intl.DateTimeFormat('en-GB', {
+          timeZone: process.env.APP_TIMEZONE || 'Africa/Lagos',
+          hour: '2-digit',
+          hour12: false,
+        }).format(now)
+      )
+      const preferredHour = notifications[0]?.user.notificationPreference?.digestHourLocal ?? 8
+      if (localHour < preferredHour || !(notifications[0]?.user.notificationPreference?.digestEnabled ?? true)) continue
+      await enqueueEmail({
+        recipient,
+        subject: `FRAD recruitment tasks and updates (${notifications.length})`,
+        html: `<p>Here is your recruitment update for today.</p><ul>${notifications
+          .slice(0, 50)
+          .map(
+            (notification) =>
+              `<li><strong>${escapeDigestText(notification.title)}</strong> — ${escapeDigestText(notification.body)}</li>`
+          )
+          .join('')}</ul><p>Sign in to review the records and complete any actions assigned to you.</p>`,
+        deduplicationKey: `notification-digest:${userId}:${now.toISOString().slice(0, 10)}`,
+      })
+    }
 
     // Candidate job alerts run before the outbox drains so anything queued here
     // is delivered in the same tick.
@@ -635,6 +736,10 @@ export async function processBackgroundSchedules() {
       scheduledReportsCount: dueReports.length,
       scheduledConfigurationReleasesCount: dueConfigurationReleases.length,
       expiringLicenceRemindersCount: expiringLicences.length,
+      expiredTalentPoolMembersCount: expiredTalentPoolMembers.count,
+      expiredAssessmentBankQuestionsCount: expiredBankQuestions.count,
+      assessmentBankQuestionsDueForReviewCount: bankQuestionsDueForReview,
+      notificationDigestsCount: digestByUser.size,
       outbox,
       retention,
       scannedPendingFiles: pendingFiles.length,

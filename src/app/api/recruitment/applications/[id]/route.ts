@@ -108,6 +108,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
             education: true,
             employment: true,
             licences: true,
+            ...(readAll ? { documents: { include: { fileAsset: { select: { id: true, originalName: true, virusScanStatus: true } } }, orderBy: [{ documentType: 'asc' as const }, { versionNumber: 'desc' as const }] } } : {}),
           },
         },
         vacancy: { include: { department: true, dutyStation: true } },
@@ -239,6 +240,16 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const isAuditor = user.roles.includes('AUDITOR')
     const isPanelOnly = access.panelMember && !access.vacancyOwner && !access.assignedReviewer && !readAll
     const safeApplication: any = { ...application }
+    if (safeApplication.candidate?.documents && !canReadRestricted) {
+      safeApplication.candidate = {
+        ...safeApplication.candidate,
+        documents: safeApplication.candidate.documents.map((document: any) =>
+          document.restricted
+            ? { ...document, verificationNotes: null, verificationSource: null, rejectionReason: null, verifiedBy: null }
+            : document
+        ),
+      }
+    }
     const profileAtSubmission = submittedProfile(application.snapshots[0]?.profileJson)
     delete safeApplication.snapshots
     if (!canReadReferences) safeApplication.referees = []
@@ -319,6 +330,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
           messageCandidate: readAll && !isAuditor,
           exportDocumentation: canExportDocumentation && !isPanelOnly,
           viewAudit: canAudit && !isPanelOnly,
+          readRestricted: canReadRestricted && !isPanelOnly,
           handover:
             canTransferToErp &&
             readAll &&

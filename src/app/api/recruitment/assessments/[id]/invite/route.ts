@@ -10,11 +10,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const params = await context.params
   try {
     const user = await requirePermission('assessment.manage')
-    const { applicationIds } = await parseBody(request, z.object({ applicationIds: z.array(z.string().min(1)).min(1) }))
+    const { applicationIds, reviewerUserId } = await parseBody(request, z.object({ applicationIds: z.array(z.string().min(1)).min(1), reviewerUserId: z.string().uuid() }))
     const assessment = await prisma.assessment.findUnique({ where: { id: params.id } })
     if (!assessment) return NextResponse.json({ error: 'Assessment not found' }, { status: 404 })
     if (assessment.closesAt && assessment.closesAt <= new Date())
       return NextResponse.json({ error: 'This assessment has closed' }, { status: 409 })
+    const reviewer = await prisma.user.findFirst({ where: { id: reviewerUserId, accountStatus: 'ACTIVE', userRoles: { some: { role: { name: { in: ['RECRUITMENT_OFFICER', 'HR_MANAGER', 'HIRING_MANAGER'] } } } } }, select: { id: true } })
+    if (!reviewer) throw new AuthzError('Choose an active assessment reviewer', 422)
     const applications = await prisma.application.findMany({
       where: {
         id: { in: applicationIds },
@@ -32,7 +34,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     await prisma.$transaction(async (tx) => {
       for (const application of applications) {
         await tx.candidateAssessment.create({
-          data: { applicationId: application.id, assessmentId: assessment.id, status: 'INVITED' },
+          data: { applicationId: application.id, assessmentId: assessment.id, status: 'INVITED', assignedReviewerUserId: reviewer.id },
         })
         const moved = await tx.application.updateMany({
           where: { id: application.id, internalStatus: 'SHORTLISTED' },
@@ -59,7 +61,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       action: 'ASSESSMENT_INVITATIONS_SENT',
       resourceType: 'Assessment',
       resourceId: assessment.id,
-      newValue: { applicationIds },
+      newValue: { applicationIds, reviewerUserId },
     })
     return NextResponse.json({ success: true, invited: applications.length })
   } catch (err) {

@@ -147,7 +147,7 @@ export default async function RecruitmentReportsPage({
             ))}
           </nav>
 
-          {view === 'overview' && <RecruitmentInsightsOverview />}
+          {view === 'overview' && <RecruitmentInsightsOverview filters={query} />}
 
           {view === 'downloads' && (
             <>

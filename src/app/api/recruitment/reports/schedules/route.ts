@@ -4,31 +4,9 @@ import { requirePermission, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
 import { hasPermission } from '@/lib/rbac'
+import { REPORT_TYPE_VALUES } from '@/lib/recruitment-reports.server'
 
-const REPORTS = [
-  'pipeline',
-  'candidate-stages',
-  'assessments',
-  'interviews',
-  'references',
-  'offers',
-  'preboarding',
-  'outstanding',
-  'courses',
-  'readiness',
-  'resumption',
-  'erp',
-  'waivers',
-  'work-items',
-  'communications',
-  'approvals',
-  'audit',
-  'complaints',
-  'privacy-deletions',
-  'configuration-changes',
-  'delivery',
-  'data-quality',
-] as const
+const REPORTS = REPORT_TYPE_VALUES
 
 export async function GET() {
   try {

@@ -80,20 +80,32 @@ export async function POST(request: Request) {
       }
     }
 
-    const document = await prisma.candidateDocument.create({
-      data: {
-        candidateId: profile.id,
-        fileAssetId: asset.id,
-        documentType,
-        expiryDate: expiryDate || null,
-      },
-      include: { fileAsset: true },
+    const document = await prisma.$transaction(async (tx) => {
+      const latest = await tx.candidateDocument.findFirst({
+        where: { candidateId: profile.id, documentType },
+        orderBy: { versionNumber: 'desc' },
+        select: { versionNumber: true },
+      })
+      await tx.candidateDocument.updateMany({
+        where: { candidateId: profile.id, documentType, status: { not: 'SUPERSEDED' } },
+        data: { status: 'SUPERSEDED', supersededAt: new Date() },
+      })
+      return tx.candidateDocument.create({
+        data: {
+          candidateId: profile.id,
+          fileAssetId: asset.id,
+          documentType,
+          expiryDate: expiryDate || null,
+          versionNumber: (latest?.versionNumber || 0) + 1,
+        },
+        include: { fileAsset: true },
+      })
     })
     await refreshProfileCompletion(profile.id)
 
     await logAudit({
       actorUserId: user.userId,
-      action: 'DOCUMENT_ADDED',
+      action: 'DOCUMENT_VERSION_ADDED',
       resourceType: 'CandidateDocument',
       resourceId: document.id,
     })

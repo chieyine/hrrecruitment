@@ -81,6 +81,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (interview.status === 'CANCELLED' || ['WITHDRAWN', 'CANCELLED'].includes(interview.application.internalStatus)) {
       throw new AuthzError('This interview is closed', 409)
     }
+    if (!interview.panelApprovedAt)
+      return NextResponse.json({ error: 'The panel must be approved before scoring begins' }, { status: 409 })
     const interviewQuestions = interview.questions
     {
       const byId = new Map(interviewQuestions.map((q) => [q.id, q]))

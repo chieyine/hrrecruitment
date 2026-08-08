@@ -14,6 +14,7 @@ const actionSchema = z.object({
     'DOCUMENT_SUBMIT',
     'POLICY_SIGN',
     'COURSE_CONTENT_COMPLETE',
+    'COURSE_CERTIFICATE_SUBMIT',
     'COURSE_SUBMIT',
     'TASK_SUBMIT',
     'INFO_ACKNOWLEDGE',
@@ -334,6 +335,39 @@ export async function POST(request: Request) {
           data: { status: 'IN_PROGRESS', startedAt: item.startedAt ?? new Date() },
         }),
       ])
+    } else if (action === 'COURSE_CERTIFICATE_SUBMIT') {
+      const item = await prisma.candidateCourse.findFirst({
+        where: { id: resourceId, candidatePreboarding: { application: { candidate: { userId: user.userId } } } },
+      })
+      if (!item) throw new AuthzError('Course not found', 404)
+      if (['COMPLETED', 'WAIVED', 'CERTIFICATE_SUBMITTED'].includes(item.status))
+        throw new AuthzError('This course certificate can no longer be submitted', 409)
+      const certificateFileId = String(payload.certificateFileId || '')
+      const certificate = await prisma.fileAsset.findFirst({
+        where: {
+          id: certificateFileId,
+          ownerUserId: user.userId,
+          virusScanStatus: 'CLEAN',
+          mimeType: { in: ['application/pdf', 'image/jpeg', 'image/png'] },
+        },
+        select: { id: true },
+      })
+      if (!certificate)
+        throw new AuthzError('Upload a clean PDF, JPG or PNG certificate owned by your account', 400)
+      preboardingId = item.candidatePreboardingId
+      await prisma.candidateCourse.update({
+        where: { id: item.id },
+        data: {
+          certificateFileId: certificate.id,
+          certificateSubmittedAt: new Date(),
+          certificateReviewedAt: null,
+          certificateReviewedBy: null,
+          certificateReviewComment: null,
+          status: 'CERTIFICATE_SUBMITTED',
+          startedAt: item.startedAt ?? new Date(),
+          completedAt: null,
+        },
+      })
     } else if (action === 'COURSE_SUBMIT') {
       const item = await prisma.candidateCourse.findFirst({
         where: { id: resourceId, candidatePreboarding: { application: { candidate: { userId: user.userId } } } },

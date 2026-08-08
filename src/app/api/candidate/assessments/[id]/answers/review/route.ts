@@ -34,7 +34,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     })
     if (!record) throw new AuthzError('Assessment not found', 404)
 
-    if (!['SUBMITTED', 'AUTO_SUBMITTED', 'MARKED', 'PASSED', 'FAILED'].includes(record.status)) {
+    if (!['SUBMITTED', 'AUTO_SUBMITTED', 'AWAITING_APPROVAL', 'PASSED', 'FAILED'].includes(record.status)) {
       throw new AuthzError('You can review your answers once the assessment is submitted', 409)
     }
 
@@ -49,7 +49,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       submittedAt: record.submittedAt,
       autoSubmitted: record.autoSubmitted,
       // Released only once marking is complete.
-      score: ['PASSED', 'FAILED', 'MARKED'].includes(record.status) ? record.score : null,
+      score: ['PASSED', 'FAILED'].includes(record.status) ? record.score : null,
       passed: ['PASSED', 'FAILED'].includes(record.status) ? record.passed : null,
       questions: ordered.map((question, index) => {
         const raw = answerByQuestion.get(question.id) ?? null

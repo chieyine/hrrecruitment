@@ -183,7 +183,24 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         requireUpdated(result.count, 'The task is not awaiting review')
       } else if (input.action === 'REVIEW_COURSE') {
         const resourceId = requiredResource(input.resourceId, 'Course is required')
-        if (input.status === 'RESET_ATTEMPTS') {
+        if (['APPROVED', 'REJECTED'].includes(input.status || '')) {
+          const result = await tx.candidateCourse.updateMany({
+            where: {
+              id: resourceId,
+              candidatePreboardingId: preboarding.id,
+              status: 'CERTIFICATE_SUBMITTED',
+              certificateFileId: { not: null },
+            },
+            data: {
+              status: input.status === 'APPROVED' ? 'COMPLETED' : 'CERTIFICATE_REJECTED',
+              completedAt: input.status === 'APPROVED' ? new Date() : null,
+              certificateReviewedAt: new Date(),
+              certificateReviewedBy: user.userId,
+              certificateReviewComment: input.comment || null,
+            },
+          })
+          requireUpdated(result.count, 'The course certificate is not awaiting review')
+        } else if (input.status === 'RESET_ATTEMPTS') {
           if (!input.comment || input.comment.length < 5)
             throw new AuthzError('Record a reason for resetting attempts', 400)
           const result = await tx.candidateCourse.updateMany({

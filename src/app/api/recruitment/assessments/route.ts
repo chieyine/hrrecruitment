@@ -31,6 +31,10 @@ const schema = z
     randomizeQuestions: z.boolean().default(false),
     autoSubmit: z.boolean().default(true),
     configuration: z.record(z.unknown()).optional(),
+    lateSubmissionPolicy: z.enum(['REJECT', 'GRACE_PERIOD', 'HR_APPROVAL']).default('REJECT'),
+    lateGraceMinutes: z.coerce.number().int().min(0).max(1440).default(0),
+    accommodationExtraMinutes: z.coerce.number().int().min(0).max(480).default(0),
+    accommodationInstructions: z.string().trim().max(2000).optional(),
     questions: z
       .array(
         z.object({
@@ -113,6 +117,10 @@ export async function POST(request: Request) {
         randomizeQuestions: input.randomizeQuestions,
         autoSubmit: input.autoSubmit,
         configurationJson: input.configuration ? JSON.stringify(input.configuration) : null,
+        lateSubmissionPolicy: input.lateSubmissionPolicy,
+        lateGraceMinutes: input.lateGraceMinutes,
+        accommodationExtraMinutes: input.accommodationExtraMinutes,
+        accommodationInstructions: input.accommodationInstructions || null,
         questions: {
           create:
             input.questions?.map((q, index) => ({

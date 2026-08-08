@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma'
 import { requireUser, authzResponse, AuthzError } from '@/lib/authz'
 import { parseBody, assessmentSubmitSchema } from '@/lib/validation'
 import { logAudit } from '@/lib/audit'
-import { refreshApplicationFinalScore } from '@/lib/recruitment-scoring.server'
 
 /** Normalise an answer value into a comparable, order-insensitive form. */
 function normalize(value: unknown): string {
@@ -25,7 +24,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       where: { id: params.id },
       include: {
         assessment: { include: { questions: true } },
-        application: { include: { candidate: true } },
+        application: { include: { candidate: true, accommodationRequests: { where: { status: { in: ['APPROVED', 'PARTIALLY_APPROVED'] } }, take: 1 } } },
       },
     })
 
@@ -42,21 +41,22 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
 
     // Guard against re-submission.
-    if (['SUBMITTED', 'AUTO_SUBMITTED', 'MARKED', 'PASSED', 'FAILED'].includes(candidateAssessment.status)) {
+    if (['SUBMITTED', 'AUTO_SUBMITTED', 'AWAITING_APPROVAL', 'PASSED', 'FAILED'].includes(candidateAssessment.status)) {
       return NextResponse.json({ error: 'Assessment has already been submitted' }, { status: 409 })
     }
     if (candidateAssessment.status !== 'IN_PROGRESS' || !candidateAssessment.startedAt)
       return NextResponse.json({ error: 'Start the assessment before submitting it' }, { status: 409 })
     const now = new Date()
-    const assessmentEnd = new Date(
-      candidateAssessment.startedAt.getTime() + candidateAssessment.assessment.durationMinutes * 60_000
-    )
+    const accommodationMinutes = candidateAssessment.application.accommodationRequests.length
+      ? candidateAssessment.assessment.accommodationExtraMinutes
+      : 0
+    const assessmentEnd = new Date(candidateAssessment.startedAt.getTime() + (candidateAssessment.assessment.durationMinutes + accommodationMinutes) * 60_000)
     if (candidateAssessment.assessment.opensAt && now < candidateAssessment.assessment.opensAt)
       return NextResponse.json({ error: 'Assessment is not open yet' }, { status: 409 })
-    const timedOut =
-      now >= assessmentEnd ||
-      Boolean(candidateAssessment.assessment.closesAt && now >= candidateAssessment.assessment.closesAt)
-    if (timedOut && !candidateAssessment.assessment.autoSubmit)
+    const graceMinutes = candidateAssessment.assessment.lateSubmissionPolicy === 'GRACE_PERIOD' ? candidateAssessment.assessment.lateGraceMinutes : 0
+    const finalDeadline = new Date(assessmentEnd.getTime() + graceMinutes * 60_000)
+    const timedOut = now >= finalDeadline || Boolean(candidateAssessment.assessment.closesAt && now >= new Date(candidateAssessment.assessment.closesAt.getTime() + graceMinutes * 60_000))
+    if (timedOut && !candidateAssessment.assessment.autoSubmit && candidateAssessment.assessment.lateSubmissionPolicy !== 'HR_APPROVAL')
       return NextResponse.json({ error: 'The assessment submission window has closed' }, { status: 409 })
 
     const questions = candidateAssessment.assessment.questions
@@ -125,7 +125,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const percentage = possibleAuto > 0 ? Math.round((awardedAuto / possibleAuto) * 1000) / 10 : 0
     const passMark = candidateAssessment.assessment.passMark
     const passed = requiresMarking ? null : percentage >= passMark
-    const status = requiresMarking ? (timedOut ? 'AUTO_SUBMITTED' : 'SUBMITTED') : passed ? 'PASSED' : 'FAILED'
+    const status = requiresMarking ? (timedOut ? 'AUTO_SUBMITTED' : 'SUBMITTED') : 'AWAITING_APPROVAL'
 
     const updated = await prisma.$transaction(async (tx) => {
       const claimed = await tx.candidateAssessment.updateMany({
@@ -134,6 +134,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           status,
           submittedAt: new Date(),
           autoSubmitted: timedOut,
+          submittedLate: timedOut,
           score: possibleAuto > 0 ? percentage : null,
           passed,
         },
@@ -159,26 +160,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           },
         })
       }
-      if (!requiresMarking) {
-        const applicationChanged = await tx.application.updateMany({
-          where: {
-            id: candidateAssessment.applicationId,
-            internalStatus: 'ASSESSMENT_INVITED',
-          },
-          data: {
-            assessmentScore: percentage,
-            internalStatus: 'ASSESSMENT_COMPLETED',
-            candidateVisibleStatus: 'ASSESSMENT_COMPLETED',
-            lockVersion: { increment: 1 },
-          },
-        })
-        if (applicationChanged.count !== 1) {
-          throw new AuthzError('This application is no longer awaiting an assessment', 409)
-        }
-      }
+      await tx.application.updateMany({
+        where: { id: candidateAssessment.applicationId, internalStatus: 'ASSESSMENT_INVITED' },
+        data: { candidateVisibleStatus: 'ASSESSMENT_COMPLETED', lockVersion: { increment: 1 } },
+      })
       return tx.candidateAssessment.findUniqueOrThrow({ where: { id: params.id } })
     })
-    if (!requiresMarking) await refreshApplicationFinalScore(candidateAssessment.applicationId)
 
     await logAudit({
       actorUserId: user.userId,

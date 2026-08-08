@@ -19,7 +19,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
     if (!application || application.internalStatus !== 'ASSESSMENT_INVITED') {
       throw new AuthzError('This application is no longer awaiting an assessment', 409)
     }
-    if (['SUBMITTED', 'AUTO_SUBMITTED', 'MARKED', 'PASSED', 'FAILED'].includes(record.status))
+    if (['SUBMITTED', 'AUTO_SUBMITTED', 'AWAITING_APPROVAL', 'PASSED', 'FAILED'].includes(record.status))
       throw new AuthzError('Assessment has already been submitted', 409)
     const now = new Date()
     if (record.assessment.opensAt && record.assessment.opensAt > now)

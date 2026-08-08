@@ -11,6 +11,7 @@ import { internalApplicationBlockReason } from '@/lib/internal-identity'
 import { logger } from '@/lib/logger'
 import { createApplicationReference } from '@/lib/application-reference'
 import { candidateFacingStatus } from '@/lib/candidate-status'
+import { applicationSourceFromCookieHeader } from '@/lib/application-source'
 
 const schema = z
   .object({
@@ -133,6 +134,7 @@ export async function POST(request: Request) {
     const user = await requireUser()
     const parsed = await parseBody(request, schema)
     const { vacancyId, mode, answers, documents, declarationsAccepted } = parsed
+    const source = applicationSourceFromCookieHeader(request.headers.get('cookie'))
     if (mode === 'SUBMIT') {
       if (!request.headers.get('idempotency-key')?.trim())
         throw new AuthzError('Idempotency-Key is required for application submission', 400)
@@ -230,6 +232,7 @@ export async function POST(request: Request) {
           where: {
             id: { in: safeDocuments.map((document) => document.candidateDocumentId) },
             candidateId: profile.id,
+            status: { not: 'SUPERSEDED' },
             fileAsset: { virusScanStatus: 'CLEAN' },
           },
           include: { fileAsset: true },
@@ -293,6 +296,7 @@ export async function POST(request: Request) {
             internalStatus: mode === 'SUBMIT' ? 'SUBMITTED' : 'DRAFT',
             candidateVisibleStatus: mode === 'DRAFT' ? 'APPLICATION_DRAFT' : 'APPLICATION_RECEIVED',
             submittedAt: mode === 'SUBMIT' ? new Date() : null,
+            source: source || 'DIRECT',
           },
         })
       }

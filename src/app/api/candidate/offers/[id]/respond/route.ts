@@ -127,7 +127,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
             candidateComment: candidateComment || null,
             signedFileId: signedFileId || null,
             signatureName,
-            signatureMethod: signedFileId ? 'TYPED_NAME_AND_SIGNED_UPLOAD' : 'TYPED_NAME',
+            signatureMethod: signedFileId ? (signatureName ? 'TYPED_NAME_AND_SIGNED_UPLOAD' : 'SIGNED_UPLOAD') : 'TYPED_NAME',
             signatureIpAddress: trustedIp === 'unknown' ? null : trustedIp,
             signatureUserAgent: request.headers.get('user-agent'),
           },

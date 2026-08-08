@@ -4,7 +4,7 @@ Emergency recruitment is faster. It is not less controlled. The distinction runs
 
 ## 12.1 Classification
 
-A vacancy is marked as emergency recruitment with a written justification. The classification is then approved separately from the vacancy content, by an HR Manager who does not own the vacancy. An unapproved classification blocks publication.
+A vacancy is marked as emergency recruitment with a written justification. For a recruitment-officer vacancy, the HR Manager approves the classification with the vacancy. For an HR-owned vacancy, submission records the HR Manager's automatic approval of both the vacancy and its emergency classification. An unapproved classification blocks publication.
 
 An emergency staffing request also escalates automatically to an executive approver.
 

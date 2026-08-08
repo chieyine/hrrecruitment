@@ -33,7 +33,7 @@ const REVIEWABLE: Record<string, string[]> = {
   document: ['SUBMITTED', 'UNDER_REVIEW'],
   policy: ['SIGNED'],
   task: ['SUBMITTED'],
-  course: ['FAILED'],
+  course: ['FAILED', 'CERTIFICATE_SUBMITTED'],
 }
 
 function displayStatus(value: string) {
@@ -342,6 +342,16 @@ export default function PreboardingRecordPage(props: { params: Promise<{ id: str
                                 Open evidence <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                               </a>
                             )}
+                            {kind === 'course' && item.certificateFileId && (
+                              <a
+                                href={`/api/assets/download/${item.certificateFileId}?disposition=inline`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn-secondary"
+                              >
+                                Open certificate <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                              </a>
+                            )}
                           </div>
                         </div>
                         {kind === 'form' && (
@@ -417,12 +427,23 @@ export default function PreboardingRecordPage(props: { params: Promise<{ id: str
                               </>
                             )}
                             {kind === 'course' && (
-                              <button
-                                onClick={() => review(action, item.id, 'RESET_ATTEMPTS')}
-                                className="btn-secondary"
-                              >
-                                Reset attempts
-                              </button>
+                              item.status === 'CERTIFICATE_SUBMITTED' ? (
+                                <>
+                                  <button onClick={() => review(action, item.id, 'APPROVED')} className="btn-primary">
+                                    Approve certificate
+                                  </button>
+                                  <button onClick={() => review(action, item.id, 'REJECTED')} className="btn-secondary">
+                                    Request another certificate
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => review(action, item.id, 'RESET_ATTEMPTS')}
+                                  className="btn-secondary"
+                                >
+                                  Reset attempts
+                                </button>
+                              )
                             )}
                           </div>
                         )}

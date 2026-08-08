@@ -51,7 +51,7 @@ export default function CandidateAssessmentRunnerPage(props: { params: Promise<{
         if (!response.ok) throw new Error(data.error || 'Could not open assessment')
         setAssessment(data.assessment)
         if (data.assessment.status === 'IN_PROGRESS') await startAssessment()
-        if (['SUBMITTED', 'AUTO_SUBMITTED', 'MARKED', 'PASSED', 'FAILED'].includes(data.assessment.status))
+        if (['SUBMITTED', 'AUTO_SUBMITTED', 'AWAITING_APPROVAL', 'PASSED', 'FAILED'].includes(data.assessment.status))
           setCompleted(true)
       })
       .catch((error: unknown) => {

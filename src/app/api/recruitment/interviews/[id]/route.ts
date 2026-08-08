@@ -15,6 +15,7 @@ const updateSchema = z.object({
   scheduledEnd: z.coerce.date().optional(),
   timezone: z.string().trim().min(1).max(100).optional(),
   format: z.enum(['PHYSICAL', 'VIRTUAL', 'HYBRID']).optional(),
+  interviewType: z.enum(['PANEL', 'TECHNICAL', 'COMPETENCY', 'FINAL']).optional(),
   venue: z.string().max(500).nullable().optional(),
   meetingLink: z.string().url().nullable().optional(),
   status: z.enum(['SCHEDULED', 'CONFIRMED', 'RESCHEDULED', 'ATTENDED', 'DID_NOT_ATTEND', 'CANCELLED']).optional(),
@@ -30,9 +31,11 @@ const updateSchema = z.object({
         redFlags: z.string().max(2000).optional(),
         maximumScore: z.coerce.number().positive(),
         commentRequired: z.boolean().default(true),
+        isSafeguarding: z.boolean().default(false),
       })
     )
     .min(1)
+    .refine((questions) => questions.some((question) => question.isSafeguarding), 'Mark at least one safeguarding question')
     .optional(),
 })
 
@@ -115,7 +118,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const interview = await prisma.$transaction(async (tx) => {
       const claimed = await tx.interview.updateMany({
         where: { id: params.id, lockVersion: version },
-        data: { lockVersion: { increment: 1 } },
+        data: {
+          lockVersion: { increment: 1 },
+          ...((input.panelUserIds || input.questions) ? { panelApprovedAt: null, panelApprovedBy: null, panelApprovalComment: null } : {}),
+        },
       })
       if (!claimed.count) staleRecord()
       if (input.panelUserIds) {
@@ -150,6 +156,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           scheduledEnd: input.scheduledEnd,
           timezone: input.timezone,
           format: input.format,
+          interviewType: input.interviewType,
           venue: input.venue,
           meetingLink: input.meetingLink,
           status: input.status,

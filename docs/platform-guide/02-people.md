@@ -33,7 +33,7 @@ The domain list is configurable through `INTERNAL_EMAIL_DOMAINS` so a rename or 
 
 ## 2.3 Hiring department representative
 
-The programme manager, department head or technical lead who needs the post filled.
+Each department has one accountable manager, with its staff assigned beneath that department scope. That manager, or a technical lead they delegate for a particular recruitment, represents the hiring department.
 
 **They can:** raise a staffing request with its justification; attach or confirm the job description; recommend technical eligibility and longlisting criteria; review applicants HR assigns to them; take part in shortlisting; sit on panels and submit independent scores; recommend candidates; add technical comments.
 
@@ -63,7 +63,7 @@ The accountable owner of the recruitment process, and the principal business app
 
 **They can:** everything a recruitment officer can, plus approve vacancies; approve or reject staffing requests; approve changes to locked longlisting rules; confirm longlists; reverse automatic eligibility outcomes; approve selection recommendations; approve offers within delegated authority; waive required checks with a reason; approve ERP transfers; configure workflows, statuses, templates, scorecards and service standards; manage operational access for HR users; freeze or reopen stages.
 
-The one thing they cannot do is approve their own work. A vacancy an HR Manager created is routed to a different approver.
+The organisation has one HR Manager. Where another role initiates a controlled decision, the HR Manager remains the approver. A vacancy owned and submitted by the HR Manager is approved automatically with an explicit audit record; it is not routed to a fictional second HR level. Funding confirmation still belongs to the Budget Holder, and publication gates still apply.
 
 ## 2.7 Interview panel member
 
@@ -73,7 +73,7 @@ The one thing they cannot do is approve their own work. A vacancy an HR Manager 
 
 ## 2.8 Executive approver
 
-The Executive Director, Country Director or a delegated senior officer. They are involved only where policy requires it: senior-management recruitment, vacancies created by the HR Manager that need second-level approval, recruitment outside the approved structure, exceptional salary proposals, policy waivers, direct appointments, cancellations at an advanced stage, and emergency recruitment.
+The Executive Director, Country Director or a delegated senior officer. They are involved only where policy requires it: senior-management recruitment, recruitment outside the approved structure, exceptional salary proposals, policy waivers, direct appointments, cancellations at an advanced stage, and emergency staffing requests. They are not a routine second approval level for an HR-owned vacancy.
 
 The platform decides when to escalate rather than leaving it to judgement. A staffing request routes to an executive automatically when the grade is senior, the urgency is emergency, or a new establishment of three or more posts is proposed — and the reason for the escalation is displayed alongside it.
 
@@ -105,7 +105,7 @@ All technical-administrator access to recruitment data is logged.
 | --- | --- | --- |
 | Raise a staffing request | Hiring department, HR | — |
 | Confirm funding | Budget Holder | Anyone who raised the request; Finance |
-| Approve a vacancy | HR Manager | The person who created it |
+| Approve a vacancy | HR Manager; automatic when HR owns it | Recruitment officers |
 | Change a locked rule | HR Manager | The person who proposed it |
 | Confirm a longlist | HR Manager | — |
 | Reverse an automatic outcome | HR Manager | Recruitment officers |

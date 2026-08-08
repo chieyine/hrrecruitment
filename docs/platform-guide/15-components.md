@@ -5,10 +5,10 @@ Generated from the codebase. Every screen, endpoint and module the platform cont
 | Component type | Count |
 | --- | --- |
 | Screens (pages) | 103 |
-| API endpoints | 134 |
-| Domain modules | 75 |
-| UI components | 65 |
-| Database models | 136 |
+| API endpoints | 139 |
+| Domain modules | 78 |
+| UI components | 67 |
+| Database models | 139 |
 
 ## 15.1 Screens
 
@@ -137,6 +137,10 @@ Generated from the codebase. Every screen, endpoint and module the platform cont
 
 ## 15.2 API endpoints
 
+### Account (1)
+
+- `/api/account/notification-preferences`
+
 ### Administration (9)
 
 - `/api/admin/automations`
@@ -230,7 +234,7 @@ Generated from the codebase. Every screen, endpoint and module the platform cont
 - `/api/public/vacancies`
 - `/api/public/vacancies/[reference]`
 
-### Recruitment (70)
+### Recruitment (74)
 
 - `/api/recruitment/accommodations`
 - `/api/recruitment/applications`
@@ -257,15 +261,19 @@ Generated from the codebase. Every screen, endpoint and module the platform cont
 - `/api/recruitment/assessments/[id]/invite`
 - `/api/recruitment/assessments/[id]/offline-pack`
 - `/api/recruitment/assessments/[id]/offline-results`
+- `/api/recruitment/assessment-bank`
 - `/api/recruitment/background-checks`
 - `/api/recruitment/candidate-assessments/[id]/answers`
+- `/api/recruitment/candidate-assessments/[id]/approve`
 - `/api/recruitment/candidate-assessments/[id]/mark`
 - `/api/recruitment/candidate-assessments/[id]/reset`
+- `/api/recruitment/candidate-documents/[id]/verify`
 - `/api/recruitment/complaints`
 - `/api/recruitment/data-quality/merges`
 - `/api/recruitment/eligibility`
 - `/api/recruitment/interviews`
 - `/api/recruitment/interviews/[id]`
+- `/api/recruitment/interviews/[id]/approve-panel`
 - `/api/recruitment/interviews/[id]/confirm-panel`
 - `/api/recruitment/interviews/[id]/invite`
 - `/api/recruitment/interviews/[id]/panel/[memberId]/reopen`
@@ -315,6 +323,7 @@ Generated from the codebase. Every screen, endpoint and module the platform cont
 | --- | --- |
 | `anonymisation.ts` | Anonymised longlisting and shortlisting (End_to_End.md §28.3) |
 | `application-reference.ts` | — |
+| `application-source.ts` | Captures the first permitted recruitment source on the server |
 | `application-stages.ts` | Every internal application stage, in pipeline order |
 | `approvals.ts` | Choose an approver who is independent of the requester |
 | `audit.ts` | Verify the tamper-evident audit chain |
@@ -366,7 +375,9 @@ Generated from the codebase. Every screen, endpoint and module the platform cont
 | `rate-limit.ts` | Minimal in-memory sliding-window rate limiter. Suitable for a single-instance |
 | `rbac.ts` | System administration is a technical control-plane role. It must never |
 | `recruitment-access.ts` | Resolve access against the concrete application. Permission checks alone are |
+| `recruitment-file.ts` | Makes ERP-transferred recruitment files read-only while preserving archival actions. |
 | `recruitment-role-policy.ts` | §3.7 Funding authority sits with the Budget Holder — the person with authority |
+| `recruitment-reports.server.ts` | Shared report builders and export delivery for HTTP and scheduled reports |
 | `recruitment-scoring.server.ts` | — |
 | `recruitment-scoring.ts` | Pure selection-scoring maths. This module must not import Prisma: it is |
 | `references.ts` | — |
@@ -407,7 +418,7 @@ Generated from the codebase. Every screen, endpoint and module the platform cont
 
 **6. Scorecards & Screening** — `ScorecardTemplate`, `ScorecardCriterion`, `CandidateScorecard`, `CandidateCriterionScore`, `ConflictDeclaration`
 
-**7. Assessments** — `Assessment`, `AssessmentQuestion`, `CandidateAssessment`, `CandidateAssessmentAnswer`
+**7. Assessments** — `Assessment`, `AssessmentQuestion`, `AssessmentBankQuestion`, `CandidateAssessment`, `CandidateAssessmentAnswer`
 
 **8. Interviews** — `Interview`, `InterviewPanelMember`, `InterviewQuestion`, `InterviewScore`, `InterviewPanelSubmission`
 
@@ -439,8 +450,8 @@ Generated from the codebase. Every screen, endpoint and module the platform cont
 
 **19c. Electronic Signatures (§28.10)** — `ElectronicSignature`
 
-**20. Messaging, Notifications & Audit** — `MessageThread`, `Message`, `Notification`, `AuditLog`, `AuditChainHead`, `FraudReport`, `SystemSetting`
+**20. Messaging, Notifications & Audit** — `MessageThread`, `Message`, `Notification`, `NotificationPreference`, `AuditLog`, `AuditChainHead`, `FraudReport`, `SystemSetting`
 
-**22. Recruitment operating system** — `WorkflowDefinition`, `WorkflowVersion`, `WorkflowTransitionRule`, `SlaPolicy`, `WorkItem`, `TalentPool`, `TalentPoolMember`, `AccommodationRequest`, `IntegrationConnection`, `IntegrationIdentity`, `IntegrationOAuthState`, `AvailabilityWindow`, `ConfigurationChangeRequest`, `AutomationControl`, `AutomationActionLog`, `BulkActionRun`, `CandidateMergeReview`, `NotificationTemplate`, `ContractType`, `DocumentType`
+**22. Recruitment operating system** — `WorkflowDefinition`, `WorkflowVersion`, `WorkflowTransitionRule`, `SlaPolicy`, `WorkItem`, `TalentPool`, `TalentPoolMember`, `TalentPoolDeployment`, `AccommodationRequest`, `IntegrationConnection`, `IntegrationIdentity`, `IntegrationOAuthState`, `AvailabilityWindow`, `ConfigurationChangeRequest`, `AutomationControl`, `AutomationActionLog`, `BulkActionRun`, `CandidateMergeReview`, `NotificationTemplate`, `ContractType`, `DocumentType`
 
 **21. Reliability, Governance & Case Management** — `OutboxMessage`, `IdempotencyRecord`, `LegalHold`, `RetentionRun`, `AccessReview`, `ComplaintCase`, `ComplaintComment`, `ComplaintAttachment`, `EntityVersion`, `EligibilityRule`, `EligibilityRuleChange`, `LonglistRun`, `EligibilityEvaluation`, `OperationalEvent`, `JobRun`, `JobLease`, `RateLimitBucket`, `ScheduledReport`

@@ -31,6 +31,10 @@ const updateSchema = z
     randomizeQuestions: z.boolean().optional(),
     autoSubmit: z.boolean().optional(),
     configuration: z.record(z.unknown()).nullable().optional(),
+    lateSubmissionPolicy: z.enum(['REJECT', 'GRACE_PERIOD', 'HR_APPROVAL']).optional(),
+    lateGraceMinutes: z.coerce.number().int().min(0).max(1440).optional(),
+    accommodationExtraMinutes: z.coerce.number().int().min(0).max(480).optional(),
+    accommodationInstructions: z.string().trim().max(2000).nullable().optional(),
     questions: z
       .array(
         z.object({
@@ -108,6 +112,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           maximumAttempts: input.maximumAttempts,
           randomizeQuestions: input.randomizeQuestions,
           autoSubmit: input.autoSubmit,
+          lateSubmissionPolicy: input.lateSubmissionPolicy,
+          lateGraceMinutes: input.lateGraceMinutes,
+          accommodationExtraMinutes: input.accommodationExtraMinutes,
+          accommodationInstructions: input.accommodationInstructions,
           configurationJson:
             input.configuration === undefined
               ? undefined

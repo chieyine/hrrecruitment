@@ -38,26 +38,27 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  userRoles             UserRole[]
-  candidateProfile      CandidateProfile?
-  auditLogs             AuditLog[]             @relation("ActorAuditLogs")
-  applicationNotes      ApplicationNote[]
-  scorecards            CandidateScorecard[]
-  conflictDeclarations  ConflictDeclaration[]
-  interviewPanels       InterviewPanelMember[]
-  createdVacancies      Vacancy[]              @relation("VacancyOwner")
-  sentMessages          Message[]
-  notifications         Notification[]
-  externalIdentities    ExternalIdentity[]
-  assignedWorkItems     WorkItem[]             @relation("WorkItemAssignee")
-  createdWorkItems      WorkItem[]             @relation("WorkItemCreator")
-  talentPoolMemberships TalentPoolMember[]     @relation("TalentPoolAddedBy")
-  mfaSecret             UserMfaSecret?
-  recoveryCodes         UserRecoveryCode[]
-  sessions              UserSession[]
-  savedSearches         SavedSearch[]
-  integrationIdentities IntegrationIdentity[]
-  availabilityWindows   AvailabilityWindow[]
+  userRoles              UserRole[]
+  candidateProfile       CandidateProfile?
+  auditLogs              AuditLog[]              @relation("ActorAuditLogs")
+  applicationNotes       ApplicationNote[]
+  scorecards             CandidateScorecard[]
+  conflictDeclarations   ConflictDeclaration[]
+  interviewPanels        InterviewPanelMember[]
+  createdVacancies       Vacancy[]               @relation("VacancyOwner")
+  sentMessages           Message[]
+  notifications          Notification[]
+  externalIdentities     ExternalIdentity[]
+  assignedWorkItems      WorkItem[]              @relation("WorkItemAssignee")
+  createdWorkItems       WorkItem[]              @relation("WorkItemCreator")
+  talentPoolMemberships  TalentPoolMember[]      @relation("TalentPoolAddedBy")
+  mfaSecret              UserMfaSecret?
+  recoveryCodes          UserRecoveryCode[]
+  sessions               UserSession[]
+  savedSearches          SavedSearch[]
+  integrationIdentities  IntegrationIdentity[]
+  availabilityWindows    AvailabilityWindow[]
+  notificationPreference NotificationPreference?
 }
 
 /// TOTP shared secret. One per user; replaced wholesale on re-enrolment.
@@ -232,6 +233,9 @@ model ConsentRecord {
   decision      Boolean
   decidedAt     DateTime         @default(now())
   withdrawnAt   DateTime?
+  expiresAt     DateTime?
+
+  @@index([candidateId, consentType, expiresAt])
 }
 
 model DataDeletionRequest {
@@ -360,18 +364,26 @@ model FileAsset {
 }
 
 model CandidateDocument {
-  id              String           @id @default(uuid())
-  candidateId     String
-  candidate       CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  fileAssetId     String
-  fileAsset       FileAsset        @relation(fields: [fileAssetId], references: [id])
-  documentType    String // CV, COVER_LETTER, CERTIFICATE, NYSC, PASSPORT_PHOTO, GUARANTOR_FORM, ETC.
-  expiryDate      DateTime?
-  status          String           @default("PENDING") // PENDING, APPROVED, REJECTED, EXPIRED
-  verifiedBy      String?
-  verifiedAt      DateTime?
-  rejectionReason String?
-  createdAt       DateTime         @default(now())
+  id                 String           @id @default(uuid())
+  candidateId        String
+  candidate          CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  fileAssetId        String
+  fileAsset          FileAsset        @relation(fields: [fileAssetId], references: [id])
+  documentType       String // CV, COVER_LETTER, CERTIFICATE, NYSC, PASSPORT_PHOTO, GUARANTOR_FORM, ETC.
+  expiryDate         DateTime?
+  status             String           @default("PENDING") // PENDING, APPROVED, REJECTED, EXPIRED
+  verifiedBy         String?
+  verifiedAt         DateTime?
+  rejectionReason    String?
+  versionNumber      Int              @default(1)
+  verificationNotes  String?
+  verificationSource String?
+  restricted         Boolean          @default(false)
+  supersededAt       DateTime?
+  createdAt          DateTime         @default(now())
+
+  @@index([candidateId, documentType, versionNumber])
+  @@index([status, verifiedAt])
 }
 
 // ----------------------------------------------------
@@ -441,11 +453,11 @@ model StaffingRequest {
   reportingLine     String
 
   // §5.1 Contract and timing
-  contractType       String
+  contractType           String
   contractDurationMonths Int?
-  expectedStartDate  DateTime
-  jobGrade           String
-  urgency            String   @default("STANDARD") // STANDARD, HIGH, EMERGENCY
+  expectedStartDate      DateTime
+  jobGrade               String
+  urgency                String   @default("STANDARD") // STANDARD, HIGH, EMERGENCY
 
   // §5.1 Funding (proposed by the requester, confirmed by the Budget Holder)
   budgetLine            String
@@ -455,14 +467,14 @@ model StaffingRequest {
   donorRestrictions     String?
 
   // §5.1 Requirements
-  jobDescriptionFileId    String?
-  jobDescriptionFile      FileAsset? @relation("StaffingRequestJobDescription", fields: [jobDescriptionFileId], references: [id])
-  requiredQualifications  String
-  requiredExperience      String
-  requiredLanguages       String?
-  safeguardingSensitivity String     @default("STANDARD") // STANDARD, ELEVATED, HIGH
+  jobDescriptionFileId     String?
+  jobDescriptionFile       FileAsset? @relation("StaffingRequestJobDescription", fields: [jobDescriptionFileId], references: [id])
+  requiredQualifications   String
+  requiredExperience       String
+  requiredLanguages        String?
+  safeguardingSensitivity  String     @default("STANDARD") // STANDARD, ELEVATED, HIGH
   proposedAssessmentMethod String?
-  proposedPanel           String?
+  proposedPanel            String?
 
   // Requesting hiring manager
   hiringManagerUserId String
@@ -476,13 +488,13 @@ model StaffingRequest {
   // FUNDING_CONFIRMED, FUNDING_REJECTED, AWAITING_HR_REVIEW, HR_APPROVED,
   // AWAITING_EXECUTIVE_APPROVAL, APPROVED_FOR_VACANCY, REJECTED, CANCELLED
 
-  createdBy   String
-  submittedAt DateTime?
-  decidedAt   DateTime?
+  createdBy      String
+  submittedAt    DateTime?
+  decidedAt      DateTime?
   decisionReason String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  lockVersion Int       @default(1)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  lockVersion    Int       @default(1)
 
   fundingConfirmations FundingConfirmation[]
   vacancies            Vacancy[]
@@ -503,19 +515,19 @@ model FundingConfirmation {
   decision           String // CONFIRMED, REJECTED, RETURNED
 
   // Confirmed financial envelope
-  budgetLine           String?
-  fundingSource        String?
-  fundingStartDate     DateTime?
-  fundingEndDate       DateTime?
-  salaryCeilingAmount  Decimal?  @db.Decimal(14, 2)
-  salaryCeilingCurrency String?  @default("NGN")
-  maximumRecruitmentCost Decimal? @db.Decimal(14, 2)
-  grantFunded          Boolean   @default(false)
-  donorApprovalRequired Boolean  @default(false)
+  budgetLine             String?
+  fundingSource          String?
+  fundingStartDate       DateTime?
+  fundingEndDate         DateTime?
+  salaryCeilingAmount    Decimal?  @db.Decimal(14, 2)
+  salaryCeilingCurrency  String?   @default("NGN")
+  maximumRecruitmentCost Decimal?  @db.Decimal(14, 2)
+  grantFunded            Boolean   @default(false)
+  donorApprovalRequired  Boolean   @default(false)
   donorApprovalReference String?
-  comment              String?
+  comment                String?
 
-  decidedAt   DateTime @default(now())
+  decidedAt    DateTime  @default(now())
   supersededAt DateTime?
 
   @@index([staffingRequestId, decidedAt])
@@ -579,29 +591,29 @@ model Vacancy {
   owner                        User             @relation("VacancyOwner", fields: [ownerUserId], references: [id])
 
   // §6 record fields
-  staffingRequestId       String?
-  staffingRequest         StaffingRequest? @relation(fields: [staffingRequestId], references: [id])
-  grade                   String?
-  salaryDisclosure        String           @default("HIDDEN") // HIDDEN, RANGE, EXACT
-  salaryRangeMinimum      Decimal?         @db.Decimal(14, 2)
-  salaryRangeMaximum      Decimal?         @db.Decimal(14, 2)
-  salaryCurrency          String           @default("NGN")
-  safeguardingClassification String        @default("STANDARD") // STANDARD, ELEVATED, HIGH
-  recruitmentContactName  String?
-  recruitmentContactEmail String?
+  staffingRequestId          String?
+  staffingRequest            StaffingRequest? @relation(fields: [staffingRequestId], references: [id])
+  grade                      String?
+  salaryDisclosure           String           @default("HIDDEN") // HIDDEN, RANGE, EXACT
+  salaryRangeMinimum         Decimal?         @db.Decimal(14, 2)
+  salaryRangeMaximum         Decimal?         @db.Decimal(14, 2)
+  salaryCurrency             String           @default("NGN")
+  safeguardingClassification String           @default("STANDARD") // STANDARD, ELEVATED, HIGH
+  recruitmentContactName     String?
+  recruitmentContactEmail    String?
 
   /// §28.8 internal vacancies are visible only to signed-in staff accounts.
   audience String @default("PUBLIC") // PUBLIC, INTERNAL, BOTH
 
   /// §28.7 emergency recruitment uses a shortened, still-controlled route.
-  emergencyRecruitment Boolean @default(false)
+  emergencyRecruitment   Boolean   @default(false)
   emergencyJustification String?
-  emergencyApprovedBy  String?
-  emergencyApprovedAt  DateTime?
+  emergencyApprovedBy    String?
+  emergencyApprovedAt    DateTime?
 
   /// §28.3 fields hidden from reviewers during longlisting and shortlisting.
-  anonymisedReview       Boolean @default(false)
-  anonymisedFieldsJson   String  @default("[]")
+  anonymisedReview     Boolean @default(false)
+  anonymisedFieldsJson String  @default("[]")
 
   /// §11.7 longlisting rules lock at publication.
   longlistingRulesLockedAt DateTime?
@@ -666,6 +678,7 @@ model Application {
 
   internalStatus         String @default("DRAFT") // DRAFT, SUBMITTED, UNDER_REVIEW, LONGLISTED, INELIGIBLE, SHORTLISTED, ASSESSMENT_INVITED, ASSESSMENT_COMPLETED, INTERVIEW_INVITED, INTERVIEW_COMPLETED, REFERENCE_CHECK, RECOMMENDED, RESERVE, NOT_SELECTED, OFFER_DRAFT, OFFER_SENT, OFFER_ACCEPTED, PREBOARDING, READY_TO_RESUME, RESUMED, TRANSFERRED_TO_ERP, WITHDRAWN, CANCELLED
   candidateVisibleStatus String @default("APPLICATION_DRAFT")
+  source                 String @default("DIRECT")
 
   submittedAt        DateTime?
   assignedReviewerId String?
@@ -705,6 +718,7 @@ model Application {
   availabilityWindows   AvailabilityWindow[]
 
   @@unique([candidateId, vacancyId])
+  @@index([source, submittedAt])
 }
 
 model ApplicationProfileSnapshot {
@@ -844,20 +858,24 @@ model ConflictDeclaration {
 // ----------------------------------------------------
 
 model Assessment {
-  id                 String    @id @default(uuid())
-  vacancyId          String
-  vacancy            Vacancy   @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
-  title              String
-  description        String?
-  type               String // ONLINE_MCQ, ESSAY, SCENARIO, FILE_UPLOAD, OFFLINE_WRITTEN, PRACTICAL
-  durationMinutes    Int       @default(60)
-  opensAt            DateTime?
-  closesAt           DateTime?
-  passMark           Float
-  maximumAttempts    Int       @default(1)
-  randomizeQuestions Boolean   @default(false)
-  autoSubmit         Boolean   @default(true)
-  configurationJson  String?
+  id                        String    @id @default(uuid())
+  vacancyId                 String
+  vacancy                   Vacancy   @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+  title                     String
+  description               String?
+  type                      String // ONLINE_MCQ, ESSAY, SCENARIO, FILE_UPLOAD, OFFLINE_WRITTEN, PRACTICAL
+  durationMinutes           Int       @default(60)
+  opensAt                   DateTime?
+  closesAt                  DateTime?
+  passMark                  Float
+  maximumAttempts           Int       @default(1)
+  randomizeQuestions        Boolean   @default(false)
+  autoSubmit                Boolean   @default(true)
+  configurationJson         String?
+  lateSubmissionPolicy      String    @default("REJECT") // REJECT, GRACE_PERIOD, HR_APPROVAL
+  lateGraceMinutes          Int       @default(0)
+  accommodationExtraMinutes Int       @default(0)
+  accommodationInstructions String?
 
   questions            AssessmentQuestion[]
   candidateAssessments CandidateAssessment[]
@@ -877,26 +895,64 @@ model AssessmentQuestion {
   answers CandidateAssessmentAnswer[]
 }
 
+model AssessmentBankQuestion {
+  id                String    @id @default(uuid())
+  stableKey         String
+  version           Int       @default(1)
+  title             String
+  category          String
+  difficulty        String    @default("MEDIUM") // EASY, MEDIUM, HARD
+  jobFamily         String?
+  questionType      String
+  prompt            String
+  optionsJson       String?
+  correctAnswerJson String?
+  maximumScore      Float
+  accessLevel       String    @default("RESTRICTED") // RESTRICTED, HR, ASSESSOR
+  status            String    @default("DRAFT") // DRAFT, ACTIVE, RETIRED, EXPIRED
+  reviewDueAt       DateTime?
+  expiresAt         DateTime?
+  createdBy         String
+  approvedBy        String?
+  approvedAt        DateTime?
+  supersededById    String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([stableKey, version])
+  @@index([status, category, jobFamily])
+  @@index([status, reviewDueAt])
+  @@index([status, expiresAt])
+}
+
 model CandidateAssessment {
-  id                String      @id @default(uuid())
-  applicationId     String
-  application       Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  assessmentId      String
-  assessment        Assessment  @relation(fields: [assessmentId], references: [id])
-  status            String      @default("INVITED") // INVITED, NOT_STARTED, IN_PROGRESS, SUBMITTED, AUTO_SUBMITTED, MARKED, PASSED, FAILED
-  invitedAt         DateTime    @default(now())
-  startedAt         DateTime?
-  submittedAt       DateTime?
-  autoSubmitted     Boolean     @default(false)
-  score             Float?
-  passed            Boolean?
-  markerUserId      String?
-  markerComment     String?
-  offlineRecordJson String?
+  id                     String      @id @default(uuid())
+  applicationId          String
+  application            Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  assessmentId           String
+  assessment             Assessment  @relation(fields: [assessmentId], references: [id])
+  status                 String      @default("INVITED") // INVITED, NOT_STARTED, IN_PROGRESS, SUBMITTED, AUTO_SUBMITTED, AWAITING_APPROVAL, PASSED, FAILED
+  invitedAt              DateTime    @default(now())
+  startedAt              DateTime?
+  submittedAt            DateTime?
+  autoSubmitted          Boolean     @default(false)
+  submittedLate          Boolean     @default(false)
+  score                  Float?
+  passed                 Boolean?
+  markerUserId           String?
+  markerComment          String?
+  assignedReviewerUserId String?
+  resultApprovedBy       String?
+  resultApprovedAt       DateTime?
+  resultApprovalComment  String?
+  resultApprovalSource   String? // INDEPENDENT_REVIEW, LEGACY_PRE_CONTROL
+  offlineRecordJson      String?
 
   answers CandidateAssessmentAnswer[]
 
   @@unique([applicationId, assessmentId])
+  @@index([status, assignedReviewerUserId])
+  @@index([status, resultApprovedAt])
 }
 
 model CandidateAssessmentAnswer {
@@ -927,6 +983,7 @@ model Interview {
   venue                 String?
   meetingLink           String?
   format                String      @default("VIRTUAL") // PHYSICAL, VIRTUAL, HYBRID
+  interviewType         String      @default("PANEL") // PANEL, TECHNICAL, COMPETENCY, FINAL
   status                String      @default("SCHEDULED") // SCHEDULED, CONFIRMED, RESCHEDULED, ATTENDED, DID_NOT_ATTEND, CANCELLED
   candidateResponse     String? // CONFIRMED, RESCHEDULE_REQUESTED, DECLINED
   candidateComment      String?
@@ -934,6 +991,9 @@ model Interview {
   attachmentFileIdsJson String?
   reminderMinutesBefore Int         @default(1440)
   panelReadyAt          DateTime?
+  panelApprovedAt       DateTime?
+  panelApprovedBy       String?
+  panelApprovalComment  String?
   panelConfirmedAt      DateTime?
   panelConfirmedBy      String?
   varianceFlag          Boolean     @default(false)
@@ -943,6 +1003,8 @@ model Interview {
   panelMembers     InterviewPanelMember[]
   questions        InterviewQuestion[]
   panelSubmissions InterviewPanelSubmission[]
+
+  @@index([panelApprovedAt, scheduledStart])
 }
 
 model InterviewPanelMember {
@@ -972,6 +1034,7 @@ model InterviewQuestion {
   redFlags         String?
   maximumScore     Float
   commentRequired  Boolean   @default(true)
+  isSafeguarding   Boolean   @default(false)
   displayOrder     Int       @default(0)
 
   scores InterviewScore[]
@@ -1154,19 +1217,19 @@ model Offer {
   supersededBy               Offer?         @relation("OfferVersions")
 
   // §17 financial terms prepared by HR and confirmed by the Budget Holder.
-  proposedGrade    String?
-  proposedStep     String?
-  salaryAmount     Decimal? @db.Decimal(14, 2)
-  salaryCurrency   String   @default("NGN")
-  salaryPeriod     String   @default("ANNUAL") // ANNUAL, MONTHLY, DAILY, LUMP_SUM
-  consultancyFee   Decimal? @db.Decimal(14, 2)
-  budgetLine       String?
-  fundingSource    String?
-  fundingEndDate   DateTime?
-  donorRestriction String?
+  proposedGrade          String?
+  proposedStep           String?
+  salaryAmount           Decimal?  @db.Decimal(14, 2)
+  salaryCurrency         String    @default("NGN")
+  salaryPeriod           String    @default("ANNUAL") // ANNUAL, MONTHLY, DAILY, LUMP_SUM
+  consultancyFee         Decimal?  @db.Decimal(14, 2)
+  budgetLine             String?
+  fundingSource          String?
+  fundingEndDate         DateTime?
+  donorRestriction       String?
   /// True when the proposed amount exceeds the confirmed ceiling and therefore
   /// needs Budget Holder re-confirmation before HR Manager approval (§17).
-  exceedsApprovedCeiling Boolean @default(false)
+  exceedsApprovedCeiling Boolean   @default(false)
 
   financialApprovals OfferFinancialApproval[]
 }
@@ -1463,21 +1526,25 @@ model PackageCourse {
 }
 
 model CandidateCourse {
-  id                     String               @id @default(uuid())
-  candidatePreboardingId String
-  candidatePreboarding   CandidatePreboarding @relation(fields: [candidatePreboardingId], references: [id], onDelete: Cascade)
-  courseId               String
-  course                 Course               @relation(fields: [courseId], references: [id])
-  status                 String               @default("ASSIGNED") // ASSIGNED, IN_PROGRESS, QUIZ_PENDING, COMPLETED, FAILED, WAIVED
-  assignedAt             DateTime             @default(now())
-  dueAt                  DateTime?
-  startedAt              DateTime?
-  completedAt            DateTime?
-  score                  Float?
-  attempts               Int                  @default(0)
-  certificateFileId      String?
-  required               Boolean              @default(true)
-  courseSnapshotJson     String?
+  id                       String               @id @default(uuid())
+  candidatePreboardingId   String
+  candidatePreboarding     CandidatePreboarding @relation(fields: [candidatePreboardingId], references: [id], onDelete: Cascade)
+  courseId                 String
+  course                   Course               @relation(fields: [courseId], references: [id])
+  status                   String               @default("ASSIGNED") // ASSIGNED, IN_PROGRESS, QUIZ_PENDING, CERTIFICATE_SUBMITTED, CERTIFICATE_REJECTED, COMPLETED, FAILED, WAIVED
+  assignedAt               DateTime             @default(now())
+  dueAt                    DateTime?
+  startedAt                DateTime?
+  completedAt              DateTime?
+  score                    Float?
+  attempts                 Int                  @default(0)
+  certificateFileId        String?
+  certificateSubmittedAt   DateTime?
+  certificateReviewedAt    DateTime?
+  certificateReviewedBy    String?
+  certificateReviewComment String?
+  required                 Boolean              @default(true)
+  courseSnapshotJson       String?
 
   courseAttempts  CandidateCourseAttempt[]
   contentProgress CandidateCourseContentProgress[]
@@ -1662,17 +1729,17 @@ model ERPTransferRecord {
   status         String    @default("CREATED_IN_ERP") // retained for existing readers
 
   /// §19.1 HR Manager approval is required before the handover pack is issued.
-  approvedBy       String?
-  approvedAt       DateTime?
+  approvedBy              String?
+  approvedAt              DateTime?
   /// §19.3 the generated handover PDF containing the §19.2 dataset.
-  handoverPackFileId String?
-  handoverPackFile   FileAsset? @relation("ErpHandoverPack", fields: [handoverPackFileId], references: [id])
+  handoverPackFileId      String?
+  handoverPackFile        FileAsset? @relation("ErpHandoverPack", fields: [handoverPackFileId], references: [id])
   handoverPackGeneratedAt DateTime?
   /// Snapshot of exactly what was handed over, for audit reconstruction.
-  transferredDataJson String?
+  transferredDataJson     String?
   /// §19.3 duplicate employee check outcome recorded before the pack is issued.
-  duplicateCheckStatus String  @default("NOT_RUN") // NOT_RUN, CLEAR, POSSIBLE_DUPLICATE, OVERRIDDEN
-  duplicateCheckNote   String?
+  duplicateCheckStatus    String     @default("NOT_RUN") // NOT_RUN, CLEAR, POSSIBLE_DUPLICATE, OVERRIDDEN
+  duplicateCheckNote      String?
 }
 
 // ----------------------------------------------------
@@ -1695,8 +1762,8 @@ model BackgroundCheck {
   // FAILED, WAIVED, NOT_APPLICABLE
 
   /// §28.11 the approved third-party provider, when one is used.
-  providerName      String?
-  providerReference String?
+  providerName        String?
+  providerReference   String?
   /// Only the necessary information is transmitted (§28.11).
   submittedFieldsJson String?
 
@@ -1704,12 +1771,12 @@ model BackgroundCheck {
   requestedAt DateTime?
   receivedAt  DateTime?
 
-  outcome         String? // CLEAR, ADVERSE, INCONCLUSIVE
+  outcome        String? // CLEAR, ADVERSE, INCONCLUSIVE
   /// Restricted finding detail. Never exposed to panel members or the candidate.
-  findingSummary  String?
-  restrictedNote  String?
-  evidenceFileId  String?
-  evidenceFile    FileAsset? @relation("BackgroundCheckEvidence", fields: [evidenceFileId], references: [id])
+  findingSummary String?
+  restrictedNote String?
+  evidenceFileId String?
+  evidenceFile   FileAsset? @relation("BackgroundCheckEvidence", fields: [evidenceFileId], references: [id])
 
   reviewedBy String?
   reviewedAt DateTime?
@@ -1745,7 +1812,7 @@ model CvParseResult {
   status String @default("PENDING") // PENDING, PARSED, FAILED, ACCEPTED, DISCARDED
 
   /// The raw extracted draft, before any candidate correction.
-  extractedJson String @default("{}")
+  extractedJson String  @default("{}")
   /// What the candidate accepted after review, if anything.
   acceptedJson  String?
 
@@ -1780,11 +1847,11 @@ model ElectronicSignature {
   signatoryRole   String?
 
   /// §28.10 record: document version, method, status, and any later amendment.
-  documentVersion  Int    @default(1)
-  documentHash     String
-  signatureMethod  String // TYPED_NAME, DRAWN_SIGNATURE, UPLOADED_PDF, APPROVAL_CLICK
+  documentVersion      Int    @default(1)
+  documentHash         String
+  signatureMethod      String // TYPED_NAME, DRAWN_SIGNATURE, UPLOADED_PDF, APPROVAL_CLICK
   authenticationMethod String @default("SESSION") // SESSION, MFA, EMAIL_TOKEN, SSO
-  status           String @default("SIGNED") // SIGNED, DECLINED, AMENDED, VOIDED
+  status               String @default("SIGNED") // SIGNED, DECLINED, AMENDED, VOIDED
 
   drawnSignatureData String?
   signedFileId       String?
@@ -1839,6 +1906,16 @@ model Notification {
   status               String    @default("UNREAD") // UNREAD, READ
   sentAt               DateTime  @default(now())
   readAt               DateTime?
+}
+
+model NotificationPreference {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  immediateEmailEnabled Boolean  @default(true)
+  digestEnabled         Boolean  @default(true)
+  digestHourLocal       Int      @default(8)
+  updatedAt             DateTime @updatedAt
 }
 
 model AuditLog {
@@ -2000,23 +2077,56 @@ model TalentPool {
 }
 
 model TalentPoolMember {
-  id                  String           @id @default(uuid())
-  talentPoolId        String
-  talentPool          TalentPool       @relation(fields: [talentPoolId], references: [id], onDelete: Cascade)
-  candidateId         String
-  candidate           CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  addedBy             String
-  addedByUser         User             @relation("TalentPoolAddedBy", fields: [addedBy], references: [id])
-  sourceApplicationId String?
-  status              String           @default("ACTIVE") // ACTIVE, CONTACTED, CONVERTED, REMOVED
-  tagsJson            String           @default("[]")
-  notes               String?
-  consentExpiresAt    DateTime?
-  addedAt             DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  id                     String           @id @default(uuid())
+  talentPoolId           String
+  talentPool             TalentPool       @relation(fields: [talentPoolId], references: [id], onDelete: Cascade)
+  candidateId            String
+  candidate              CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  addedBy                String
+  addedByUser            User             @relation("TalentPoolAddedBy", fields: [addedBy], references: [id])
+  sourceApplicationId    String?
+  status                 String           @default("ACTIVE") // ACTIVE, CONTACTED, CONVERTED, REMOVED
+  tagsJson               String           @default("[]")
+  notes                  String?
+  consentExpiresAt       DateTime?
+  technicalCategory      String?
+  preferredLocationsJson String           @default("[]")
+  availabilityStatus     String? // IMMEDIATE, DATE_SPECIFIED, NOTICE_PERIOD, UNAVAILABLE
+  availableFrom          DateTime?
+  expectedRate           Float?
+  expectedRateCurrency   String?          @default("NGN")
+  expectedRatePeriod     String? // HOURLY, DAILY, MONTHLY, ANNUAL, FIXED
+  expectedGrade          String?
+  rosterExpiresAt        DateTime?
+  lastVerifiedAt         DateTime?
+  deploymentHistoryJson  String           @default("[]")
+  addedAt                DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  deployments TalentPoolDeployment[]
 
   @@unique([talentPoolId, candidateId])
   @@index([candidateId, status])
+  @@index([status, consentExpiresAt])
+  @@index([status, rosterExpiresAt])
+}
+
+model TalentPoolDeployment {
+  id                 String           @id @default(uuid())
+  talentPoolMemberId String
+  talentPoolMember   TalentPoolMember @relation(fields: [talentPoolMemberId], references: [id], onDelete: Cascade)
+  applicationId      String?
+  vacancyReference   String
+  roleTitle          String
+  deploymentStatus   String // CONTACTED, NOMINATED, APPLIED, HIRED, STARTED, ENDED
+  deployedAt         DateTime
+  endedAt            DateTime?
+  notes              String?
+  recordedBy         String
+  createdAt          DateTime         @default(now())
+
+  @@index([talentPoolMemberId, deployedAt])
+  @@index([applicationId])
 }
 
 model AccommodationRequest {
@@ -2068,15 +2178,15 @@ model IntegrationIdentity {
   scopesJson        String  @default("[]")
 
   /// Sealed token material. Never stored or logged in plaintext.
-  accessTokenSealed  String
-  refreshTokenSealed String?
+  accessTokenSealed    String
+  refreshTokenSealed   String?
   accessTokenExpiresAt DateTime?
 
-  status       String    @default("ACTIVE") // ACTIVE, EXPIRED, REVOKED, ERROR
-  lastSyncAt   DateTime?
-  lastError    String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  status     String    @default("ACTIVE") // ACTIVE, EXPIRED, REVOKED, ERROR
+  lastSyncAt DateTime?
+  lastError  String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@unique([connectionId, userId])
   @@index([userId, status])
@@ -2085,28 +2195,28 @@ model IntegrationIdentity {
 /// §28.15 Transient state for an in-flight OAuth authorisation, including the
 /// PKCE verifier. Short-lived and single-use.
 model IntegrationOAuthState {
-  id             String    @id @default(uuid())
-  state          String    @unique
-  userId         String
-  provider       String
-  connectionType String
+  id                 String    @id @default(uuid())
+  state              String    @unique
+  userId             String
+  provider           String
+  connectionType     String
   /// Sealed with lib/secret-box, like the tokens it will be exchanged for. The
   /// verifier is the secret half of the PKCE pair; storing it in clear would
   /// undermine the protection PKCE exists to give.
   codeVerifierSealed String
-  redirectPath   String?
-  expiresAt      DateTime
-  consumedAt     DateTime?
-  createdAt      DateTime  @default(now())
+  redirectPath       String?
+  expiresAt          DateTime
+  consumedAt         DateTime?
+  createdAt          DateTime  @default(now())
 
   @@index([expiresAt])
 }
 
 /// §28.15 Panel and candidate availability used to propose interview slots.
 model AvailabilityWindow {
-  id       String @id @default(uuid())
-  userId   String?
-  user     User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String       @id @default(uuid())
+  userId        String?
+  user          User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Candidate availability is keyed by application instead of a staff user.
   applicationId String?
   application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
@@ -2431,17 +2541,17 @@ model EligibilityRuleChange {
   ruleId String
   rule   EligibilityRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
-  vacancyId      String
-  changeType     String // CREATE, UPDATE, DEACTIVATE
-  previousJson   String?
-  proposedJson   String
-  reason         String
-  requestedBy    String
-  requestedAt    DateTime  @default(now())
-  approvalId     String?
-  status         String    @default("PENDING") // PENDING, APPROVED, REJECTED
-  decidedBy      String?
-  decidedAt      DateTime?
+  vacancyId    String
+  changeType   String // CREATE, UPDATE, DEACTIVATE
+  previousJson String?
+  proposedJson String
+  reason       String
+  requestedBy  String
+  requestedAt  DateTime  @default(now())
+  approvalId   String?
+  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  decidedBy    String?
+  decidedAt    DateTime?
 
   /// True when applications already existed at the time of the change (§11.7).
   fairnessReviewRequired Boolean @default(false)
@@ -2464,14 +2574,14 @@ model LonglistRun {
   status  String @default("IN_PROGRESS") // IN_PROGRESS, AWAITING_CONFIRMATION, CONFIRMED, SUPERSEDED
 
   /// §11.8 output counters
-  totalApplications      Int @default(0)
-  completeApplications   Int @default(0)
-  incompleteApplications Int @default(0)
-  automaticallyEligible  Int @default(0)
+  totalApplications       Int @default(0)
+  completeApplications    Int @default(0)
+  incompleteApplications  Int @default(0)
+  automaticallyEligible   Int @default(0)
   automaticallyIneligible Int @default(0)
-  requiresReview         Int @default(0)
-  duplicateApplications  Int @default(0)
-  withdrawnApplications  Int @default(0)
+  requiresReview          Int @default(0)
+  duplicateApplications   Int @default(0)
+  withdrawnApplications   Int @default(0)
 
   /// Distribution of failure reasons, keyed by rule id (§11.8).
   reasonDistributionJson String @default("{}")
@@ -2483,8 +2593,8 @@ model LonglistRun {
   completedAt DateTime?
 
   /// §11.8 longlisting approval record
-  confirmedBy   String?
-  confirmedAt   DateTime?
+  confirmedBy      String?
+  confirmedAt      DateTime?
   confirmationNote String?
 
   evaluations EligibilityEvaluation[]
@@ -2495,7 +2605,7 @@ model LonglistRun {
 
 /// §11.3 The result of evaluating one application against the approved rules.
 model EligibilityEvaluation {
-  id            String  @id @default(uuid())
+  id            String       @id @default(uuid())
   applicationId String
   longlistRunId String?
   longlistRun   LonglistRun? @relation(fields: [longlistRunId], references: [id], onDelete: SetNull)
@@ -2505,8 +2615,8 @@ model EligibilityEvaluation {
   resultJson      String
 
   /// §11.3 step 4 approved eligibility score, when scored rules are configured.
-  eligibilityScore    Decimal? @db.Decimal(6, 2)
-  maximumScore        Decimal? @db.Decimal(6, 2)
+  eligibilityScore Decimal? @db.Decimal(6, 2)
+  maximumScore     Decimal? @db.Decimal(6, 2)
 
   /// §11.4 AUTOMATICALLY_ELIGIBLE, AUTOMATICALLY_INELIGIBLE, REQUIRES_REVIEW,
   /// DUPLICATE_APPLICATION, INCOMPLETE_APPLICATION, WITHDRAWN
@@ -2517,13 +2627,13 @@ model EligibilityEvaluation {
   /// The rule that decided the outcome (§11.3 step 8).
   decidingRuleId String?
 
-  humanDecision  String?
-  decidedBy      String?
-  decisionReason String?
+  humanDecision          String?
+  decidedBy              String?
+  decisionReason         String?
   /// §11.6 override controls
-  overrideReasonCode String?
+  overrideReasonCode     String?
   overrideEvidenceFileId String?
-  overrideApprovalId String?
+  overrideApprovalId     String?
 
   evaluatedAt DateTime  @default(now())
   decidedAt   DateTime?

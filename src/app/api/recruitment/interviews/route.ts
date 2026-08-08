@@ -15,6 +15,7 @@ const schema = z
     scheduledEnd: z.coerce.date(),
     timezone: z.string().default('Africa/Lagos'),
     format: z.enum(['PHYSICAL', 'VIRTUAL', 'HYBRID']),
+    interviewType: z.enum(['PANEL', 'TECHNICAL', 'COMPETENCY', 'FINAL']),
     venue: z.string().max(500).optional(),
     meetingLink: z.string().url().optional().or(z.literal('')),
     instructions: z.string().max(5000).optional(),
@@ -27,6 +28,7 @@ const schema = z
           question: z.string().trim().min(1),
           competency: z.string().max(200).optional(),
           maximumScore: z.coerce.number().positive(),
+          isSafeguarding: z.boolean().default(false),
         })
       )
       .min(1)
@@ -49,6 +51,8 @@ const schema = z
         message: 'A meeting link is required for virtual or hybrid interviews',
         path: ['meetingLink'],
       })
+    if (!value.questions.some((question) => question.isSafeguarding))
+      context.addIssue({ code: 'custom', message: 'Mark at least one safeguarding question', path: ['questions'] })
   })
 
 export async function POST(request: Request) {
@@ -112,12 +116,16 @@ export async function POST(request: Request) {
           scheduledEnd: input.scheduledEnd,
           timezone: input.timezone,
           format: input.format,
+          interviewType: input.interviewType,
           venue: input.venue || null,
           meetingLink: input.meetingLink || null,
           instructions: input.instructions || null,
           attachmentFileIdsJson: attachmentFileIds.length ? JSON.stringify(attachmentFileIds) : null,
           reminderMinutesBefore: input.reminderMinutesBefore,
           createdBy: user.userId,
+          ...(user.roles.includes('HR_MANAGER')
+            ? { panelApprovedAt: new Date(), panelApprovedBy: user.userId, panelApprovalComment: 'Automatically approved under the single HR Manager operating model.' }
+            : {}),
           panelMembers: {
             create: input.panelUserIds.map((userId, index) => ({
               userId,
@@ -141,6 +149,8 @@ export async function POST(request: Request) {
       resourceType: 'Interview',
       resourceId: interview.id,
     })
+    if (user.roles.includes('HR_MANAGER'))
+      await logAudit({ actorUserId: user.userId, action: 'INTERVIEW_PANEL_AUTO_APPROVED', resourceType: 'Interview', resourceId: interview.id, reason: 'Single HR Manager operating model' })
     return NextResponse.json({ success: true, interview })
   } catch (error) {
     return authzResponse(error)

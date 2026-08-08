@@ -45,8 +45,8 @@ export default function CandidateOfferPage(props: { params: Promise<{ id: string
 
   async function respond(action: 'ACCEPT' | 'DECLINE' | 'CLARIFY', responseComment = comment) {
     setErrorMessage('')
-    if (action === 'ACCEPT' && (!signatureName.trim() || !acceptedDeclaration)) {
-      setErrorMessage('Read the offer, confirm the declaration and type your full legal name.')
+    if (action === 'ACCEPT' && ((!signatureName.trim() && !signedCopy) || !acceptedDeclaration)) {
+      setErrorMessage('Read the offer, confirm the declaration, then sign online or attach the signed PDF.')
       return
     }
     setSubmitting(true)
@@ -235,8 +235,7 @@ export default function CandidateOfferPage(props: { params: Promise<{ id: string
                     <div>
                       <h2 className="font-semibold text-navy-900">Record your decision</h2>
                       <p className="mt-1 text-xs leading-5 text-stone-600">
-                        Read the full PDF before accepting. Your name, time, account and response are retained with the
-                        offer record.
+                        Download and read the full PDF. You can sign online below, or sign the PDF and upload it. Your time, account and response are retained with the offer record.
                       </p>
                     </div>
                   </div>
@@ -251,7 +250,7 @@ export default function CandidateOfferPage(props: { params: Promise<{ id: string
                     <span>I have read this offer and agree to its terms.</span>
                   </label>
                   <label className="mt-4 block">
-                    <span className="field-label">Full legal name</span>
+                    <span className="field-label">Full legal name for online signature</span>
                     <input
                       value={signatureName}
                       onChange={(event) => setSignatureName(event.target.value)}
@@ -263,10 +262,10 @@ export default function CandidateOfferPage(props: { params: Promise<{ id: string
 
                   <details className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3">
                     <summary className="cursor-pointer text-xs font-semibold text-stone-700">
-                      Upload a separately signed copy
+                      Upload the signed PDF instead
                     </summary>
                     <p className="mt-2 text-xs leading-5 text-stone-500">
-                      Only use this if FRAD asked you to sign the PDF outside the platform.
+                      Download the offer above, sign it, then attach the signed PDF here. If you use this option, typing your name above is optional.
                     </p>
                     <input
                       type="file"
@@ -279,7 +278,7 @@ export default function CandidateOfferPage(props: { params: Promise<{ id: string
                   <button
                     type="button"
                     onClick={() => void respond('ACCEPT')}
-                    disabled={submitting || !offer.offerFileId || !acceptedDeclaration || !signatureName.trim()}
+                    disabled={submitting || !offer.offerFileId || !acceptedDeclaration || (!signatureName.trim() && !signedCopy)}
                     className="btn-primary mt-5 w-full"
                   >
                     <CheckCircle2 className="h-4 w-4" />

@@ -48,7 +48,13 @@ export async function POST(request: Request) {
         })
         if (!active)
           await prisma.consentRecord.create({
-            data: { candidateId: profile.id, consentType: 'TALENT_POOL', noticeVersion: '2026-07', decision: true },
+            data: {
+              candidateId: profile.id,
+              consentType: 'TALENT_POOL',
+              noticeVersion: '2026-07',
+              decision: true,
+              expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 2)),
+            },
           })
       }
     } else {

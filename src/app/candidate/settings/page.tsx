@@ -9,12 +9,13 @@ import SecuritySettings from '@/components/shared/SecuritySettings'
 import SavedSearchManager from '@/components/shared/SavedSearchManager'
 import { prisma } from '@/lib/prisma'
 import { PageIntro } from '@/components/ui/PageElements'
+import NotificationPreferences from '@/components/shared/NotificationPreferences'
 
 export default async function CandidateSettingsPage() {
   const user = await getVerifiedUser()
   if (!user) redirect('/auth/login')
   const talentPoolConsent = await prisma.consentRecord.findFirst({
-    where: { candidate: { userId: user.userId }, consentType: 'TALENT_POOL', decision: true, withdrawnAt: null },
+    where: { candidate: { userId: user.userId }, consentType: 'TALENT_POOL', decision: true, withdrawnAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
     select: { id: true },
   })
 
@@ -66,6 +67,7 @@ export default async function CandidateSettingsPage() {
           <SavedSearchManager />
 
           <SecuritySettings />
+          <NotificationPreferences />
 
           <AccountSettingsActions talentPoolConsent={Boolean(talentPoolConsent)} />
         </div>

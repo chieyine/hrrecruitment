@@ -109,7 +109,7 @@ function ApplyForm() {
         ])
       })
       .then(([found, data, profileData]) => {
-        setCandidateDocuments(profileData?.profile?.documents || [])
+        setCandidateDocuments((profileData?.profile?.documents || []).filter((document: any) => document.status !== 'SUPERSEDED'))
         if (data?.application?.isDraft) {
           const restored: Record<string, unknown> = {}
           for (const answer of data.application.answers || []) {

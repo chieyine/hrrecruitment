@@ -70,12 +70,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       const role = await prisma.role.findUnique({ where: { id: data.roleId } })
       if (!role) throw new AuthzError('Role not found', 404)
       if (!(STAFF_ROLE_NAMES as readonly string[]).includes(role.name))
-        throw new AuthzError('Candidate, referee and public identities cannot be assigned as staff access', 422)
+        throw new AuthzError('Candidate and public identities cannot be assigned as staff access', 422)
       const externalIdentityRoles = target.userRoles.filter((assignment) =>
-        ['CANDIDATE', 'REFEREE', 'PUBLIC'].includes(assignment.role.name)
+        ['CANDIDATE', 'PUBLIC'].includes(assignment.role.name)
       )
       if (externalIdentityRoles.length)
-        throw new AuthzError('Use a separate staff account; candidate and referee identities cannot receive staff access', 409)
+        throw new AuthzError('Use a separate staff account; candidate identities cannot receive staff access', 409)
       const scopeType = 'GLOBAL'
       const scopeId = 'GLOBAL'
       const otherRoleAssignments = target.userRoles.filter((assignment) => assignment.roleId !== role.id)

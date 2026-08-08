@@ -315,11 +315,11 @@ export const offerResponseSchema = z
     proposedStartDate: z.coerce.date().optional(),
   })
   .superRefine((value, context) => {
-    if (value.action === 'ACCEPT' && !value.signatureName)
+    if (value.action === 'ACCEPT' && !value.signatureName && !value.signedFileId)
       context.addIssue({
         code: 'custom',
         path: ['signatureName'],
-        message: 'Full legal name is required as your electronic signature',
+        message: 'Type your legal name or upload the signed offer',
       })
     if (value.action === 'ACCEPT' && value.declarationAccepted !== true)
       context.addIssue({

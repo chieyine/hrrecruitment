@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 import { hasStaffRole } from '@/lib/roles'
+import { APPLICATION_SOURCE_COOKIE, normalizeApplicationSource } from '@/lib/application-source'
 
 const secretRaw = process.env.JWT_SECRET
 const secret = secretRaw && secretRaw.length >= 32 ? new TextEncoder().encode(secretRaw) : null
@@ -179,6 +180,10 @@ export async function proxy(req: NextRequest) {
   const requestHeaders = new Headers(req.headers)
   requestHeaders.set('x-request-id', requestId)
   const response = NextResponse.next({ request: { headers: requestHeaders } })
+  if (pathname.startsWith('/careers') && !req.cookies.has(APPLICATION_SOURCE_COOKIE)) {
+    const source = normalizeApplicationSource(req.nextUrl.searchParams.get('utm_source') || req.nextUrl.searchParams.get('source'))
+    response.cookies.set(APPLICATION_SOURCE_COOKIE, source, { httpOnly: true, sameSite: 'lax', secure: req.nextUrl.protocol === 'https:', path: '/', maxAge: 60 * 60 * 24 * 30 })
+  }
   response.headers.set('x-request-id', requestId)
   return response
 }
@@ -191,5 +196,6 @@ export const config = {
     '/api/candidate/:path*',
     '/api/recruitment/:path*',
     '/api/admin/:path*',
+    '/careers/:path*',
   ],
 }

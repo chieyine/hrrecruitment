@@ -132,6 +132,7 @@ export async function POST(request: Request) {
           internalStatus: 'SUBMITTED',
           candidateVisibleStatus: 'APPLICATION_RECEIVED',
           submittedAt: new Date(),
+          source: 'ASSISTED',
           answers: {
             create: safeAnswers.map((answer) => ({
               vacancyQuestionId: answer.vacancyQuestionId,

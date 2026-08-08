@@ -27,7 +27,7 @@ export default async function RecruitmentAssessmentsPage() {
     orderBy: { title: 'asc' },
     take: 100,
   })
-  const [vacancies, eligibleApplications] = await Promise.all([
+  const [vacancies, eligibleApplications, reviewers] = await Promise.all([
     prisma.vacancy.findMany({
       where: { status: { notIn: ['CANCELLED', 'COMPLETED', 'ARCHIVED'] } },
       select: { id: true, title: true },
@@ -37,6 +37,7 @@ export default async function RecruitmentAssessmentsPage() {
       where: { internalStatus: 'SHORTLISTED', candidateAssessments: { none: {} } },
       include: { candidate: true },
     }),
+    prisma.user.findMany({ where: { accountStatus: 'ACTIVE', userRoles: { some: { role: { name: { in: ['RECRUITMENT_OFFICER', 'HR_MANAGER', 'HIRING_MANAGER'] } } } } }, select: { id: true, email: true }, orderBy: { email: 'asc' }, take: 500 }),
   ])
 
   return (
@@ -88,8 +89,13 @@ export default async function RecruitmentAssessmentsPage() {
                 candidateName: `${record.application.candidate.legalFirstName} ${record.application.candidate.lastName}`,
                 status: record.status,
                 assessmentType: assessment.type,
+                markerUserId: record.markerUserId,
+                assignedReviewerUserId: record.assignedReviewerUserId,
+                score: record.score,
               }))
             )}
+            currentUserId={user.userId}
+            reviewers={reviewers}
           />
         </div>
       </main>

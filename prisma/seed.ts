@@ -22,7 +22,6 @@ async function main() {
       description: 'Budget Holder confirming funding, ceilings and budget lines for staffing requests',
     },
     { name: 'PANEL_MEMBER', description: 'Interview panel scoring member' },
-    { name: 'REFEREE', description: 'External referee completing reference check' },
     { name: 'APPROVER', description: 'Executive approver' },
     { name: 'COURSE_ADMIN', description: 'Preboarding course administrator' },
     { name: 'SYSTEM_ADMIN', description: 'System administrator' },
@@ -43,7 +42,7 @@ async function main() {
   const seedPassword = process.env.SEED_PASSWORD
   if (!seedPassword || seedPassword.length < 12 || !/[A-Za-z]/.test(seedPassword) || !/[0-9]/.test(seedPassword))
     throw new Error('SEED_PASSWORD must be explicitly set and contain at least 12 characters, a letter, and a number')
-  const passwordHash = await bcrypt.hash(seedPassword, 10)
+  const passwordHash = await bcrypt.hash(seedPassword, 12)
 
   const adminUser = await prisma.user.upsert({
     where: { email: 'admin@fradfoundation.org' },

@@ -309,7 +309,12 @@ export async function POST(request: Request) {
         if (vacancy.ownerUserId === user.userId) {
           throw new AuthzError('The vacancy owner cannot approve their own vacancy', 409)
         }
-        if (!approved) {
+        if (approved) {
+          await tx.vacancy.update({
+            where: { id: vacancy.id },
+            data: { status: 'APPROVED', lockVersion: { increment: 1 } },
+          })
+        } else {
           await tx.vacancy.update({
             where: { id: vacancy.id },
             data: { status: 'DRAFT', lockVersion: { increment: 1 } },

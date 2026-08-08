@@ -260,7 +260,7 @@ export default function OperatingModelManager({
             <span className="field-label">Reason for change *</span>
             <textarea required minLength={10} maxLength={2000} rows={4} value={changeReason} onChange={(event) => setChangeReason(event.target.value)} className="field-control resize-y" />
           </label>
-          <p className="text-xs leading-5 text-stone-500">A different HR manager must approve this target before it applies to new work.</p>
+          <p className="text-xs leading-5 text-stone-500">The HR Manager approves this target before it applies to new work.</p>
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setEditing(null)} className="btn-secondary">Cancel</button>
             <button type="submit" disabled={busy || changeReason.trim().length < 10} className="btn-primary">

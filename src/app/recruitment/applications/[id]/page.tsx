@@ -74,6 +74,23 @@ export default function ApplicationRecordPage(props: { params: Promise<{ id: str
   const [stageReason, setStageReason] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [now] = useState(() => Date.now())
+  const [documentReview, setDocumentReview] = useState<Record<string, { status: 'APPROVED' | 'REJECTED'; notes: string; source: string; rejectionReason: string; restricted: boolean }>>({})
+
+  const verifyDocument = async (documentId: string) => {
+    const review = documentReview[documentId]
+    if (!review) return
+    setBusy(`document-${documentId}`)
+    const response = await fetch(`/api/recruitment/candidate-documents/${documentId}/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: review.status, verificationNotes: review.notes, verificationSource: review.source, rejectionReason: review.rejectionReason || undefined, restricted: review.restricted }),
+    })
+    const data = await response.json()
+    setMessage(response.ok ? 'Document verification saved.' : data.error || 'Document verification could not be saved.')
+    setMessageIsError(!response.ok)
+    setBusy(null)
+    if (response.ok) setApplication((current: any) => ({ ...current, candidate: { ...current.candidate, documents: current.candidate.documents.map((document: any) => document.id === documentId ? data.document : document) } }))
+  }
 
   useEffect(() => {
     let active = true
@@ -555,6 +572,36 @@ export default function ApplicationRecordPage(props: { params: Promise<{ id: str
                     <p className="mt-2 text-sm text-stone-500">No application documents are attached.</p>
                   )}
                 </div>
+
+                {application.candidate.documents?.length > 0 && (
+                  <div className="mt-6 border-t border-stone-200 pt-6">
+                    <h3 className="text-sm font-semibold text-stone-950">Candidate document verification</h3>
+                    <p className="mt-1 text-xs text-stone-500">Each upload is preserved as a version. Verify only the current version and record how it was checked.</p>
+                    <div className="mt-3 space-y-3">
+                      {application.candidate.documents.map((document: any) => {
+                        const review = documentReview[document.id] || { status: 'APPROVED' as const, notes: '', source: '', rejectionReason: '', restricted: false }
+                        return (
+                          <div key={document.id} className="rounded-xl border border-stone-200 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <a href={`/api/assets/download/${document.fileAsset.id}`} className="text-sm font-semibold text-brand-800 hover:underline">{document.documentType} · version {document.versionNumber} · {document.fileAsset.originalName}</a>
+                              <span className="status-chip bg-stone-100 text-stone-700">{document.status}</span>
+                            </div>
+                            {document.status !== 'SUPERSEDED' && (!document.restricted || application.capabilities.readRestricted) && (
+                              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                                <select className="field-control" value={review.status} onChange={(event) => setDocumentReview({ ...documentReview, [document.id]: { ...review, status: event.target.value as 'APPROVED' | 'REJECTED' } })}><option value="APPROVED">Approve</option><option value="REJECTED">Reject</option></select>
+                                <input className="field-control" placeholder="Verification source" value={review.source} onChange={(event) => setDocumentReview({ ...documentReview, [document.id]: { ...review, source: event.target.value } })} />
+                                <textarea className="field-control md:col-span-2" placeholder="Verification notes" value={review.notes} onChange={(event) => setDocumentReview({ ...documentReview, [document.id]: { ...review, notes: event.target.value } })} />
+                                {review.status === 'REJECTED' && <textarea className="field-control md:col-span-2" placeholder="Reason for rejection" value={review.rejectionReason} onChange={(event) => setDocumentReview({ ...documentReview, [document.id]: { ...review, rejectionReason: event.target.value } })} />}
+                                <label className="flex items-center gap-2 text-xs font-semibold text-stone-700"><input type="checkbox" checked={review.restricted} onChange={(event) => setDocumentReview({ ...documentReview, [document.id]: { ...review, restricted: event.target.checked } })} />Restrict verification notes</label>
+                                <button type="button" className="btn-secondary justify-self-start" disabled={busy === `document-${document.id}` || review.notes.trim().length < 5 || review.source.trim().length < 2 || (review.status === 'REJECTED' && review.rejectionReason.trim().length < 5)} onClick={() => verifyDocument(document.id)}>Save verification</button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </section>
 
               {capabilities.submitScorecard && (
